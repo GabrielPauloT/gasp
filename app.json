@@ -1,25 +1,27 @@
 {
   "expo": {
-    "name": "gasp",
+    "name": "GASP",
     "slug": "gasp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gasp",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.gasp.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0A0A0F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.gasp.app"
     },
     "web": {
       "output": "static",
@@ -33,12 +35,36 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#0A0A0F",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#0A0A0F"
           }
         }
-      ]
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "GASP needs your camera to capture moments and reactions",
+          "microphonePermission": "GASP needs your microphone to record audio with videos",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GASP needs access to your photos to send moments"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "GASP needs access to save your gasps and reactions",
+          "savePhotosPermission": "GASP needs permission to save photos to your library"
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
