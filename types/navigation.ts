@@ -21,7 +21,12 @@ export type TabParamList = {
 
 export type ModalParamList = {
   'view-gasp': { gaspId: string };
-  'reaction-result': { reactionId: string };
+  'reaction-result': {
+    reactionImageUri: string;
+    originalImageUri: string;
+    senderName: string;
+    gaspId: string;
+  };
   'send-gasp': { imageUri: string };
   'camera-preview': { imageUri: string };
   'friend-profile': { friendId: string };

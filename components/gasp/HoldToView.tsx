@@ -5,9 +5,8 @@ import { GaspTimer } from './GaspTimer';
 import Animated, {
   useAnimatedStyle,
   interpolate,
+  type SharedValue,
 } from 'react-native-reanimated';
-import { GestureDetector } from 'react-native-gesture-handler';
-import { useHoldGesture } from '@/hooks/useHoldGesture';
 import { colors } from '@/constants/colors';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -16,22 +15,19 @@ interface HoldToViewProps {
   imageUri: string;
   blurhash?: string;
   senderName: string;
-  onHoldComplete?: () => void;
-  onRelease?: () => void;
+  /** Shared value controlado pelo pai (0 = não segurando, 1 = segurando) */
+  isHolding: SharedValue<number>;
+  /** Shared value controlado pelo pai (0 a 1, progresso do hold) */
+  holdProgress: SharedValue<number>;
 }
 
 export function HoldToView({
   imageUri,
   blurhash,
   senderName,
-  onHoldComplete,
-  onRelease,
+  isHolding,
+  holdProgress,
 }: HoldToViewProps) {
-  const { gesture, isHolding, holdProgress } = useHoldGesture({
-    onHoldComplete,
-    onHoldEnd: onRelease,
-  });
-
   const imageStyle = useAnimatedStyle(() => ({
     opacity: interpolate(isHolding.get(), [0, 1], [0, 1]),
   }));
@@ -43,52 +39,47 @@ export function HoldToView({
     ],
   }));
 
+  const timerStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(isHolding.get(), [0, 1], [0, 1]),
+  }));
+
   return (
-    <GestureDetector gesture={gesture}>
-      <View style={styles.container}>
-        {/* Blurred preview (always visible) */}
+    <View style={styles.container}>
+      {/* Blurred preview (always visible) */}
+      <Image
+        source={{ uri: imageUri }}
+        placeholder={blurhash ? { blurhash } : undefined}
+        style={styles.blurredImage}
+        contentFit="cover"
+        blurRadius={30}
+      />
+
+      {/* Revealed image (visible on hold) */}
+      <Animated.View style={[styles.revealedContainer, imageStyle]}>
         <Image
           source={{ uri: imageUri }}
-          placeholder={blurhash ? { blurhash } : undefined}
-          style={styles.blurredImage}
+          style={styles.revealedImage}
           contentFit="cover"
-          blurRadius={30}
+          transition={200}
         />
+      </Animated.View>
 
-        {/* Revealed image (visible on hold) */}
-        <Animated.View style={[styles.revealedContainer, imageStyle]}>
-          <Image
-            source={{ uri: imageUri }}
-            style={styles.revealedImage}
-            contentFit="cover"
-            transition={200}
-          />
-        </Animated.View>
+      {/* Hold instruction overlay */}
+      <Animated.View style={[styles.instructionOverlay, instructionStyle]}>
+        <GaspTimer progress={holdProgress} size={100} strokeWidth={3} />
+        <Text variant="subtitle" style={styles.senderName}>
+          {senderName}
+        </Text>
+        <Text variant="caption" style={styles.instruction}>
+          {'HOLD TO VIEW'}
+        </Text>
+      </Animated.View>
 
-        {/* Hold instruction overlay */}
-        <Animated.View style={[styles.instructionOverlay, instructionStyle]}>
-          <GaspTimer progress={holdProgress} size={100} strokeWidth={3} />
-          <Text variant="subtitle" style={styles.senderName}>
-            {senderName}
-          </Text>
-          <Text variant="caption" style={styles.instruction}>
-            {'HOLD TO VIEW'}
-          </Text>
-        </Animated.View>
-
-        {/* Timer during hold */}
-        <Animated.View
-          style={[
-            styles.timerContainer,
-            useAnimatedStyle(() => ({
-              opacity: interpolate(isHolding.get(), [0, 1], [0, 1]),
-            })),
-          ]}
-        >
-          <GaspTimer progress={holdProgress} size={60} strokeWidth={3} />
-        </Animated.View>
-      </View>
-    </GestureDetector>
+      {/* Timer during hold */}
+      <Animated.View style={[styles.timerContainer, timerStyle]}>
+        <GaspTimer progress={holdProgress} size={60} strokeWidth={3} />
+      </Animated.View>
+    </View>
   );
 }
 
