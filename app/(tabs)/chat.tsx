@@ -10,6 +10,7 @@ import { SendGaspToAllButton } from '@/components/inbox/SendGaspToAllButton';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useInboxStore, useFilteredFriends } from '@/stores/inboxStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useChatStore } from '@/stores/chatStore';
 import type { InboxFriend } from '@/stores/inboxStore';
 import { colors } from '@/constants/colors';
 
@@ -30,12 +31,23 @@ export default function ChatScreen() {
     }
   }, [isGuest, fetchFriends]);
 
-  const handleFriendPress = useCallback((id: string) => {
-    router.push({
-      pathname: '/(modals)/view-gasp',
-      params: { gaspId: id },
-    });
-  }, []);
+  const getOrCreateConversation = useChatStore((s) => s.getOrCreateConversation);
+
+  const handleFriendPress = useCallback(async (friend: InboxFriend) => {
+    try {
+      const conv = await getOrCreateConversation(friend.id);
+      router.push({
+        pathname: '/chat/[id]' as any,
+        params: { 
+          id: conv.id, 
+          name: friend.name, 
+          avatarUrl: friend.avatarUrl || '' 
+        },
+      });
+    } catch (error) {
+      console.error('Failed to open chat:', error);
+    }
+  }, [getOrCreateConversation]);
 
   const handleSendGaspToAll = () => {
     router.push('/(tabs)/camera');
@@ -58,7 +70,7 @@ export default function ChatScreen() {
         actionType={item.actionType}
         badgeCount={item.badgeCount}
         thumbnailUrl={item.thumbnailUrl}
-        onPress={handleFriendPress}
+        onPress={() => handleFriendPress(item)}
       />
     ),
     [handleFriendPress]

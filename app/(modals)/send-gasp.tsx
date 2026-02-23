@@ -10,6 +10,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { useInboxStore } from '@/stores/inboxStore';
 import { useGaspStore } from '@/stores/gaspStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useChatStore } from '@/stores/chatStore';
 import type { InboxFriend } from '@/stores/inboxStore';
 import { uploadGasp } from '@/services/storage';
 import { getApiErrorMessage } from '@/services/api';
@@ -60,6 +61,7 @@ export default function SendGaspScreen() {
 
     const userId = user?.id ?? 'guest';
     const sendBatchGasp = useGaspStore.getState().sendBatchGasp;
+    const { getOrCreateConversation, sendMessage } = useChatStore.getState();
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -72,10 +74,20 @@ export default function SendGaspScreen() {
 
       // 2. Save gasp metadata to backend
       setUploadProgress(0.9);
+      
+      const recipientArray = Array.from(selectedIds);
       await sendBatchGasp({
-        recipientIds: Array.from(selectedIds),
+        recipientIds: recipientArray,
         imageUrl: result.downloadUrl,
       });
+
+      // 3. Fire-and-forget socket chat messages so they visually populate the conversation stream
+      for (const friendId of recipientArray) {
+        try {
+          const conv = await getOrCreateConversation(friendId);
+          sendMessage(conv.id, '[Gasp]', 'gasp', result.downloadUrl);
+        } catch {}
+      }
 
       setUploadProgress(1);
       router.dismissAll();

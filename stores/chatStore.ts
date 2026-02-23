@@ -60,15 +60,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ activeConversationId }),
 
   addMessage: (conversationId, message) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [conversationId]: [
-          ...(state.messages[conversationId] ?? []),
-          message,
-        ],
-      },
-    })),
+    set((state) => {
+      const current = state.messages[conversationId] ?? [];
+      // To avoid duplicates if socket and REST race:
+      if (current.some(m => m.id === message.id)) return state;
+      return {
+        messages: {
+          ...state.messages,
+          [conversationId]: [message, ...current],
+        },
+      };
+    }),
 
   setMessages: (conversationId, messages) =>
     set((state) => ({
@@ -129,10 +131,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       set((state) => {
         const existing = cursor ? (state.messages[conversationId] ?? []) : [];
+        // The backend returns newer messages first (DESC).
+        // Since FlatList is inverted, index 0 should be the newest.
+        const newMessages = result.data.filter(
+          (m) => !existing.some((e) => e.id === m.id)
+        );
         return {
           messages: {
             ...state.messages,
-            [conversationId]: [...result.data.reverse(), ...existing],
+            [conversationId]: [...existing, ...newMessages],
           },
           hasMoreMessages: {
             ...state.hasMoreMessages,

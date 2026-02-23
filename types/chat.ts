@@ -8,6 +8,7 @@ export interface Message {
   type: MessageType;
   createdAt: string;
   readAt?: string;
+  mediaUrl?: string;
 }
 
 export interface Conversation {
