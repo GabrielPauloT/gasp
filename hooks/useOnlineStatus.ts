@@ -1,36 +1,24 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useInboxStore } from '@/stores/inboxStore';
+import { useGaspStore } from '@/stores/gaspStore';
+import { useAuthStore } from '@/stores/authStore';
 
 /**
- * Simulates online status polling.
- * In production, this would connect to a WebSocket or polling service.
+ * Fetches initial data on mount when authenticated.
+ * Real-time online status updates come via Socket.IO listeners
+ * registered in useSocketListeners hook.
  */
-export function useOnlineStatus(intervalMs = 30000) {
-  const { setStats } = useInboxStore();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+export function useOnlineStatus() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isGuest = useAuthStore((s) => s.isGuest);
+  const fetchFriends = useInboxStore((s) => s.fetchFriends);
+  const fetchPendingGasps = useGaspStore((s) => s.fetchPendingGasps);
 
   useEffect(() => {
-    // Initial fetch
-    fetchOnlineStatus();
+    if (!isAuthenticated || isGuest) return;
 
-    // Poll periodically
-    intervalRef.current = setInterval(fetchOnlineStatus, intervalMs);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [intervalMs]);
-
-  function fetchOnlineStatus() {
-    // TODO: Replace with real API call
-    // For now, simulate random online count
-    const onlineCount = Math.floor(Math.random() * 20) + 30;
-    setStats({
-      friendCount: 127,
-      newGaspCount: 8,
-      onlineCount,
-    });
-  }
+    // Fetch initial data — real-time updates come via socket
+    fetchFriends();
+    fetchPendingGasps();
+  }, [isAuthenticated, isGuest, fetchFriends, fetchPendingGasps]);
 }

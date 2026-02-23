@@ -1,9 +1,11 @@
 import { useRef, useCallback } from 'react';
-import { CameraView } from 'expo-camera';
+import { Alert } from 'react-native';
+import { CameraView, useMicrophonePermissions } from 'expo-camera';
 import { useCameraStore } from '@/stores/cameraStore';
 
 export function useCamera() {
   const cameraRef = useRef<CameraView>(null);
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const { facing, flashMode, toggleFacing, cycleFlash, setCapturedUri, setRecording } =
     useCameraStore();
 
@@ -30,6 +32,18 @@ export function useCamera() {
   const startRecording = useCallback(async () => {
     if (!cameraRef.current) return;
 
+    // Ensure microphone permission before recording
+    if (!micPermission?.granted) {
+      const { granted } = await requestMicPermission();
+      if (!granted) {
+        Alert.alert(
+          'Microphone required',
+          'GASP needs microphone access to record videos. Please enable it in Settings.',
+        );
+        return;
+      }
+    }
+
     try {
       setRecording(true);
       const video = await cameraRef.current.recordAsync({
@@ -44,7 +58,7 @@ export function useCamera() {
     } finally {
       setRecording(false);
     }
-  }, [setCapturedUri, setRecording]);
+  }, [micPermission, requestMicPermission, setCapturedUri, setRecording]);
 
   const stopRecording = useCallback(() => {
     if (!cameraRef.current) return;
