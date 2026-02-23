@@ -22,7 +22,7 @@ export type TabParamList = {
 export type ModalParamList = {
   'view-gasp': { gaspId: string };
   'reaction-result': {
-    reactionImageUri: string;
+    reactionVideoUri: string;
     originalImageUri: string;
     senderName: string;
     gaspId: string;

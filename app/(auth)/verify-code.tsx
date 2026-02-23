@@ -1,22 +1,63 @@
-import { StyleSheet, View, Pressable } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
+import auth from '@react-native-firebase/auth';
 import { Text } from '@/components/ui/Text';
 import { OtpInput } from '@/components/auth/OtpInput';
 import { useAuthStore } from '@/stores/authStore';
+import { getApiErrorMessage } from '@/services/api';
 import { colors } from '@/constants/colors';
 
 export default function VerifyCodeScreen() {
   const insets = useSafeAreaInsets();
-  const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
-  const { continueAsGuest } = useAuthStore();
+  const { phoneNumber, verificationId } = useLocalSearchParams<{
+    phoneNumber: string;
+    verificationId: string;
+  }>();
+  const { login } = useAuthStore();
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  const handleComplete = (code: string) => {
-    // TODO: Verify code with backend
-    // For now, just continue as guest
-    continueAsGuest();
-    router.replace('/(tabs)/camera');
+  const handleComplete = async (code: string) => {
+    if (!verificationId || isVerifying) return;
+
+    setIsVerifying(true);
+    try {
+      // 1. Verify OTP with Firebase (native SDK)
+      const credential = auth.PhoneAuthProvider.credential(verificationId, code);
+      const userCredential = await auth().signInWithCredential(credential);
+      const firebaseToken = await userCredential.user.getIdToken();
+
+      // 2. Login with backend
+      try {
+        await login(firebaseToken);
+        router.replace('/(tabs)/camera');
+      } catch (error: any) {
+        // If 401 with "not registered" → user needs to create profile
+        const status = error?.response?.status;
+        const msg = error?.response?.data?.message ?? '';
+        if (status === 401 && msg.toLowerCase().includes('not registered')) {
+          router.replace({
+            pathname: '/(auth)/create-profile',
+            params: { firebaseToken, phoneNumber },
+          });
+        } else {
+          Alert.alert('Login failed', getApiErrorMessage(error));
+        }
+      }
+    } catch (error: any) {
+      const code = error?.code ?? '';
+      const message =
+        code === 'auth/invalid-verification-code'
+          ? 'Invalid code. Please try again.'
+          : code === 'auth/code-expired'
+            ? 'Code expired. Please request a new one.'
+            : 'Verification failed. Please try again.';
+      Alert.alert('Error', message);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (
@@ -34,7 +75,16 @@ export default function VerifyCodeScreen() {
         </Text>
 
         <View style={styles.otpContainer}>
-          <OtpInput onComplete={handleComplete} />
+          {isVerifying ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text variant="body" style={styles.loadingText}>
+                {'Verifying...'}
+              </Text>
+            </View>
+          ) : (
+            <OtpInput onComplete={handleComplete} />
+          )}
         </View>
 
         <Pressable style={styles.resendButton}>
@@ -79,6 +129,15 @@ const styles = StyleSheet.create({
   },
   otpContainer: {
     marginVertical: 16,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 20,
+  },
+  loadingText: {
+    color: colors.textSecondary,
+    fontSize: 14,
   },
   resendButton: {
     alignItems: 'center',

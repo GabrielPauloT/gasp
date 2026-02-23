@@ -4,6 +4,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { clsx } from 'clsx';
@@ -101,8 +102,9 @@ export function Button({
       scale.set(withTiming(1, { duration: 150 }));
     })
     .onEnd(() => {
+      'worklet';
       if (onPress && !disabled && !loading) {
-        onPress();
+        runOnJS(onPress)();
       }
     })
     .enabled(!disabled && !loading);

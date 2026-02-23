@@ -1,6 +1,16 @@
 import { create } from 'zustand';
 import type { User } from '@/types/user';
-import { setAuthToken, removeAuthToken } from '@/utils/storage';
+import auth from '@react-native-firebase/auth';
+import {
+  setAuthToken,
+  removeAuthToken,
+  getAuthToken,
+  setUserData,
+  removeUserData,
+} from '@/utils/storage';
+import * as authApi from '@/services/api/auth';
+import * as usersApi from '@/services/api/users';
+import { connectSocket, disconnectSocket } from '@/services/socket';
 
 interface AuthState {
   user: User | null;
@@ -8,12 +18,26 @@ interface AuthState {
   isGuest: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
 
   setUser: (user: User) => void;
   setToken: (token: string) => void;
   continueAsGuest: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   setLoading: (loading: boolean) => void;
+
+  /** Login with Firebase token. Throws if user not found (needs register). */
+  login: (firebaseToken: string) => Promise<User>;
+
+  /** Register new user with Firebase token + profile data. */
+  register: (data: {
+    firebaseToken: string;
+    displayName: string;
+    username: string;
+  }) => Promise<User>;
+
+  /** Restore session on app launch. Returns true if session is valid. */
+  initializeAuth: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -22,6 +46,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isGuest: false,
   isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
 
   setUser: (user) =>
     set({ user, isAuthenticated: true }),
@@ -35,6 +60,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       isGuest: true,
       isAuthenticated: true,
+      isInitialized: true,
       user: {
         id: 'guest',
         displayName: 'Guest',
@@ -45,14 +71,110 @@ export const useAuthStore = create<AuthState>((set) => ({
     }),
 
   logout: async () => {
-    await removeAuthToken();
+    try {
+      disconnectSocket();
+    } catch {}
+
+    try {
+      await auth().signOut();
+    } catch {}
+
+    try {
+      await removeAuthToken();
+      await removeUserData();
+    } catch {}
+
     set({
       user: null,
       token: null,
       isGuest: false,
       isAuthenticated: false,
+      isInitialized: true,
     });
   },
 
   setLoading: (isLoading) => set({ isLoading }),
+
+  login: async (firebaseToken) => {
+    set({ isLoading: true });
+    try {
+      const { user, token } = await authApi.login(firebaseToken);
+      await setAuthToken(token);
+      await setUserData(JSON.stringify(user));
+      connectSocket(token);
+      set({
+        user,
+        token,
+        isAuthenticated: true,
+        isGuest: false,
+        isInitialized: true,
+      });
+      return user;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  register: async (data) => {
+    set({ isLoading: true });
+    try {
+      const { user, token } = await authApi.register(data);
+      await setAuthToken(token);
+      await setUserData(JSON.stringify(user));
+      connectSocket(token);
+      set({
+        user,
+        token,
+        isAuthenticated: true,
+        isGuest: false,
+        isInitialized: true,
+      });
+      return user;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  initializeAuth: async () => {
+    set({ isLoading: true });
+    try {
+      const savedToken = await getAuthToken();
+      if (!savedToken) {
+        set({ isInitialized: true });
+        return false;
+      }
+
+      // Set token so API interceptor can use it
+      set({ token: savedToken });
+
+      try {
+        const user = await usersApi.getMe();
+        await setUserData(JSON.stringify(user));
+        connectSocket(savedToken);
+        set({
+          user,
+          isAuthenticated: true,
+          isGuest: false,
+          isInitialized: true,
+        });
+        return true;
+      } catch {
+        // Token invalid → clear session
+        try {
+          await auth().signOut();
+        } catch {}
+        await removeAuthToken();
+        await removeUserData();
+        set({
+          token: null,
+          user: null,
+          isAuthenticated: false,
+          isInitialized: true,
+        });
+        return false;
+      }
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 }));

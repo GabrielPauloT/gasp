@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { Gasp, Reaction } from '@/types/gasp';
+import * as gaspsApi from '@/services/api/gasps';
+import * as reactionsApi from '@/services/api/reactions';
 
 interface GaspState {
   pendingGasps: Gasp[];
@@ -8,6 +10,8 @@ interface GaspState {
   currentViewingGasp: Gasp | null;
   isHolding: boolean;
   holdProgress: number;
+  isLoadingPending: boolean;
+  isLoadingSent: boolean;
 
   setCurrentGasp: (gasp: Gasp | null) => void;
   setHolding: (holding: boolean) => void;
@@ -18,26 +22,31 @@ interface GaspState {
   addReaction: (reaction: Reaction) => void;
   setPendingGasps: (gasps: Gasp[]) => void;
   setSentGasps: (gasps: Gasp[]) => void;
+  removeExpiredGasp: (gaspId: string) => void;
+
+  fetchPendingGasps: () => Promise<void>;
+  fetchSentGasps: () => Promise<void>;
+  sendBatchGasp: (data: { recipientIds: string[]; imageUrl: string; blurhash?: string }) => Promise<void>;
+  viewGasp: (gaspId: string) => Promise<void>;
+  createReaction: (data: { gaspId: string; videoUrl: string }) => Promise<Reaction>;
 }
 
-export const useGaspStore = create<GaspState>((set) => ({
+export const useGaspStore = create<GaspState>((set, get) => ({
   pendingGasps: [],
   sentGasps: [],
   reactions: [],
   currentViewingGasp: null,
   isHolding: false,
   holdProgress: 0,
+  isLoadingPending: false,
+  isLoadingSent: false,
 
   setCurrentGasp: (gasp) => set({ currentViewingGasp: gasp }),
-
   setHolding: (isHolding) => set({ isHolding }),
-
   setHoldProgress: (holdProgress) => set({ holdProgress }),
 
   addPendingGasp: (gasp) =>
-    set((state) => ({
-      pendingGasps: [gasp, ...state.pendingGasps],
-    })),
+    set((state) => ({ pendingGasps: [gasp, ...state.pendingGasps] })),
 
   markGaspViewed: (gaspId) =>
     set((state) => ({
@@ -49,15 +58,52 @@ export const useGaspStore = create<GaspState>((set) => ({
     })),
 
   addSentGasp: (gasp) =>
-    set((state) => ({
-      sentGasps: [gasp, ...state.sentGasps],
-    })),
+    set((state) => ({ sentGasps: [gasp, ...state.sentGasps] })),
 
   addReaction: (reaction) =>
-    set((state) => ({
-      reactions: [reaction, ...state.reactions],
-    })),
+    set((state) => ({ reactions: [reaction, ...state.reactions] })),
 
   setPendingGasps: (pendingGasps) => set({ pendingGasps }),
   setSentGasps: (sentGasps) => set({ sentGasps }),
+
+  removeExpiredGasp: (gaspId) =>
+    set((state) => ({
+      pendingGasps: state.pendingGasps.filter((g) => g.id !== gaspId),
+    })),
+
+  fetchPendingGasps: async () => {
+    set({ isLoadingPending: true });
+    try {
+      const gasps = await gaspsApi.getPendingGasps();
+      set({ pendingGasps: gasps });
+    } finally {
+      set({ isLoadingPending: false });
+    }
+  },
+
+  fetchSentGasps: async () => {
+    set({ isLoadingSent: true });
+    try {
+      const gasps = await gaspsApi.getSentGasps();
+      set({ sentGasps: gasps });
+    } finally {
+      set({ isLoadingSent: false });
+    }
+  },
+
+  sendBatchGasp: async (data) => {
+    const gasps = await gaspsApi.sendBatchGasp(data);
+    set((state) => ({ sentGasps: [...gasps, ...state.sentGasps] }));
+  },
+
+  viewGasp: async (gaspId) => {
+    await gaspsApi.markViewed(gaspId);
+    get().markGaspViewed(gaspId);
+  },
+
+  createReaction: async (data) => {
+    const reaction = await reactionsApi.createReaction(data);
+    set((state) => ({ reactions: [reaction, ...state.reactions] }));
+    return reaction;
+  },
 }));

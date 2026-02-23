@@ -26,6 +26,10 @@ export async function setUserData(data: string): Promise<void> {
   await SecureStore.setItemAsync(KEYS.USER_DATA, data);
 }
 
+export async function removeUserData(): Promise<void> {
+  await SecureStore.deleteItemAsync(KEYS.USER_DATA);
+}
+
 export async function getOnboardingComplete(): Promise<boolean> {
   const value = await SecureStore.getItemAsync(KEYS.ONBOARDING_COMPLETE);
   return value === 'true';

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { StyleSheet, View, Pressable, FlatList } from 'react-native';
+import { useState, useCallback, useMemo } from 'react';
+import { StyleSheet, View, Pressable, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,15 +8,22 @@ import { X, Send, Check } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useInboxStore } from '@/stores/inboxStore';
+import { useGaspStore } from '@/stores/gaspStore';
+import { useAuthStore } from '@/stores/authStore';
 import type { InboxFriend } from '@/stores/inboxStore';
+import { uploadGasp } from '@/services/storage';
+import { getApiErrorMessage } from '@/services/api';
 import { colors } from '@/constants/colors';
 
 export default function SendGaspScreen() {
   const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
   const insets = useSafeAreaInsets();
   const friends = useInboxStore((s) => s.friends);
+  const user = useAuthStore((s) => s.user);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const filteredFriends = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -48,10 +55,41 @@ export default function SendGaspScreen() {
     }
   }, [friends, selectedIds.size]);
 
-  const handleSend = () => {
-    // TODO: Send gasp to selected friends via API
-    router.dismissAll();
-    router.replace('/(tabs)/camera');
+  const handleSend = async () => {
+    if (!imageUri || isUploading) return;
+
+    const userId = user?.id ?? 'guest';
+    const sendBatchGasp = useGaspStore.getState().sendBatchGasp;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      // 1. Upload image to Firebase Storage
+      const result = await uploadGasp(imageUri, userId, ({ progress }) => {
+        setUploadProgress(progress * 0.8); // 80% for upload
+      });
+
+      // 2. Save gasp metadata to backend
+      setUploadProgress(0.9);
+      await sendBatchGasp({
+        recipientIds: Array.from(selectedIds),
+        imageUrl: result.downloadUrl,
+      });
+
+      setUploadProgress(1);
+      router.dismissAll();
+      router.replace('/(tabs)/camera');
+    } catch (error) {
+      Alert.alert(
+        'Send failed',
+        getApiErrorMessage(error),
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const handleClose = () => {
@@ -183,12 +221,36 @@ export default function SendGaspScreen() {
           entering={FadeInDown.duration(300)}
           style={[styles.sendContainer, { paddingBottom: insets.bottom + 16 }]}
         >
-          <Pressable onPress={handleSend} style={styles.sendButton}>
-            <Send size={20} color="#FFFFFF" />
-            <Text variant="body" style={styles.sendText}>
-              {'Send to '}{selectedIds.size.toString()}{selectedIds.size === 1 ? ' friend' : ' friends'}
-            </Text>
+          <Pressable
+            onPress={handleSend}
+            disabled={isUploading}
+            style={[styles.sendButton, isUploading && styles.sendButtonDisabled]}
+          >
+            {isUploading ? (
+              <>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text variant="body" style={styles.sendText}>
+                  {'Uploading... '}{Math.round(uploadProgress * 100)}{'%'}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Send size={20} color="#FFFFFF" />
+                <Text variant="body" style={styles.sendText}>
+                  {'Send to '}{selectedIds.size.toString()}{selectedIds.size === 1 ? ' friend' : ' friends'}
+                </Text>
+              </>
+            )}
           </Pressable>
+
+          {/* Upload progress bar */}
+          {isUploading && (
+            <View style={styles.progressBarContainer}>
+              <View
+                style={[styles.progressBar, { width: `${uploadProgress * 100}%` }]}
+              />
+            </View>
+          )}
         </Animated.View>
       )}
     </View>
@@ -341,5 +403,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 16,
+  },
+  sendButtonDisabled: {
+    opacity: 0.7,
+  },
+  progressBarContainer: {
+    height: 3,
+    backgroundColor: 'rgba(124, 58, 237, 0.2)',
+    borderRadius: 2,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 2,
   },
 });

@@ -1,19 +1,22 @@
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View, Pressable } from 'react-native';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
-import { Phone } from 'lucide-react-native';
+import { ChevronDown } from 'lucide-react-native';
+import type { Country } from '@/constants/countryCodes';
 
 interface PhoneInputProps {
   value: string;
   onChangeText: (text: string) => void;
-  countryCode?: string;
+  country: Country;
+  onCountryPress: () => void;
 }
 
 export function PhoneInput({
   value,
   onChangeText,
-  countryCode = '+1',
+  country,
+  onCountryPress,
 }: PhoneInputProps) {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -24,12 +27,13 @@ export function PhoneInput({
         isFocused ? styles.containerFocused : null,
       ]}
     >
-      <View style={styles.countryCode}>
-        <Phone size={18} color={colors.textSecondary} />
+      <Pressable style={styles.countryCode} onPress={onCountryPress}>
+        <Text style={styles.flag}>{country.flag}</Text>
         <Text variant="body" style={styles.codeText}>
-          {countryCode}
+          {country.code}
         </Text>
-      </View>
+        <ChevronDown size={16} color={colors.textSecondary} />
+      </Pressable>
       <View style={styles.divider} />
       <TextInput
         style={styles.input}
@@ -64,7 +68,10 @@ const styles = StyleSheet.create({
   countryCode: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+  },
+  flag: {
+    fontSize: 20,
   },
   codeText: {
     color: colors.textPrimary,

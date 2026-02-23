@@ -10,7 +10,7 @@ const IMAGE_WIDTH = (SCREEN_WIDTH - 48 - 8) / 2;
 
 interface ReactionPreviewProps {
   originalImageUri: string;
-  reactionImageUri: string;
+  reactionVideoUri: string;
   senderName: string;
   onSend?: () => void;
   onRetake?: () => void;
@@ -18,7 +18,7 @@ interface ReactionPreviewProps {
 
 export function ReactionPreview({
   originalImageUri,
-  reactionImageUri,
+  reactionVideoUri,
   senderName,
   onSend,
   onRetake,
@@ -46,7 +46,7 @@ export function ReactionPreview({
           </View>
           <View style={styles.imageCard}>
             <Image
-              source={{ uri: reactionImageUri }}
+              source={{ uri: reactionVideoUri }}
               style={styles.image}
               contentFit="cover"
             />

@@ -3,8 +3,6 @@ import { CameraView } from 'expo-camera';
 import Animated, {
   useAnimatedStyle,
   interpolate,
-  FadeIn,
-  FadeOut,
   type SharedValue,
 } from 'react-native-reanimated';
 
@@ -28,7 +26,7 @@ export function ReactionCapture({ isActive, cameraRef }: ReactionCaptureProps) {
           ref={cameraRef}
           style={styles.camera}
           facing="front"
-          mode="picture"
+          mode="video"
         />
         <View style={styles.recordingDot} />
       </View>

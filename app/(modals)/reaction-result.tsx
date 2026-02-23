@@ -9,9 +9,9 @@ import type { Reaction } from '@/types/gasp';
 
 export default function ReactionResultScreen() {
   const insets = useSafeAreaInsets();
-  const { reactionImageUri, originalImageUri, senderName, gaspId } =
+  const { reactionVideoUri, originalImageUri, senderName, gaspId } =
     useLocalSearchParams<{
-      reactionImageUri: string;
+      reactionVideoUri: string;
       originalImageUri: string;
       senderName: string;
       gaspId: string;
@@ -32,7 +32,7 @@ export default function ReactionResultScreen() {
       gaspId: gaspId ?? '',
       reactorId: user?.id ?? 'guest',
       reactorName: user?.displayName ?? 'You',
-      reactionImageUri: reactionImageUri ?? '',
+      reactionVideoUri: reactionVideoUri ?? '',
       originalImageUri: originalImageUri ?? '',
       capturedAt: new Date().toISOString(),
     };
@@ -56,7 +56,7 @@ export default function ReactionResultScreen() {
     >
       <ReactionPreview
         originalImageUri={originalImageUri ?? ''}
-        reactionImageUri={reactionImageUri ?? ''}
+        reactionVideoUri={reactionVideoUri ?? ''}
         senderName={senderName ?? ''}
         onSend={handleSend}
         onRetake={handleRetake}
