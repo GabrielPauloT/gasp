@@ -65,7 +65,8 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header */}
@@ -91,6 +92,7 @@ export default function ChatScreen() {
           inverted
           contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
           showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
           ListEmptyComponent={
             isLoadingMessages ? (
               <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 24 }} />

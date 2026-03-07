@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, TextInput, StyleSheet, Keyboard } from 'react-native';
 import { Send, Camera, Image as ImageIcon } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton } from '@/components/ui/IconButton';
 import { colors } from '@/constants/colors';
 
@@ -12,6 +13,7 @@ interface ChatInputProps {
 
 export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   const [text, setText] = useState('');
+  const insets = useSafeAreaInsets();
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -27,7 +29,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       <IconButton
         icon={<Camera size={24} color={colors.textSecondary} />}
         variant="ghost"
@@ -60,7 +62,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: 24, // safe area padding usually combined here or outer
+    paddingBottom: 12,
     gap: 8,
     backgroundColor: colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,

@@ -13,6 +13,7 @@ export function connectSocket(token: string): Socket {
 
   socket = io(API_URL, {
     auth: { token },
+    extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
     transports: ['websocket'],
     reconnection: true,
     reconnectionAttempts: 10,

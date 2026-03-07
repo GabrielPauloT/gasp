@@ -1,5 +1,6 @@
 import { StyleSheet, View, Dimensions, Pressable } from 'react-native';
 import { Image } from 'expo-image';
+import { Video, ResizeMode } from 'expo-av';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
 import { Send, RotateCcw } from 'lucide-react-native';
@@ -45,10 +46,13 @@ export function ReactionPreview({
             </Text>
           </View>
           <View style={styles.imageCard}>
-            <Image
+            <Video
               source={{ uri: reactionVideoUri }}
               style={styles.image}
-              contentFit="cover"
+              resizeMode={ResizeMode.COVER}
+              shouldPlay
+              isLooping
+              isMuted
             />
             <Text variant="caption" style={styles.imageLabel}>
               {'Reaction'}

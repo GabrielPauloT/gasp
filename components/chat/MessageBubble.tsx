@@ -1,5 +1,8 @@
-import { View, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { Image } from 'expo-image';
+import { Video, ResizeMode } from 'expo-av';
+import { Eye } from 'lucide-react-native';
 import { clsx } from 'clsx';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
@@ -12,7 +15,13 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isOwnMessage, isSequential }: MessageBubbleProps) {
-  const isImageOrGasp = message.type === 'gasp' || message.type === 'image';
+  const isGasp = message.type === 'gasp';
+  const isReaction = message.type === 'reaction';
+  const isImageOrGasp = isGasp || message.type === 'image';
+  const isMedia = isImageOrGasp || isReaction;
+  const [isHolding, setIsHolding] = useState(false);
+
+  const isHidden = isGasp && !isHolding;
 
   return (
     <View
@@ -22,21 +31,51 @@ export function MessageBubble({ message, isOwnMessage, isSequential }: MessageBu
         { marginTop: isSequential ? 4 : 16 },
       ]}
     >
-      <View
+      <Pressable
+        onPressIn={() => isGasp && setIsHolding(true)}
+        onPressOut={() => isGasp && setIsHolding(false)}
+        delayLongPress={100}
         style={[
           styles.bubble,
           isOwnMessage ? styles.ownBubble : styles.otherBubble,
-          isImageOrGasp && styles.mediaBubble,
+          isMedia && styles.mediaBubble,
         ]}
       >
-        {isImageOrGasp ? (
-          <Image
-            source={message.mediaUrl || message.content}
-            style={styles.media}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={200}
-          />
+        {isReaction ? (
+          <View style={styles.mediaContainer}>
+            <Video
+              source={{ uri: message.mediaUrl || message.content }}
+              style={styles.media}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay
+              isLooping
+              isMuted
+            />
+            <View style={styles.reactionLabel}>
+              <Text variant="caption" style={styles.reactionLabelText}>
+                Reaction
+              </Text>
+            </View>
+          </View>
+        ) : isImageOrGasp ? (
+          <View style={styles.mediaContainer}>
+            <Image
+              source={message.mediaUrl || message.content}
+              style={styles.media}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={200}
+              blurRadius={isHidden ? 25 : 0}
+            />
+            {isHidden && (
+              <View style={styles.hiddenOverlay}>
+                <Eye size={32} color="#FFFFFF" />
+                <Text variant="body" style={styles.hiddenText}>
+                  Hold to view
+                </Text>
+              </View>
+            )}
+          </View>
         ) : (
           <Text
             variant="body"
@@ -48,7 +87,7 @@ export function MessageBubble({ message, isOwnMessage, isSequential }: MessageBu
             {message.content}
           </Text>
         )}
-      </View>
+      </Pressable>
       <Text variant="caption" style={[styles.time, isOwnMessage ? styles.ownTime : styles.otherTime]}>
         {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </Text>
@@ -90,12 +129,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  media: {
+  mediaContainer: {
+    position: 'relative',
     width: 220,
     height: 300,
     borderRadius: 16,
-    borderCurve: 'continuous',
+    overflow: 'hidden',
+  },
+  media: {
+    width: '100%',
+    height: '100%',
     backgroundColor: colors.surface,
+  },
+  hiddenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  hiddenText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  reactionLabel: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(124, 58, 237, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  reactionLabelText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   text: {
     fontSize: 15,

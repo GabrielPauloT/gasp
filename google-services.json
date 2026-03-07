@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "15886236987",
+    "project_id": "gasp-cab37",
+    "storage_bucket": "gasp-cab37.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:15886236987:android:249882f49164a1e0e8cb1e",
+        "android_client_info": {
+          "package_name": "com.gasp.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgtSLGSKKk0GKBH1tTNboCeyfz7eN7QBQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
