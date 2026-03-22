@@ -1,17 +1,26 @@
-import { StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/colors';
 
 export function TermsFooter() {
   return (
     <View style={styles.container}>
       <Text variant="caption" style={styles.text}>
         {'By continuing, you agree to our '}
-        <Text variant="caption" style={styles.link}>
+        <Text
+          variant="caption"
+          style={styles.link}
+          onPress={() => Linking.openURL('https://gasp.app/terms')}
+          accessibilityRole="link"
+        >
           {'Terms'}
         </Text>
         {' & '}
-        <Text variant="caption" style={styles.link}>
+        <Text
+          variant="caption"
+          style={styles.link}
+          onPress={() => Linking.openURL('https://gasp.app/privacy')}
+          accessibilityRole="link"
+        >
           {'Privacy Policy'}
         </Text>
       </Text>
@@ -35,5 +44,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.4)',
     fontSize: 11,
     fontWeight: '500',
+    textDecorationLine: 'underline' as const,
   },
 });

@@ -1,21 +1,22 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/Text';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   interpolate,
+  runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
 import { Phone, Apple, UserCircle } from 'lucide-react-native';
-import { colors } from '@/constants/colors';
+import * as Haptics from 'expo-haptics';
 
 type AuthButtonVariant = 'phone' | 'apple' | 'guest';
 
 interface AuthButtonProps {
   variant: AuthButtonVariant;
   onPress: () => void;
+  loading?: boolean;
 }
 
 const ICON_MAP = {
@@ -30,10 +31,15 @@ const LABEL_MAP = {
   guest: 'Continue as Guest',
 } as const;
 
-export function AuthButton({ variant, onPress }: AuthButtonProps) {
+const triggerHaptic = () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+};
+
+export function AuthButton({ variant, onPress, loading }: AuthButtonProps) {
   const pressed = useSharedValue(0);
 
   const tap = Gesture.Tap()
+    .enabled(!loading)
     .onBegin(() => {
       pressed.set(withTiming(1, { duration: 100 }));
     })
@@ -41,6 +47,7 @@ export function AuthButton({ variant, onPress }: AuthButtonProps) {
       pressed.set(withTiming(0, { duration: 200 }));
     })
     .onEnd(() => {
+      runOnJS(triggerHaptic)();
       runOnJS(onPress)();
     });
 
@@ -60,30 +67,40 @@ export function AuthButton({ variant, onPress }: AuthButtonProps) {
   return (
     <GestureDetector gesture={tap}>
       <Animated.View
+        accessibilityRole="button"
+        accessibilityLabel={label}
         style={[
           styles.button,
           variant === 'phone' && styles.phoneButton,
           variant === 'apple' && styles.darkButton,
           variant === 'guest' && styles.guestButton,
+          loading && { opacity: 0.7 },
           animatedStyle,
         ]}
       >
-        <View style={styles.content}>
-          <Icon
-            size={20}
+        {loading ? (
+          <ActivityIndicator
+            size="small"
             color={isPhone ? '#000000' : '#FFFFFF'}
-            strokeWidth={2}
           />
-          <Text
-            variant="body"
-            style={[
-              styles.label,
-              { color: isPhone ? '#000000' : '#FFFFFF' },
-            ]}
-          >
-            {label}
-          </Text>
-        </View>
+        ) : (
+          <View style={styles.content}>
+            <Icon
+              size={20}
+              color={isPhone ? '#000000' : '#FFFFFF'}
+              strokeWidth={2}
+            />
+            <Text
+              variant="body"
+              style={[
+                styles.label,
+                { color: isPhone ? '#000000' : '#FFFFFF' },
+              ]}
+            >
+              {label}
+            </Text>
+          </View>
+        )}
       </Animated.View>
     </GestureDetector>
   );
@@ -109,7 +126,7 @@ const styles = StyleSheet.create({
   guestButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     minHeight: 52,
   },
   content: {

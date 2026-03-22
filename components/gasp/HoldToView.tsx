@@ -44,13 +44,19 @@ export function HoldToView({
   });
 
   const startVideo = useCallback(() => {
-    videoPlayer.currentTime = 0;
-    videoPlayer.play();
-  }, [videoPlayer]);
+    if (!isVideo) return;
+    try {
+      videoPlayer.currentTime = 0;
+      videoPlayer.play();
+    } catch {}
+  }, [videoPlayer, isVideo]);
 
   const pauseVideo = useCallback(() => {
-    videoPlayer.pause();
-  }, [videoPlayer]);
+    if (!isVideo) return;
+    try {
+      videoPlayer.pause();
+    } catch {}
+  }, [videoPlayer, isVideo]);
 
   useAnimatedReaction(
     () => isHolding.get(),

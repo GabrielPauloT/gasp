@@ -1,16 +1,19 @@
-import { StyleSheet, View, Pressable } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { useIsFocused } from '@react-navigation/native';
 import { Text } from '@/components/ui/Text';
 import { CameraOverlay } from '@/components/camera/CameraOverlay';
 import { useCamera } from '@/hooks/useCamera';
 import { useCameraStore } from '@/stores/cameraStore';
 import { colors } from '@/constants/colors';
-import { CameraOff } from 'lucide-react-native';
+import { CameraOff, ImageIcon } from 'lucide-react-native';
 import { router } from 'expo-router';
 
 export default function CameraScreen() {
   const isFocused = useIsFocused();
+  const [isLoadingGallery, setIsLoadingGallery] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const {
@@ -56,6 +59,27 @@ export default function CameraScreen() {
     stopRecording();
   };
 
+  const handleOpenGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.8,
+      videoMaxDuration: 10,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setIsLoadingGallery(true);
+      const asset = result.assets[0];
+      router.push({
+        pathname: '/(modals)/camera-preview',
+        params: {
+          imageUri: asset.uri,
+          ...(asset.type === 'video' && { isVideo: 'true' }),
+        },
+      });
+      setTimeout(() => setIsLoadingGallery(false), 600);
+    }
+  };
+
   const handleGrantAccess = async () => {
     await requestPermission();
     await requestMicPermission();
@@ -96,6 +120,16 @@ export default function CameraScreen() {
         <View style={styles.cameraPlaceholder} />
       )}
 
+      {/* Gallery loading overlay */}
+      {isLoadingGallery && (
+        <View style={styles.galleryLoading}>
+          <View style={styles.galleryLoadingCard}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text variant="caption" style={styles.galleryLoadingText}>Preparing...</Text>
+          </View>
+        </View>
+      )}
+
       {/* Camera overlay with controls */}
       <CameraOverlay
         flashMode={flashMode}
@@ -106,6 +140,7 @@ export default function CameraScreen() {
         onCapture={handleCapture}
         onLongPressStart={handleRecordStart}
         onLongPressEnd={handleRecordStop}
+        onOpenGallery={handleOpenGallery}
       />
     </View>
   );
@@ -155,5 +190,27 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 16,
+  },
+  galleryLoading: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  galleryLoadingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderCurve: 'continuous',
+  },
+  galleryLoadingText: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

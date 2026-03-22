@@ -12,7 +12,7 @@ interface GaspState {
   holdProgress: number;
   isLoadingPending: boolean;
   isLoadingSent: boolean;
-  viewedChatGaspIds: Set<string>;
+  viewedChatGaspIds: Record<string, true>;
 
   setCurrentGasp: (gasp: Gasp | null) => void;
   setHolding: (holding: boolean) => void;
@@ -26,6 +26,7 @@ interface GaspState {
   removeExpiredGasp: (gaspId: string) => void;
   markChatGaspViewed: (messageId: string) => void;
   isChatGaspViewed: (messageId: string) => boolean;
+  clearViewedChatGasps: () => void;
 
   fetchPendingGasps: () => Promise<void>;
   fetchSentGasps: () => Promise<void>;
@@ -43,7 +44,7 @@ export const useGaspStore = create<GaspState>((set, get) => ({
   holdProgress: 0,
   isLoadingPending: false,
   isLoadingSent: false,
-  viewedChatGaspIds: new Set(),
+  viewedChatGaspIds: {},
 
   setCurrentGasp: (gasp) => set({ currentViewingGasp: gasp }),
   setHolding: (isHolding) => set({ isHolding }),
@@ -76,13 +77,13 @@ export const useGaspStore = create<GaspState>((set, get) => ({
     })),
 
   markChatGaspViewed: (messageId) =>
-    set((state) => {
-      const next = new Set(state.viewedChatGaspIds);
-      next.add(messageId);
-      return { viewedChatGaspIds: next };
-    }),
+    set((state) => ({
+      viewedChatGaspIds: { ...state.viewedChatGaspIds, [messageId]: true },
+    })),
 
-  isChatGaspViewed: (messageId) => get().viewedChatGaspIds.has(messageId),
+  isChatGaspViewed: (messageId) => !!get().viewedChatGaspIds[messageId],
+
+  clearViewedChatGasps: () => set({ viewedChatGaspIds: {} }),
 
   fetchPendingGasps: async () => {
     set({ isLoadingPending: true });

@@ -1,17 +1,15 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Text } from '@/components/ui/Text';
+import { GradientCircle } from '@/components/ui/GradientCircle';
 import { colors } from '@/constants/colors';
 import { Settings } from 'lucide-react-native';
-import { Pressable } from 'react-native';
 
 interface ProfileHeaderProps {
   displayName: string;
   username: string;
   avatarUri: string | null;
-  gaspsSent: number;
-  gaspsReceived: number;
-  friendsCount: number;
+  gaspScore: number;
   onSettingsPress?: () => void;
 }
 
@@ -19,9 +17,7 @@ export function ProfileHeader({
   displayName,
   username,
   avatarUri,
-  gaspsSent,
-  gaspsReceived,
-  friendsCount,
+  gaspScore,
   onSettingsPress,
 }: ProfileHeaderProps) {
   return (
@@ -31,64 +27,54 @@ export function ProfileHeader({
         <Text variant="title" style={styles.screenTitle}>
           {'PROFILE'}
         </Text>
-        <Pressable onPress={onSettingsPress} style={styles.settingsButton}>
+        <Pressable
+          onPress={onSettingsPress}
+          style={styles.settingsButton}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
           <Settings size={22} color={colors.textPrimary} />
         </Pressable>
       </View>
 
-      <View style={styles.avatarSection}>
-        {avatarUri ? (
-          <Image
-            source={{ uri: avatarUri }}
-            style={styles.avatar}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Text variant="title" style={styles.avatarInitial}>
-              {displayName.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
+      <View style={styles.heroSection}>
+        <GradientCircle size={100}>
+          {avatarUri ? (
+            <Image
+              source={{ uri: avatarUri }}
+              style={styles.avatarImage}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text variant="title" style={styles.avatarInitial}>
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </GradientCircle>
+
         <Text variant="title" style={styles.name}>
           {displayName}
         </Text>
         <Text variant="caption" style={styles.username}>
           {`@${username}`}
         </Text>
-      </View>
 
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text variant="title" style={styles.statValue}>
-            {gaspsSent.toString()}
+        <View style={styles.scoreContainer}>
+          <Text variant="caption" style={styles.scoreLabel}>
+            {'GASP SCORE'}
           </Text>
-          <Text variant="caption" style={styles.statLabel}>
-            {'SENT'}
-          </Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.statItem}>
-          <Text variant="title" style={styles.statValue}>
-            {gaspsReceived.toString()}
-          </Text>
-          <Text variant="caption" style={styles.statLabel}>
-            {'RECEIVED'}
-          </Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.statItem}>
-          <Text variant="title" style={styles.statValue}>
-            {friendsCount.toString()}
-          </Text>
-          <Text variant="caption" style={styles.statLabel}>
-            {'FRIENDS'}
+          <Text variant="title" style={styles.scoreValue}>
+            {gaspScore.toString()}
           </Text>
         </View>
       </View>
     </View>
   );
 }
+
+const AVATAR_INNER = 88;
 
 const styles = StyleSheet.create({
   container: {
@@ -102,7 +88,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   placeholder: {
-    width: 36,
+    width: 44,
   },
   screenTitle: {
     fontSize: 18,
@@ -111,24 +97,25 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   settingsButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarSection: {
+  heroSection: {
     alignItems: 'center',
     gap: 8,
   },
-  avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 3,
-    borderColor: colors.primary,
+  avatarImage: {
+    width: AVATAR_INNER,
+    height: AVATAR_INNER,
+    borderRadius: AVATAR_INNER / 2,
   },
   avatarPlaceholder: {
+    width: AVATAR_INNER,
+    height: AVATAR_INNER,
+    borderRadius: AVATAR_INNER / 2,
     backgroundColor: colors.surfaceElevated,
     justifyContent: 'center',
     alignItems: 'center',
@@ -142,38 +129,27 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: colors.textPrimary,
+    marginTop: 4,
   },
   username: {
     fontSize: 14,
     color: colors.textSecondary,
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  scoreContainer: {
     alignItems: 'center',
-    paddingVertical: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    borderCurve: 'continuous',
+    marginTop: 8,
+    gap: 2,
   },
-  statItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  statLabel: {
+  scoreLabel: {
     fontSize: 10,
     fontWeight: '600',
     color: colors.textSecondary,
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
-  divider: {
-    width: 1,
-    height: 30,
-    backgroundColor: colors.border,
+  scoreValue: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: colors.accentCyan,
+    letterSpacing: -1,
   },
 });

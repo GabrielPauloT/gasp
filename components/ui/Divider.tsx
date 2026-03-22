@@ -46,7 +46,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   text: {
-    textTransform: 'uppercase',
     letterSpacing: 1.5,
     fontSize: 11,
   },

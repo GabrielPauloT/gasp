@@ -1,6 +1,6 @@
+import { useState, useCallback, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useMediaCacheStore } from '@/stores/mediaCacheStore';
 import { clearAllCache, getCacheSize } from '@/services/mediaCache';
@@ -9,7 +9,8 @@ import { Text } from '@/components/ui/Text';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
-import { ArrowLeft, LogOut, ChevronRight, User, Bell, Lock, CircleHelp, Shield } from 'lucide-react-native';
+import { BottomSheetPicker } from '@/components/ui/BottomSheetPicker';
+import { ArrowLeft, LogOut, ChevronRight, User, Bell, Lock, CircleHelp, Shield, Trash2 } from 'lucide-react-native';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -19,17 +20,17 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-const PHOTO_OPTIONS: { label: string; value: 'wifi' | 'wifi_and_cellular' | 'never' }[] = [
+type AutoDownloadPref = 'wifi' | 'wifi_and_cellular' | 'never';
+
+const DOWNLOAD_OPTIONS: { label: string; value: AutoDownloadPref }[] = [
   { label: 'WiFi Only', value: 'wifi' },
   { label: 'WiFi & Mobile Data', value: 'wifi_and_cellular' },
   { label: 'Never', value: 'never' },
 ];
 
-const VIDEO_OPTIONS = PHOTO_OPTIONS;
-
 const PREF_LABELS: Record<string, string> = {
   wifi: 'WiFi Only',
-  wifi_and_cellular: 'WiFi & Mobile Data',
+  wifi_and_cellular: 'WiFi & Data',
   never: 'Never',
 };
 
@@ -45,39 +46,13 @@ export default function SettingsScreen() {
     setCacheSize,
   } = useMediaCacheStore();
 
+  const [pickerType, setPickerType] = useState<'photos' | 'videos' | null>(null);
+
   useEffect(() => {
     getCacheSize().then((size) => setCacheSize(size));
   }, []);
 
-  const showPhotoPicker = () => {
-    Alert.alert(
-      'Photos Auto-Download',
-      undefined,
-      [
-        ...PHOTO_OPTIONS.map((opt) => ({
-          text: opt.label,
-          onPress: () => setAutoDownloadPhotos(opt.value),
-        })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ],
-    );
-  };
-
-  const showVideoPicker = () => {
-    Alert.alert(
-      'Videos Auto-Download',
-      undefined,
-      [
-        ...VIDEO_OPTIONS.map((opt) => ({
-          text: opt.label,
-          onPress: () => setAutoDownloadVideos(opt.value),
-        })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ],
-    );
-  };
-
-  const handleClearCache = () => {
+  const handleClearCache = useCallback(() => {
     Alert.alert(
       'Clear Cache',
       `Clear all cached media? This will free up ${formatBytes(cacheSize)}.`,
@@ -93,7 +68,7 @@ export default function SettingsScreen() {
         },
       ],
     );
-  };
+  }, [cacheSize, setCacheSize]);
 
   const handleLogout = async () => {
     try {
@@ -102,7 +77,7 @@ export default function SettingsScreen() {
         router.dismissAll();
       }
       setTimeout(() => {
-        router.replace('/(auth)/welcome'); 
+        router.replace('/(auth)/welcome');
       }, 100);
     } catch (e) {
       console.error('Logout error:', e);
@@ -144,14 +119,22 @@ export default function SettingsScreen() {
         {/* Storage & Data */}
         <Text style={styles.sectionHeader}>STORAGE & DATA</Text>
         <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={showPhotoPicker}>
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => setPickerType('photos')}>
             <Text variant="body" weight="500">Photos</Text>
-            <Text variant="body" color={colors.textSecondary}>{PREF_LABELS[autoDownloadPhotos]}</Text>
+            <View style={styles.prefBadge}>
+              <Text variant="caption" weight="600" color={colors.primary}>
+                {PREF_LABELS[autoDownloadPhotos]}
+              </Text>
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={showVideoPicker}>
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => setPickerType('videos')}>
             <Text variant="body" weight="500">Videos</Text>
-            <Text variant="body" color={colors.textSecondary}>{PREF_LABELS[autoDownloadVideos]}</Text>
+            <View style={styles.prefBadge}>
+              <Text variant="caption" weight="600" color={colors.primary}>
+                {PREF_LABELS[autoDownloadVideos]}
+              </Text>
+            </View>
           </TouchableOpacity>
 
           <View style={styles.menuItem}>
@@ -160,7 +143,12 @@ export default function SettingsScreen() {
           </View>
 
           <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={handleClearCache}>
-            <Text variant="body" weight="500" color={colors.accentPink}>Clear Cache</Text>
+            <View style={styles.menuItemLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: `${colors.accentPink}15` }]}>
+                <Trash2 size={18} color={colors.accentPink} />
+              </View>
+              <Text variant="body" weight="500" color={colors.accentPink}>Clear Cache</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -196,6 +184,25 @@ export default function SettingsScreen() {
           </Button>
         </View>
       </ScrollView>
+
+      {/* Bottom Sheet Picker */}
+      <BottomSheetPicker
+        visible={pickerType === 'photos'}
+        title="Photos Auto-Download"
+        options={DOWNLOAD_OPTIONS}
+        selectedValue={autoDownloadPhotos}
+        onSelect={setAutoDownloadPhotos}
+        onClose={() => setPickerType(null)}
+      />
+
+      <BottomSheetPicker
+        visible={pickerType === 'videos'}
+        title="Videos Auto-Download"
+        options={DOWNLOAD_OPTIONS}
+        selectedValue={autoDownloadVideos}
+        onSelect={setAutoDownloadVideos}
+        onClose={() => setPickerType(null)}
+      />
     </View>
   );
 }
@@ -210,7 +217,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingTop: Platform.OS === 'ios' ? 20 : 32, // Accommodate modal pull bar
+    paddingTop: Platform.OS === 'ios' ? 20 : 32,
     paddingBottom: 16,
   },
   scrollContent: {
@@ -267,6 +274,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
+  },
+  prefBadge: {
+    backgroundColor: `${colors.primary}15`,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   actionSection: {
     marginTop: 8,

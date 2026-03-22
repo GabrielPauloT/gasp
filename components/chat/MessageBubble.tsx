@@ -21,8 +21,10 @@ function InlineVideo({ uri, style, paused }: { uri: string; style: object; pause
   });
 
   useEffect(() => {
+    let attempts = 0;
     const interval = setInterval(() => {
-      if (player.currentTime > 0) {
+      attempts++;
+      if (player.currentTime > 0 || attempts > 60) {
         setReady(true);
         clearInterval(interval);
       }
@@ -87,13 +89,12 @@ function MessageBubbleInner({
   const [hasActivated, setHasActivated] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
 
-  const isGaspViewed = useGaspStore((s) => isGasp && s.viewedChatGaspIds.has(message.id));
-  const markChatGaspViewed = useGaspStore((s) => s.markChatGaspViewed);
+  const isGaspViewed = useGaspStore((s) => isGasp && !!s.viewedChatGaspIds[message.id]);
 
   // ── Gasp tap → open view-gasp modal (only received gasps) ─────
   const handleGaspPress = useCallback(() => {
-    if (isOwnMessage || isGaspViewed) return;
-    markChatGaspViewed(message.id);
+    if (isOwnMessage) return;
+    if (useGaspStore.getState().viewedChatGaspIds[message.id]) return;
     router.push({
       pathname: '/(modals)/view-gasp',
       params: {
@@ -103,7 +104,7 @@ function MessageBubbleInner({
         chatMessageId: message.id,
       },
     });
-  }, [message, otherParticipantName, isOwnMessage, isGaspViewed, markChatGaspViewed]);
+  }, [message, otherParticipantName, isOwnMessage]);
 
   // ── Reaction tap → play/pause (unlimited) ─────────────────────
   const handleReactionPress = useCallback(() => {

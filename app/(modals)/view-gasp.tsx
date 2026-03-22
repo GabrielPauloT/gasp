@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { StyleSheet, View, Pressable, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,6 +50,13 @@ export default function ViewGaspScreen() {
     router.back();
     return null;
   }
+
+  // Mark chat gasp as viewed when modal actually mounts
+  useEffect(() => {
+    if (isFromChat && params.chatMessageId) {
+      useGaspStore.getState().markChatGaspViewed(params.chatMessageId);
+    }
+  }, [isFromChat, params.chatMessageId]);
 
   // ── Começa a gravar quando o hold inicia ─────────────────────────
   const handleHoldStart = useCallback(() => {

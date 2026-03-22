@@ -5,6 +5,8 @@ export interface UserStats {
   gaspsSent: number;
   gaspsReceived: number;
   friendsCount: number;
+  streak?: number;
+  reactionsReceived?: number;
 }
 
 export async function getMe(): Promise<User> {

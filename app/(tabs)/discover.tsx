@@ -11,7 +11,7 @@ import { useFocusEffect } from 'expo-router';
 import { Text } from '@/components/ui/Text';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { DiscoverHeader } from '@/components/discover/DiscoverHeader';
-import { PendingRequests } from '@/components/discover/PendingRequests';
+import { RecommendedSection } from '@/components/discover/RecommendedSection';
 import {
   UserSearchResult,
   type RequestStatus,
@@ -19,11 +19,11 @@ import {
 import { useInboxStore } from '@/stores/inboxStore';
 import { useAuthStore } from '@/stores/authStore';
 import * as usersApi from '@/services/api/users';
-import * as friendsApi from '@/services/api/friends';
-import type { FriendRequest } from '@/services/api/friends';
+import * as discoverApi from '@/services/api/discover';
 import type { User } from '@/types/user';
+import type { RecommendedUser } from '@/types/discover';
 import { colors } from '@/constants/colors';
-import { Search, UserX } from 'lucide-react-native';
+import { Users, Trophy, UserX } from 'lucide-react-native';
 
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
@@ -31,27 +31,38 @@ export default function DiscoverScreen() {
   const currentUser = useAuthStore((s) => s.user);
   const friends = useInboxStore((s) => s.friends);
   const sendFriendRequest = useInboxStore((s) => s.sendFriendRequest);
-  const acceptFriendRequest = useInboxStore((s) => s.acceptFriendRequest);
-  const rejectFriendRequest = useInboxStore((s) => s.rejectFriendRequest);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
+
+  const [peopleYouMayKnow, setPeopleYouMayKnow] = useState<RecommendedUser[]>([]);
+  const [topGaspers, setTopGaspers] = useState<RecommendedUser[]>([]);
+  const [isLoadingRecs, setIsLoadingRecs] = useState(false);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Fetch pending requests when screen is focused
+  const friendIds = new Set(friends.map((f) => f.id));
+
   useFocusEffect(
     useCallback(() => {
-      if (!isGuest) {
-        friendsApi.getPendingRequests().then(setPendingRequests).catch(() => {});
-      }
+      if (isGuest) return;
+      setIsLoadingRecs(true);
+      Promise.all([
+        discoverApi.getRecommendedUsers(),
+        discoverApi.getTopGaspers(),
+      ])
+        .then(([recommended, top]) => {
+          setPeopleYouMayKnow(recommended);
+          setTopGaspers(top);
+        })
+        .catch(() => {})
+        .finally(() => setIsLoadingRecs(false));
     }, [isGuest]),
   );
 
-  // Debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -93,15 +104,7 @@ export default function DiscoverScreen() {
     setSentRequestIds((prev) => new Set(prev).add(addresseeId));
   };
 
-  const handleAccept = async (friendshipId: string) => {
-    await acceptFriendRequest(friendshipId);
-    setPendingRequests((prev) => prev.filter((r) => r.friendshipId !== friendshipId));
-  };
-
-  const handleReject = async (friendshipId: string) => {
-    await rejectFriendRequest(friendshipId);
-    setPendingRequests((prev) => prev.filter((r) => r.friendshipId !== friendshipId));
-  };
+  const isShowingSearch = searchQuery.trim().length > 0 || hasSearched;
 
   const renderSearchResult = ({ item }: { item: User }) => (
     <UserSearchResult
@@ -117,7 +120,7 @@ export default function DiscoverScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <FlatList
-        data={hasSearched ? searchResults : []}
+        data={isShowingSearch ? searchResults : []}
         renderItem={renderSearchResult}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
@@ -135,18 +138,37 @@ export default function DiscoverScreen() {
               />
             </View>
 
-            {/* Pending friend requests */}
-            {!searchQuery && pendingRequests.length > 0 && (
-              <View style={styles.section}>
-                <PendingRequests
-                  requests={pendingRequests}
-                  onAccept={handleAccept}
-                  onReject={handleReject}
-                />
+            {!isShowingSearch && (
+              <View style={styles.recommendationsContainer}>
+                {isLoadingRecs && (
+                  <View style={styles.loadingState}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                  </View>
+                )}
+
+                {!isLoadingRecs && (
+                  <>
+                    <RecommendedSection
+                      title="People You May Know"
+                      icon={<Users size={18} color={colors.accentPink} />}
+                      users={peopleYouMayKnow}
+                      onAddUser={handleAdd}
+                      friendIds={friendIds}
+                    />
+
+                    <RecommendedSection
+                      title="Top Gaspers"
+                      icon={<Trophy size={18} color="#F59E0B" />}
+                      users={topGaspers}
+                      showGradientRing
+                      onAddUser={handleAdd}
+                      friendIds={friendIds}
+                    />
+                  </>
+                )}
               </View>
             )}
 
-            {/* Search states */}
             {isSearching && (
               <View style={styles.centerState}>
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -161,18 +183,6 @@ export default function DiscoverScreen() {
                 </Text>
                 <Text variant="caption" style={styles.emptySubtitle}>
                   {`No results for "${searchQuery}"`}
-                </Text>
-              </View>
-            )}
-
-            {!searchQuery && !hasSearched && pendingRequests.length === 0 && (
-              <View style={styles.centerState}>
-                <Search size={48} color={colors.textTertiary} />
-                <Text variant="body" style={styles.emptyTitle}>
-                  {'Find your friends'}
-                </Text>
-                <Text variant="caption" style={styles.emptySubtitle}>
-                  {'Search by username or name to add friends'}
                 </Text>
               </View>
             )}
@@ -192,8 +202,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
-  section: {
-    marginBottom: 20,
+  recommendationsContainer: {
+    gap: 24,
+    paddingBottom: 16,
+  },
+  loadingState: {
+    paddingVertical: 48,
+    alignItems: 'center',
   },
   centerState: {
     alignItems: 'center',
