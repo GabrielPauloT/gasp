@@ -26,11 +26,14 @@ const styles = StyleSheet.create({
   },
   text: {
     textAlign: 'center',
-    color: colors.textTertiary,
-    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.3)',
+    fontSize: 11,
+    fontWeight: '500',
+    lineHeight: 16,
   },
   link: {
-    color: colors.primaryLight,
-    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 11,
+    fontWeight: '500',
   },
 });

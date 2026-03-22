@@ -1,6 +1,6 @@
 import { StyleSheet, View, Dimensions, Pressable } from 'react-native';
 import { Image } from 'expo-image';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
 import { Send, RotateCcw } from 'lucide-react-native';
@@ -24,6 +24,11 @@ export function ReactionPreview({
   onSend,
   onRetake,
 }: ReactionPreviewProps) {
+  const player = useVideoPlayer(reactionVideoUri, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
   return (
     <View style={styles.container}>
       <Animated.View entering={FadeInDown.duration(300)} style={styles.content}>
@@ -46,13 +51,11 @@ export function ReactionPreview({
             </Text>
           </View>
           <View style={styles.imageCard}>
-            <Video
-              source={{ uri: reactionVideoUri }}
+            <VideoView
+              player={player}
               style={styles.image}
-              resizeMode={ResizeMode.COVER}
-              shouldPlay
-              isLooping
-              isMuted
+              contentFit="cover"
+              nativeControls={false}
             />
             <Text variant="caption" style={styles.imageLabel}>
               {'Reaction'}

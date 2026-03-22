@@ -1,14 +1,35 @@
-import { StyleSheet, View, Image, Pressable } from 'react-native';
+import { useState, useEffect } from 'react';
+import { StyleSheet, View, Image, Pressable, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { X, Send, RotateCcw, Type } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
 
 export default function CameraPreviewScreen() {
-  const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
+  const { imageUri, isVideo } = useLocalSearchParams<{ imageUri: string; isVideo?: string }>();
   const insets = useSafeAreaInsets();
+  const isVideoMode = isVideo === 'true';
+  const [videoReady, setVideoReady] = useState(false);
+
+  const videoPlayer = useVideoPlayer(isVideoMode ? imageUri : null, (p) => {
+    p.loop = true;
+    p.play();
+  });
+
+  useEffect(() => {
+    if (!isVideoMode) return;
+    if (videoPlayer.status === 'readyToPlay') {
+      setVideoReady(true);
+      return;
+    }
+    const sub = videoPlayer.addListener('statusChange', ({ status }: { status: string }) => {
+      if (status === 'readyToPlay') setVideoReady(true);
+    });
+    return () => sub.remove();
+  }, [isVideoMode, videoPlayer]);
 
   const handleClose = () => {
     router.back();
@@ -21,15 +42,29 @@ export default function CameraPreviewScreen() {
   const handleSend = () => {
     router.push({
       pathname: '/(modals)/send-gasp',
-      params: { imageUri },
+      params: { imageUri, ...(isVideoMode && { isVideo: 'true' }) },
     });
   };
 
   return (
     <View style={styles.container}>
-      {/* Photo preview */}
+      {/* Media preview */}
       {imageUri ? (
-        <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="cover" />
+        isVideoMode ? (
+          <View style={styles.preview}>
+            <VideoView
+              player={videoPlayer}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              nativeControls={false}
+            />
+            {!videoReady && (
+              <ActivityIndicator size="large" color="#FFFFFF" />
+            )}
+          </View>
+        ) : (
+          <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="cover" />
+        )
       ) : (
         <View style={styles.preview}>
           <Text variant="body" color={colors.textSecondary}>

@@ -12,7 +12,7 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, X } from 'lucide-react-native';
-import auth, { type FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { getAuth, signInWithPhoneNumber, type FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { Text } from '@/components/ui/Text';
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import { colors } from '@/constants/colors';
@@ -56,9 +56,10 @@ export default function PhoneLoginScreen() {
       // On real devices: Play Integrity handles verification invisibly (no reCAPTCHA)
       // On emulators: Play Integrity is unavailable, so we don't force reCAPTCHA either —
       // use a Firebase test phone number instead (configured in Firebase Console)
-      auth().settings.forceRecaptchaFlowForTesting = false;
+      const firebaseAuth = getAuth();
+      firebaseAuth.settings.forceRecaptchaFlowForTesting = false;
 
-      const confirmation = await auth().signInWithPhoneNumber(formattedPhone);
+      const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone);
       confirmationRef.current = confirmation;
       router.push({
         pathname: '/(auth)/verify-code',

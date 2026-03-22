@@ -29,8 +29,12 @@ export function useCamera() {
     }
   }, [setCapturedUri]);
 
-  const startRecording = useCallback(async () => {
-    if (!cameraRef.current) return;
+  const startRecording = useCallback(async (): Promise<string | null> => {
+    console.log('[camera] startRecording called');
+    if (!cameraRef.current) {
+      console.warn('[camera] no cameraRef');
+      return null;
+    }
 
     // Ensure microphone permission before recording
     if (!micPermission?.granted) {
@@ -40,31 +44,40 @@ export function useCamera() {
           'Microphone required',
           'GASP needs microphone access to record videos. Please enable it in Settings.',
         );
-        return;
+        return null;
       }
     }
 
     try {
       setRecording(true);
+      console.log('[camera] calling recordAsync...');
       const video = await cameraRef.current.recordAsync({
         maxDuration: 10,
       });
+      console.log('[camera] recordAsync resolved:', video?.uri ? 'got URI' : 'no URI');
 
       if (video?.uri) {
         setCapturedUri(video.uri);
+        return video.uri;
       }
+      return null;
     } catch (error) {
-      console.error('Failed to record:', error);
+      console.warn('[camera] Failed to record:', error);
+      Alert.alert(
+        'Recording failed',
+        'Video recording is not supported on this device. Try on a physical device.',
+      );
+      return null;
     } finally {
       setRecording(false);
     }
   }, [micPermission, requestMicPermission, setCapturedUri, setRecording]);
 
   const stopRecording = useCallback(() => {
+    console.log('[camera] stopRecording called');
     if (!cameraRef.current) return;
     cameraRef.current.stopRecording();
-    setRecording(false);
-  }, [setRecording]);
+  }, []);
 
   return {
     cameraRef,

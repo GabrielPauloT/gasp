@@ -1,33 +1,12 @@
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import {
+  getStorage,
+  ref,
+  putFile,
+  getDownloadURL,
+} from '@react-native-firebase/storage';
+import { getAuth } from '@react-native-firebase/auth';
 
 type MediaType = 'gasps' | 'reactions' | 'avatars';
-
-// ── MIME type mapping ─────────────────────────────────────────────────
-const MIME_MAP: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-  gif: 'image/gif',
-  heic: 'image/heic',
-  mp4: 'video/mp4',
-  mov: 'video/quicktime',
-  avi: 'video/x-msvideo',
-};
-
-
-function getMimeType(extension: string): string {
-  return MIME_MAP[extension] ?? 'application/octet-stream';
-}
-
-/**
- * Convert a local file URI to a Blob for upload.
- */
-async function uriToBlob(uri: string): Promise<Blob> {
-  const response = await fetch(uri);
-  return response.blob();
-}
 
 /**
  * Generate a unique storage path for a media file.
@@ -35,7 +14,7 @@ async function uriToBlob(uri: string): Promise<Blob> {
 function buildStoragePath(
   type: MediaType,
   userId: string,
-  extension: string = 'jpg'
+  extension: string = 'jpg',
 ): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 8);
@@ -47,10 +26,16 @@ function buildStoragePath(
  */
 function getExtension(uri: string): string {
   const match = uri.match(/\.(\w+)(?:\?.*)?$/);
-  if (match) return match[1].toLowerCase();
+  if (match) return match[1]!.toLowerCase();
   return 'jpg';
 }
 
+/**
+ * Strip file:// prefix for native putFile (expects a raw path).
+ */
+function toLocalPath(uri: string): string {
+  return uri.startsWith('file://') ? uri.slice(7) : uri;
+}
 
 export interface UploadResult {
   downloadUrl: string;
@@ -65,36 +50,26 @@ export interface UploadProgress {
 }
 
 /**
- * Upload a local image/video URI to Firebase Storage.
- *
- * @param uri         - Local file URI (file://) or remote URL
- * @param type        - Bucket folder: 'gasps' | 'reactions' | 'avatars'
- * @param userId      - Current user ID (for folder isolation)
- * @param onProgress  - Optional progress callback (0-1)
- * @returns           - { downloadUrl, storagePath }
- *
- * @throws Error if userId is missing
+ * Upload a local image/video to Firebase Storage using the native SDK.
+ * Auth is shared with @react-native-firebase/auth — no permission issues.
  */
 export async function uploadMedia(
   uri: string,
   type: MediaType,
   userId: string,
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
-  if (!userId) {
-    throw new Error('Cannot upload without a user ID.');
+  const firebaseUid = getAuth().currentUser?.uid;
+  if (!firebaseUid) {
+    throw new Error('Cannot upload without Firebase authentication.');
   }
 
   const extension = getExtension(uri);
-  const storagePath = buildStoragePath(type, userId, extension);
-  const storageRef = ref(storage, storagePath);
-  const contentType = getMimeType(extension);
-
-  const blob = await uriToBlob(uri);
+  const storagePath = buildStoragePath(type, firebaseUid, extension);
+  const storageRef = ref(getStorage(), storagePath);
 
   return new Promise((resolve, reject) => {
-    const uploadTask = uploadBytesResumable(storageRef, blob, {
-      contentType,
+    const task = putFile(storageRef, toLocalPath(uri), {
       customMetadata: {
         uploadedBy: userId,
         uploadedAt: new Date().toISOString(),
@@ -102,33 +77,24 @@ export async function uploadMedia(
       },
     });
 
-    uploadTask.on(
+    task.on(
       'state_changed',
       (snapshot) => {
-        const progress = snapshot.bytesTransferred / snapshot.totalBytes;
         onProgress?.({
-          progress,
+          progress: snapshot.bytesTransferred / snapshot.totalBytes,
           bytesTransferred: snapshot.bytesTransferred,
           totalBytes: snapshot.totalBytes,
         });
       },
-      (error) => {
-        if (typeof (blob as any).close === 'function') {
-          (blob as any).close();
-        }
-        reject(error);
-      },
+      (error) => reject(error),
       async () => {
-        if (typeof (blob as any).close === 'function') {
-          (blob as any).close();
-        }
         try {
-          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+          const downloadUrl = await getDownloadURL(storageRef);
           resolve({ downloadUrl, storagePath });
         } catch (error) {
           reject(error);
         }
-      }
+      },
     );
   });
 }
@@ -139,7 +105,7 @@ export async function uploadMedia(
 export async function uploadGasp(
   uri: string,
   userId: string,
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
   return uploadMedia(uri, 'gasps', userId, onProgress);
 }
@@ -150,7 +116,7 @@ export async function uploadGasp(
 export async function uploadReaction(
   uri: string,
   userId: string,
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
   return uploadMedia(uri, 'reactions', userId, onProgress);
 }

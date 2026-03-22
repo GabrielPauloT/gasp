@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Eye } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
+import { getCachedUri } from '@/services/mediaCache';
 import { formatRelativeTime } from '@/utils/format';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -23,6 +24,7 @@ export function FeedCard({
   blurhash,
   createdAt,
 }: FeedCardProps) {
+  const resolvedUri = getCachedUri(imageUri) ?? imageUri;
   const rawTime = formatRelativeTime(createdAt);
   const timeLabel =
     rawTime === 'JUST NOW' ? 'just now' : `${rawTime.toLowerCase()} ago`;
@@ -34,7 +36,7 @@ export function FeedCard({
         <View style={styles.card}>
           {/* Blurred background image */}
           <Image
-            source={{ uri: imageUri }}
+            source={{ uri: resolvedUri }}
             placeholder={blurhash ? { blurhash } : undefined}
             style={styles.blurredImage}
             contentFit="cover"

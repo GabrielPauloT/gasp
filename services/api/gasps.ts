@@ -4,12 +4,14 @@ import type { Gasp, ApiPendingGasp, ApiGasp } from '@/types/gasp';
 interface SendGaspInput {
   recipientId: string;
   imageUrl: string;
+  mediaType?: 'image' | 'video';
   blurhash?: string;
 }
 
 interface BatchGaspInput {
   recipientIds: string[];
   imageUrl: string;
+  mediaType?: 'image' | 'video';
   blurhash?: string;
 }
 
@@ -21,6 +23,7 @@ function normalizePendingGasp(item: ApiPendingGasp): Gasp {
     senderName: item.sender.displayName,
     senderAvatarUrl: item.sender.avatarUrl,
     imageUri: item.gasp.imageUrl,
+    mediaType: item.gasp.mediaType ?? 'image',
     blurhash: item.gasp.blurhash ?? '',
     status: item.gasp.status,
     createdAt: item.gasp.createdAt,
@@ -37,6 +40,7 @@ function normalizeGasp(raw: ApiGasp): Gasp {
     senderName: '',
     senderAvatarUrl: null,
     imageUri: raw.imageUrl,
+    mediaType: raw.mediaType ?? 'image',
     blurhash: raw.blurhash ?? '',
     status: raw.status,
     createdAt: raw.createdAt,

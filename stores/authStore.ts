@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { User } from '@/types/user';
-import auth from '@react-native-firebase/auth';
+import { getAuth, signOut as firebaseSignOut } from '@react-native-firebase/auth';
 import {
   setAuthToken,
   removeAuthToken,
@@ -8,6 +8,7 @@ import {
   setUserData,
   removeUserData,
 } from '@/utils/storage';
+import { registerAuthCallbacks, setApiToken } from '@/services/api';
 import * as authApi from '@/services/api/auth';
 import * as usersApi from '@/services/api/users';
 import { connectSocket, disconnectSocket } from '@/services/socket';
@@ -53,6 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setToken: async (token) => {
     await setAuthToken(token);
+    setApiToken(token);
     set({ token, isAuthenticated: true });
   },
 
@@ -76,7 +78,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {}
 
     try {
-      await auth().signOut();
+      await firebaseSignOut(getAuth());
     } catch {}
 
     try {
@@ -84,6 +86,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await removeUserData();
     } catch {}
 
+    setApiToken(null);
     set({
       user: null,
       token: null,
@@ -100,6 +103,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { user, token } = await authApi.login(firebaseToken);
       await setAuthToken(token);
+      setApiToken(token);
       await setUserData(JSON.stringify(user));
       connectSocket(token);
       set({
@@ -120,6 +124,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { user, token } = await authApi.register(data);
       await setAuthToken(token);
+      setApiToken(token);
       await setUserData(JSON.stringify(user));
       connectSocket(token);
       set({
@@ -145,6 +150,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       // Set token so API interceptor can use it
+      setApiToken(savedToken);
       set({ token: savedToken });
 
       try {
@@ -161,7 +167,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       } catch {
         // Token invalid → clear session
         try {
-          await auth().signOut();
+          await firebaseSignOut(getAuth());
         } catch {}
         await removeAuthToken();
         await removeUserData();
@@ -178,3 +184,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 }));
+
+// Wire up API interceptor callbacks (breaks circular dep: authStore → api/auth → api)
+registerAuthCallbacks({
+  onTokenRefreshed: (token) => {
+    setApiToken(token);
+    useAuthStore.setState({ token, isAuthenticated: true });
+  },
+  onLogout: () => void useAuthStore.getState().logout(),
+});

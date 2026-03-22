@@ -1,4 +1,4 @@
-import { StyleSheet, View, ScrollView, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, ScrollView, useWindowDimensions, Text as RNText } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
@@ -6,17 +6,20 @@ import { Text } from '@/components/ui/Text';
 import { Divider } from '@/components/ui/Divider';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { TermsFooter } from '@/components/auth/TermsFooter';
-import { GradientCircle } from '@/components/ui/GradientCircle';
+import { AnimatedFace } from '@/components/ui/AnimatedFace';
 import { useAuthStore } from '@/stores/authStore';
 import { colors } from '@/constants/colors';
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const { continueAsGuest } = useAuthStore();
 
-  // Escala o logo baseado na altura da tela
-  const logoSize = Math.min(140, Math.max(100, height * 0.16));
+  // Responsive sizing
+  const isSmallScreen = height < 700;
+  const logoSize = Math.min(160, Math.max(110, height * 0.17));
+  const titleSize = Math.min(48, Math.max(36, width * 0.12));
+  const taglineSize = Math.min(17, Math.max(14, width * 0.04));
 
   const handlePhoneLogin = () => {
     router.push('/(auth)/phone-login');
@@ -34,9 +37,9 @@ export default function WelcomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Background glow effect */}
-      <View style={styles.glowContainer}>
-        <View style={styles.glow} />
+      {/* Background glow */}
+      <View style={styles.bgContainer}>
+        <View style={styles.bgGlow} />
       </View>
 
       <ScrollView
@@ -48,7 +51,7 @@ export default function WelcomeScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Spacer top — empurra o conteúdo para o centro */}
+        {/* Spacer top */}
         <View style={styles.spacer} />
 
         {/* Logo */}
@@ -56,39 +59,36 @@ export default function WelcomeScreen() {
           entering={FadeIn.duration(800).delay(200)}
           style={styles.logoWrapper}
         >
-          <GradientCircle size={logoSize}>
-            <View style={styles.smileyFace}>
-              <View style={styles.eyesRow}>
-                <View style={styles.eye} />
-                <View style={styles.eye} />
-              </View>
-              <View style={styles.smile} />
-            </View>
-          </GradientCircle>
+          <AnimatedFace size={logoSize} />
         </Animated.View>
 
-        {/* App Name */}
+        {/* App Name — uses raw RNText to avoid lineHeight clipping from Text component */}
         <Animated.View
           entering={FadeInDown.duration(600).delay(400)}
-          style={styles.textWrapper}
+          style={styles.titleWrapper}
         >
-          <Text variant="title" style={styles.appName}>
-            {'GASP'}
-          </Text>
+          <RNText
+            style={[
+              styles.appName,
+              { fontSize: titleSize, lineHeight: titleSize * 1.3 },
+            ]}
+          >
+            GASP
+          </RNText>
         </Animated.View>
 
         {/* Tagline */}
         <Animated.View
           entering={FadeInDown.duration(600).delay(600)}
-          style={styles.textWrapper}
+          style={styles.taglineWrapper}
         >
-          <Text variant="subtitle" style={styles.tagline}>
+          <Text variant="body" style={[styles.tagline, { fontSize: taglineSize }]}>
             {'Real reactions. No filters.'}
           </Text>
         </Animated.View>
 
-        {/* Spacer middle — empurra os botões para baixo */}
-        <View style={styles.spacer} />
+        {/* Spacer middle */}
+        <View style={[styles.spacer, isSmallScreen && { flexGrow: 0.5 }]} />
 
         {/* Auth Buttons */}
         <View style={styles.authSection}>
@@ -107,7 +107,7 @@ export default function WelcomeScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.duration(500).delay(1000)}>
-            <Divider text="OR" />
+            <Divider text="or" />
           </Animated.View>
 
           <Animated.View
@@ -135,19 +135,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  glowContainer: {
+  bgContainer: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 80,
   },
-  glow: {
+  bgGlow: {
     width: 300,
     height: 300,
     borderRadius: 150,
     // @ts-ignore
     experimental_backgroundImage:
-      'radial-gradient(circle, rgba(124, 58, 237, 0.2), rgba(236, 72, 153, 0.1), transparent 70%)',
+      'radial-gradient(circle, rgba(124, 58, 237, 0.12), rgba(236, 72, 153, 0.06), transparent 70%)',
   },
   scrollContent: {
     flexGrow: 1,
@@ -157,49 +157,28 @@ const styles = StyleSheet.create({
   },
   logoWrapper: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  textWrapper: {
+  titleWrapper: {
     alignItems: 'center',
+    paddingHorizontal: 32,
+    marginBottom: 8,
   },
   appName: {
-    fontSize: 48,
     fontWeight: '900',
     color: colors.textPrimary,
     letterSpacing: 4,
-    marginBottom: 8,
+    textAlign: 'center',
+  },
+  taglineWrapper: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
   },
   tagline: {
-    fontSize: 17,
-    color: colors.textSecondary,
-    fontWeight: '400',
-    marginBottom: 8,
-  },
-  smileyFace: {
-    width: 80,
-    height: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 10,
-  },
-  eyesRow: {
-    flexDirection: 'row',
-    gap: 24,
-  },
-  eye: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.accentPink,
-  },
-  smile: {
-    width: 30,
-    height: 15,
-    borderBottomLeftRadius: 15,
-    borderBottomRightRadius: 15,
-    borderWidth: 2.5,
-    borderTopWidth: 0,
-    borderColor: colors.accentCyan,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   authSection: {
     paddingHorizontal: 24,
@@ -210,6 +189,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   footer: {
-    paddingTop: 20,
+    paddingTop: 24,
   },
 });

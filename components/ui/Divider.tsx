@@ -38,15 +38,16 @@ const styles = StyleSheet.create({
   line: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#2A2A3E',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   lineFull: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#2A2A3E',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   text: {
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+    fontSize: 11,
   },
 });

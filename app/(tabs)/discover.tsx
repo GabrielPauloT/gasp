@@ -40,7 +40,7 @@ export default function DiscoverScreen() {
   const [hasSearched, setHasSearched] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Fetch pending requests when screen is focused
   useFocusEffect(

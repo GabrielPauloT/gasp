@@ -1,6 +1,9 @@
 import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { useMediaCacheStore } from '@/stores/mediaCacheStore';
+import { clearAllCache, getCacheSize } from '@/services/mediaCache';
 import { colors } from '@/constants/colors';
 import { Text } from '@/components/ui/Text';
 import { Avatar } from '@/components/ui/Avatar';
@@ -8,9 +11,89 @@ import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { ArrowLeft, LogOut, ChevronRight, User, Bell, Lock, CircleHelp, Shield } from 'lucide-react-native';
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+const PHOTO_OPTIONS: { label: string; value: 'wifi' | 'wifi_and_cellular' | 'never' }[] = [
+  { label: 'WiFi Only', value: 'wifi' },
+  { label: 'WiFi & Mobile Data', value: 'wifi_and_cellular' },
+  { label: 'Never', value: 'never' },
+];
+
+const VIDEO_OPTIONS = PHOTO_OPTIONS;
+
+const PREF_LABELS: Record<string, string> = {
+  wifi: 'WiFi Only',
+  wifi_and_cellular: 'WiFi & Mobile Data',
+  never: 'Never',
+};
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const {
+    autoDownloadPhotos,
+    autoDownloadVideos,
+    cacheSize,
+    setAutoDownloadPhotos,
+    setAutoDownloadVideos,
+    setCacheSize,
+  } = useMediaCacheStore();
+
+  useEffect(() => {
+    getCacheSize().then((size) => setCacheSize(size));
+  }, []);
+
+  const showPhotoPicker = () => {
+    Alert.alert(
+      'Photos Auto-Download',
+      undefined,
+      [
+        ...PHOTO_OPTIONS.map((opt) => ({
+          text: opt.label,
+          onPress: () => setAutoDownloadPhotos(opt.value),
+        })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+    );
+  };
+
+  const showVideoPicker = () => {
+    Alert.alert(
+      'Videos Auto-Download',
+      undefined,
+      [
+        ...VIDEO_OPTIONS.map((opt) => ({
+          text: opt.label,
+          onPress: () => setAutoDownloadVideos(opt.value),
+        })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+    );
+  };
+
+  const handleClearCache = () => {
+    Alert.alert(
+      'Clear Cache',
+      `Clear all cached media? This will free up ${formatBytes(cacheSize)}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAllCache();
+            setCacheSize(0);
+          },
+        },
+      ],
+    );
+  };
 
   const handleLogout = async () => {
     try {
@@ -57,6 +140,29 @@ export default function SettingsScreen() {
             </View>
           </View>
         )}
+
+        {/* Storage & Data */}
+        <Text style={styles.sectionHeader}>STORAGE & DATA</Text>
+        <View style={styles.menuSection}>
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={showPhotoPicker}>
+            <Text variant="body" weight="500">Photos</Text>
+            <Text variant="body" color={colors.textSecondary}>{PREF_LABELS[autoDownloadPhotos]}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={showVideoPicker}>
+            <Text variant="body" weight="500">Videos</Text>
+            <Text variant="body" color={colors.textSecondary}>{PREF_LABELS[autoDownloadVideos]}</Text>
+          </TouchableOpacity>
+
+          <View style={styles.menuItem}>
+            <Text variant="body" weight="500">Cached Data</Text>
+            <Text variant="body" color={colors.textSecondary}>{formatBytes(cacheSize)}</Text>
+          </View>
+
+          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={handleClearCache}>
+            <Text variant="body" weight="500" color={colors.accentPink}>Clear Cache</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
@@ -124,6 +230,15 @@ const styles = StyleSheet.create({
   profileInfo: {
     marginLeft: 16,
     flex: 1,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    marginLeft: 4,
   },
   menuSection: {
     backgroundColor: colors.surface,

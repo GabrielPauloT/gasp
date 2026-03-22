@@ -3,7 +3,7 @@ import { StyleSheet, View, Pressable, Alert, ActivityIndicator } from 'react-nat
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
-import auth from '@react-native-firebase/auth';
+import { getAuth, signInWithCredential, PhoneAuthProvider, getIdToken } from '@react-native-firebase/auth';
 import { Text } from '@/components/ui/Text';
 import { OtpInput } from '@/components/auth/OtpInput';
 import { useAuthStore } from '@/stores/authStore';
@@ -25,9 +25,9 @@ export default function VerifyCodeScreen() {
     setIsVerifying(true);
     try {
       // 1. Verify OTP with Firebase (native SDK)
-      const credential = auth.PhoneAuthProvider.credential(verificationId, code);
-      const userCredential = await auth().signInWithCredential(credential);
-      const firebaseToken = await userCredential.user.getIdToken();
+      const credential = PhoneAuthProvider.credential(verificationId, code);
+      const userCredential = await signInWithCredential(getAuth(), credential);
+      const firebaseToken = await getIdToken(userCredential.user);
 
       // 2. Login with backend
       try {

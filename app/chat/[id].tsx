@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,21 +11,27 @@ import { ChatInput } from '@/components/chat/ChatInput';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { colors } from '@/constants/colors';
-import type { Message, Conversation } from '@/types/chat';
+import type { Message } from '@/types/chat';
+
+const keyExtractor = (item: Message) => item.id;
 
 export default function ChatScreen() {
   const { id, name, avatarUrl } = useLocalSearchParams<{ id: string, name?: string, avatarUrl?: string }>();
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
-  
+
   const user = useAuthStore((s) => s.user);
-  const { openConversation, closeConversation, sendMessage, markAsRead, fetchMessages } = useChatStore();
-  
+  const { openConversation, closeConversation, sendMessage, markAsRead, fetchMoreMessages } = useChatStore();
+
   const conversations = useChatStore((s) => s.conversations);
   const isLoadingMessages = useChatStore((s) => s.isLoadingMessages);
-  
+  const isLoadingMore = useChatStore((s) => s.isLoadingMoreMessages);
+  const hasMore = useChatStore((s) => s.hasMoreMessages[id] ?? false);
+
   const messagesStore = useChatStore((s) => s.messages);
   const messages = messagesStore[id] ?? [];
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   const conversation = conversations.find(c => c.id === id);
 
@@ -47,20 +53,35 @@ export default function ChatScreen() {
     }
   }, [id, sendMessage]);
 
+  const handleLoadMore = useCallback(() => {
+    if (id) fetchMoreMessages(id);
+  }, [id, fetchMoreMessages]);
+
+  // Stable ref for otherParticipantName to avoid renderItem dep on it
+  const otherNameRef = useRef(otherParticipantName);
+  otherNameRef.current = otherParticipantName;
+
   const renderItem = useCallback(({ item, index }: { item: Message; index: number }) => {
     const isOwnMessage = item.senderId === user?.id;
-    // Check if the previous message rendered was from the same sender (for grouping visual)
-    const nextMessage = index > 0 ? messages[index - 1] : null;
+    const currentMessages = messagesRef.current;
+    const nextMessage = index > 0 ? currentMessages[index - 1] : null;
     const isSequential = nextMessage?.senderId === item.senderId;
+
+    // Resolve reply-to message for reactions
+    const replyToMessage = item.replyToId
+      ? currentMessages.find((m) => m.id === item.replyToId) ?? null
+      : null;
 
     return (
       <MessageBubble
         message={item}
         isOwnMessage={isOwnMessage}
         isSequential={isSequential}
+        replyToMessage={replyToMessage}
+        otherParticipantName={otherNameRef.current}
       />
     );
-  }, [user?.id, messages]);
+  }, [user?.id]);
 
   return (
     <KeyboardAvoidingView
@@ -87,12 +108,23 @@ export default function ChatScreen() {
         <FlatList
           ref={flatListRef}
           data={messages}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           renderItem={renderItem}
           inverted
           contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="interactive"
+          windowSize={5}
+          maxToRenderPerBatch={8}
+          initialNumToRender={10}
+          removeClippedSubviews={Platform.OS === 'android'}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={
+            isLoadingMore ? (
+              <ActivityIndicator size="small" color={colors.primary} style={{ paddingVertical: 16 }} />
+            ) : null
+          }
           ListEmptyComponent={
             isLoadingMessages ? (
               <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 24 }} />

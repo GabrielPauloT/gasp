@@ -1,6 +1,23 @@
 import axios from 'axios';
-import { useAuthStore } from '@/stores/authStore';
-import { getAuthToken, removeAuthToken } from '@/utils/storage';
+import { getAuthToken, setAuthToken, removeAuthToken } from '@/utils/storage';
+
+// ── In-memory token + callbacks (avoids circular dep with authStore) ──
+let _token: string | null = null;
+
+/** Called by authStore whenever the JWT changes */
+export function setApiToken(token: string | null) {
+  _token = token;
+}
+
+interface AuthCallbacks {
+  onTokenRefreshed: (token: string) => void;
+  onLogout: () => void;
+}
+let _authCallbacks: AuthCallbacks | null = null;
+
+export function registerAuthCallbacks(callbacks: AuthCallbacks) {
+  _authCallbacks = callbacks;
+}
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -14,15 +31,16 @@ export const api = axios.create({
 });
 
 // ── Request interceptor: inject JWT ────────────────────────────────
-api.interceptors.request.use(async (config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+api.interceptors.request.use((config) => {
+  if (_token) {
+    config.headers.Authorization = `Bearer ${_token}`;
   }
   return config;
 });
 
 // ── Response interceptor: handle 401 + refresh ─────────────────────
+let refreshPromise: Promise<string> | null = null;
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -33,24 +51,35 @@ api.interceptors.response.use(
       original._retry = true;
 
       try {
-        const currentToken = await getAuthToken();
-        if (!currentToken) throw new Error('No token');
+        // Serialize concurrent refresh attempts into a single request
+        if (!refreshPromise) {
+          refreshPromise = (async () => {
+            const currentToken = await getAuthToken();
+            if (!currentToken) throw new Error('No token');
 
-        const { data } = await axios.post(
-          `${API_URL}/api/v1/auth/refresh`,
-          {},
-          { headers: { Authorization: `Bearer ${currentToken}` } },
-        );
+            const { data } = await axios.post(
+              `${API_URL}/api/v1/auth/refresh`,
+              {},
+              { headers: { Authorization: `Bearer ${currentToken}` } },
+            );
 
-        const newToken = data.token as string;
-        useAuthStore.getState().setToken(newToken);
+            const newToken = data.token as string;
+            await setAuthToken(newToken);
+            _authCallbacks?.onTokenRefreshed(newToken);
+            return newToken;
+          })();
+        }
+
+        const newToken = await refreshPromise;
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       } catch {
         // Refresh failed → logout
         await removeAuthToken();
-        useAuthStore.getState().logout();
+        _authCallbacks?.onLogout();
         return Promise.reject(error);
+      } finally {
+        refreshPromise = null;
       }
     }
 

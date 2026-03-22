@@ -13,11 +13,14 @@ import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import type { InboxFriend } from '@/stores/inboxStore';
 import { uploadGasp } from '@/services/storage';
+import { compressImage } from '@/services/imageCompression';
+import { compressVideo } from '@/services/videoCompression';
 import { getApiErrorMessage } from '@/services/api';
 import { colors } from '@/constants/colors';
 
 export default function SendGaspScreen() {
-  const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
+  const { imageUri, isVideo } = useLocalSearchParams<{ imageUri: string; isVideo?: string }>();
+  const isVideoMode = isVideo === 'true';
   const insets = useSafeAreaInsets();
   const friends = useInboxStore((s) => s.friends);
   const user = useAuthStore((s) => s.user);
@@ -67,21 +70,28 @@ export default function SendGaspScreen() {
     setUploadProgress(0);
 
     try {
-      // 1. Upload image to Firebase Storage
-      const result = await uploadGasp(imageUri, userId, ({ progress }) => {
-        setUploadProgress(progress * 0.8); // 80% for upload
+      // 1. Compress media before upload
+      setUploadProgress(0.05);
+      const compressedUri = isVideoMode
+        ? await compressVideo(imageUri)
+        : await compressImage(imageUri);
+
+      // 2. Upload to Firebase Storage
+      const result = await uploadGasp(compressedUri, userId, ({ progress }) => {
+        setUploadProgress(0.1 + progress * 0.7); // 10-80% for upload
       });
 
-      // 2. Save gasp metadata to backend
+      // 3. Save gasp metadata to backend
       setUploadProgress(0.9);
       
       const recipientArray = Array.from(selectedIds);
       await sendBatchGasp({
         recipientIds: recipientArray,
         imageUrl: result.downloadUrl,
+        ...(isVideoMode && { mediaType: 'video' as const }),
       });
 
-      // 3. Fire-and-forget socket chat messages so they visually populate the conversation stream
+      // 4. Fire-and-forget socket chat messages so they visually populate the conversation stream
       for (const friendId of recipientArray) {
         try {
           const conv = await getOrCreateConversation(friendId);
@@ -242,7 +252,7 @@ export default function SendGaspScreen() {
               <>
                 <ActivityIndicator size="small" color="#FFFFFF" />
                 <Text variant="body" style={styles.sendText}>
-                  {'Uploading... '}{Math.round(uploadProgress * 100)}{'%'}
+                  {uploadProgress < 0.1 ? 'Compressing... ' : 'Uploading... '}{Math.round(uploadProgress * 100)}{'%'}
                 </Text>
               </>
             ) : (

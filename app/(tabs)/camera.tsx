@@ -1,5 +1,5 @@
 import { StyleSheet, View, Pressable } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useIsFocused } from '@react-navigation/native';
 import { Text } from '@/components/ui/Text';
 import { CameraOverlay } from '@/components/camera/CameraOverlay';
@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 export default function CameraScreen() {
   const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const {
     cameraRef,
     facing,
@@ -19,11 +20,17 @@ export default function CameraScreen() {
     toggleFacing,
     cycleFlash,
     takePicture,
+    startRecording,
+    stopRecording,
   } = useCamera();
 
   const lastCapturedUri = useCameraStore((s) => s.lastCapturedUri);
+  const isRecording = useCameraStore((s) => s.isRecording);
 
   const handleCapture = async () => {
+    // Skip photo capture if we're recording video
+    if (useCameraStore.getState().isRecording) return;
+
     const uri = await takePicture();
     if (uri) {
       router.push({
@@ -31,6 +38,27 @@ export default function CameraScreen() {
         params: { imageUri: uri },
       });
     }
+  };
+
+  const handleRecordStart = () => {
+    // Fire and forget — recording resolves when stopRecording is called
+    startRecording().then((uri) => {
+      if (uri) {
+        router.push({
+          pathname: '/(modals)/camera-preview',
+          params: { imageUri: uri, isVideo: 'true' },
+        });
+      }
+    });
+  };
+
+  const handleRecordStop = () => {
+    stopRecording();
+  };
+
+  const handleGrantAccess = async () => {
+    await requestPermission();
+    await requestMicPermission();
   };
 
   // Permission not granted yet
@@ -42,9 +70,9 @@ export default function CameraScreen() {
           {'Camera Access'}
         </Text>
         <Text variant="body" style={styles.permissionText}>
-          {'GASP needs camera access to capture moments and reactions'}
+          {'GASP needs camera and microphone access to capture moments and reactions'}
         </Text>
-        <Pressable onPress={requestPermission} style={styles.permissionButton}>
+        <Pressable onPress={handleGrantAccess} style={styles.permissionButton}>
           <Text variant="body" style={styles.permissionButtonText}>
             {'Grant Access'}
           </Text>
@@ -62,7 +90,7 @@ export default function CameraScreen() {
           style={styles.camera}
           facing={facing}
           flash={flashMode}
-          mode="picture"
+          mode="video"
         />
       ) : (
         <View style={styles.cameraPlaceholder} />
@@ -72,9 +100,12 @@ export default function CameraScreen() {
       <CameraOverlay
         flashMode={flashMode}
         lastCapturedUri={lastCapturedUri}
+        isRecording={isRecording}
         onToggleFlash={cycleFlash}
         onFlipCamera={toggleFacing}
         onCapture={handleCapture}
+        onLongPressStart={handleRecordStart}
+        onLongPressEnd={handleRecordStop}
       />
     </View>
   );

@@ -9,6 +9,7 @@ export interface Message {
   createdAt: string;
   readAt?: string;
   mediaUrl?: string;
+  replyToId?: string | null;
 }
 
 export interface Conversation {

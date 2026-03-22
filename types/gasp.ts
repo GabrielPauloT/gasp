@@ -1,4 +1,5 @@
 export type GaspStatus = 'pending' | 'viewed' | 'expired';
+export type GaspMediaType = 'image' | 'video';
 
 export interface Gasp {
   id: string;
@@ -6,6 +7,7 @@ export interface Gasp {
   senderName: string;
   senderAvatarUrl: string | null;
   imageUri: string;
+  mediaType: GaspMediaType;
   blurhash: string;
   status: GaspStatus;
   createdAt: string;
@@ -19,6 +21,7 @@ export interface ApiGasp {
   senderId: string;
   recipientId: string;
   imageUrl: string;
+  mediaType: GaspMediaType;
   blurhash: string | null;
   status: GaspStatus;
   createdAt: string;

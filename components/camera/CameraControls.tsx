@@ -1,13 +1,14 @@
-import { StyleSheet, View } from 'react-native';
-import { Zap, ZapOff, RefreshCw } from 'lucide-react-native';
-import { colors } from '@/constants/colors';
-import { Pressable } from 'react-native';
+import { StyleSheet, View, Pressable } from 'react-native';
+import { Zap, ZapOff, SwitchCamera } from 'lucide-react-native';
+import { Text } from '@/components/ui/Text';
 
 interface CameraControlsProps {
   flashMode: 'off' | 'on' | 'auto';
   onToggleFlash: () => void;
   onFlipCamera: () => void;
 }
+
+const FLASH_LABELS = { off: 'OFF', on: 'ON', auto: 'AUTO' } as const;
 
 export function CameraControls({
   flashMode,
@@ -20,13 +21,14 @@ export function CameraControls({
   return (
     <View style={styles.container}>
       <Pressable onPress={onToggleFlash} style={styles.iconButton}>
-        <FlashIcon size={24} color={flashColor} />
+        <FlashIcon size={20} color={flashColor} />
+        <Text style={[styles.label, flashMode === 'on' && styles.labelActive]}>
+          {FLASH_LABELS[flashMode]}
+        </Text>
       </Pressable>
 
-      <View style={styles.gradientBar} />
-
       <Pressable onPress={onFlipCamera} style={styles.iconButton}>
-        <RefreshCw size={24} color="#FFFFFF" />
+        <SwitchCamera size={22} color="#FFFFFF" />
       </Pressable>
     </View>
   );
@@ -41,20 +43,22 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderCurve: 'continuous',
   },
-  gradientBar: {
-    width: 60,
-    height: 4,
-    borderRadius: 2,
-    // @ts-ignore - experimental_backgroundImage
-    experimental_backgroundImage:
-      'linear-gradient(90deg, #7C3AED, #EC4899, #06B6D4)',
+  label: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.7)',
+    letterSpacing: 0.5,
+  },
+  labelActive: {
+    color: '#FBBF24',
   },
 });

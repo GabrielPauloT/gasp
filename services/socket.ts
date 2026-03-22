@@ -77,6 +77,7 @@ export function chatSendMessage(data: {
   content: string;
   type?: string;
   mediaUrl?: string;
+  replyToId?: string;
 }) {
   socket?.emit('chat:send_message', data);
 }

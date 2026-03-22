@@ -74,15 +74,18 @@ export const useInboxStore = create<InboxState>((set, get) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   setFriendOnlineStatus: (userId, status) =>
-    set((state) => ({
-      friends: state.friends.map((f) =>
+    set((state) => {
+      const friend = state.friends.find((f) => f.id === userId);
+      // Skip if friend not found or status unchanged (prevents duplicate events desyncing count)
+      if (!friend || friend.onlineStatus === status) return state;
+      const friends = state.friends.map((f) =>
         f.id === userId ? { ...f, onlineStatus: status } : f
-      ),
-      onlineCount:
-        status === 'online'
-          ? state.onlineCount + 1
-          : Math.max(0, state.onlineCount - 1),
-    })),
+      );
+      return {
+        friends,
+        onlineCount: friends.filter((f) => f.onlineStatus === 'online').length,
+      };
+    }),
 
   setBulkOnlineStatus: (onlineUserIds) =>
     set((state) => ({

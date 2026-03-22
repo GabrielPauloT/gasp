@@ -1,13 +1,27 @@
 import 'react-native-reanimated';
 import '@/global.css';
 
+if (__DEV__) {
+  require('../reactotron.config');
+}
+
 import { useEffect } from 'react';
+import { LogBox } from 'react-native';
 import { Stack } from 'expo-router';
+
+// Suppress warnings from third-party dependencies we don't control
+LogBox.ignoreLogs([
+  'SafeAreaView has been deprecated',
+]);
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '@/stores/authStore';
 import { useSocketListeners } from '@/hooks/useSocketListeners';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useAutoDownload } from '@/hooks/useAutoDownload';
+import { initCache } from '@/services/mediaCache';
+import { useMediaCacheStore } from '@/stores/mediaCacheStore';
 
 // Keep splash screen visible while we initialize auth
 SplashScreen.preventAutoHideAsync();
@@ -23,7 +37,17 @@ export default function RootLayout() {
   // Register all Socket.IO listeners for real-time updates
   useSocketListeners();
 
+  // Fetch friends & pending gasps on auth
+  useOnlineStatus();
+
+  // Auto-download gasps based on preferences + network
+  useAutoDownload();
+
   useEffect(() => {
+    // Initialize media cache + preferences in parallel with auth
+    initCache();
+    useMediaCacheStore.getState().loadPreferences();
+
     initializeAuth().finally(() => {
       SplashScreen.hideAsync();
     });

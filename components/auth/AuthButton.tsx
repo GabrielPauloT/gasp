@@ -62,9 +62,9 @@ export function AuthButton({ variant, onPress }: AuthButtonProps) {
       <Animated.View
         style={[
           styles.button,
-          isPhone ? styles.phoneButton : null,
-          isGuest ? styles.guestButton : styles.darkButton,
-          isGuest ? null : null,
+          variant === 'phone' && styles.phoneButton,
+          variant === 'apple' && styles.darkButton,
+          variant === 'guest' && styles.guestButton,
           animatedStyle,
         ]}
       >
@@ -92,8 +92,8 @@ export function AuthButton({ variant, onPress }: AuthButtonProps) {
 const styles = StyleSheet.create({
   button: {
     width: '100%',
-    height: 56,
-    borderRadius: 16,
+    minHeight: 60,
+    borderRadius: 20,
     borderCurve: 'continuous',
     justifyContent: 'center',
     alignItems: 'center',
@@ -102,20 +102,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   darkButton: {
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(24, 24, 36, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   guestButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    minHeight: 52,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
 });

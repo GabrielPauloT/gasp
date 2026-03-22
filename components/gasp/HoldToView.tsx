@@ -1,18 +1,25 @@
+import { useCallback } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Text } from '@/components/ui/Text';
 import { GaspTimer } from './GaspTimer';
 import Animated, {
   useAnimatedStyle,
+  useAnimatedReaction,
+  runOnJS,
   interpolate,
   type SharedValue,
 } from 'react-native-reanimated';
 import { colors } from '@/constants/colors';
+import { getCachedUri } from '@/services/mediaCache';
+import type { GaspMediaType } from '@/types/gasp';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface HoldToViewProps {
   imageUri: string;
+  mediaType?: GaspMediaType;
   blurhash?: string;
   senderName: string;
   /** Shared value controlado pelo pai (0 = não segurando, 1 = segurando) */
@@ -23,11 +30,39 @@ interface HoldToViewProps {
 
 export function HoldToView({
   imageUri,
+  mediaType = 'image',
   blurhash,
   senderName,
   isHolding,
   holdProgress,
 }: HoldToViewProps) {
+  const isVideo = mediaType === 'video';
+  const resolvedUri = getCachedUri(imageUri) ?? imageUri;
+  const videoPlayer = useVideoPlayer(isVideo ? resolvedUri : null, (p) => {
+    p.loop = true;
+    // Don't auto-play — controlled by hold gesture
+  });
+
+  const startVideo = useCallback(() => {
+    videoPlayer.currentTime = 0;
+    videoPlayer.play();
+  }, [videoPlayer]);
+
+  const pauseVideo = useCallback(() => {
+    videoPlayer.pause();
+  }, [videoPlayer]);
+
+  useAnimatedReaction(
+    () => isHolding.get(),
+    (current, previous) => {
+      if (current === 1 && previous !== 1) {
+        runOnJS(startVideo)();
+      } else if (current === 0 && previous !== 0) {
+        runOnJS(pauseVideo)();
+      }
+    },
+  );
+
   const imageStyle = useAnimatedStyle(() => ({
     opacity: interpolate(isHolding.get(), [0, 1], [0, 1]),
   }));
@@ -46,22 +81,39 @@ export function HoldToView({
   return (
     <View style={styles.container}>
       {/* Blurred preview (always visible) */}
-      <Image
-        source={{ uri: imageUri }}
-        placeholder={blurhash ? { blurhash } : undefined}
-        style={styles.blurredImage}
-        contentFit="cover"
-        blurRadius={30}
-      />
-
-      {/* Revealed image (visible on hold) */}
-      <Animated.View style={[styles.revealedContainer, imageStyle]}>
+      {isVideo ? (
         <Image
-          source={{ uri: imageUri }}
-          style={styles.revealedImage}
+          placeholder={blurhash ? { blurhash } : undefined}
+          style={styles.blurredImage}
           contentFit="cover"
-          transition={200}
         />
+      ) : (
+        <Image
+          source={{ uri: resolvedUri }}
+          placeholder={blurhash ? { blurhash } : undefined}
+          style={styles.blurredImage}
+          contentFit="cover"
+          blurRadius={30}
+        />
+      )}
+
+      {/* Revealed media (visible on hold) */}
+      <Animated.View style={[styles.revealedContainer, imageStyle]}>
+        {isVideo && videoPlayer ? (
+          <VideoView
+            player={videoPlayer}
+            style={styles.revealedImage}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        ) : (
+          <Image
+            source={{ uri: resolvedUri }}
+            style={styles.revealedImage}
+            contentFit="cover"
+            transition={200}
+          />
+        )}
       </Animated.View>
 
       {/* Hold instruction overlay */}

@@ -12,6 +12,7 @@ interface GaspState {
   holdProgress: number;
   isLoadingPending: boolean;
   isLoadingSent: boolean;
+  viewedChatGaspIds: Set<string>;
 
   setCurrentGasp: (gasp: Gasp | null) => void;
   setHolding: (holding: boolean) => void;
@@ -23,10 +24,12 @@ interface GaspState {
   setPendingGasps: (gasps: Gasp[]) => void;
   setSentGasps: (gasps: Gasp[]) => void;
   removeExpiredGasp: (gaspId: string) => void;
+  markChatGaspViewed: (messageId: string) => void;
+  isChatGaspViewed: (messageId: string) => boolean;
 
   fetchPendingGasps: () => Promise<void>;
   fetchSentGasps: () => Promise<void>;
-  sendBatchGasp: (data: { recipientIds: string[]; imageUrl: string; blurhash?: string }) => Promise<void>;
+  sendBatchGasp: (data: { recipientIds: string[]; imageUrl: string; mediaType?: 'image' | 'video'; blurhash?: string }) => Promise<void>;
   viewGasp: (gaspId: string) => Promise<void>;
   createReaction: (data: { gaspId: string; videoUrl: string }) => Promise<Reaction>;
 }
@@ -40,6 +43,7 @@ export const useGaspStore = create<GaspState>((set, get) => ({
   holdProgress: 0,
   isLoadingPending: false,
   isLoadingSent: false,
+  viewedChatGaspIds: new Set(),
 
   setCurrentGasp: (gasp) => set({ currentViewingGasp: gasp }),
   setHolding: (isHolding) => set({ isHolding }),
@@ -70,6 +74,15 @@ export const useGaspStore = create<GaspState>((set, get) => ({
     set((state) => ({
       pendingGasps: state.pendingGasps.filter((g) => g.id !== gaspId),
     })),
+
+  markChatGaspViewed: (messageId) =>
+    set((state) => {
+      const next = new Set(state.viewedChatGaspIds);
+      next.add(messageId);
+      return { viewedChatGaspIds: next };
+    }),
+
+  isChatGaspViewed: (messageId) => get().viewedChatGaspIds.has(messageId),
 
   fetchPendingGasps: async () => {
     set({ isLoadingPending: true });

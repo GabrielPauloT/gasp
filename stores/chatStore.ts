@@ -23,7 +23,9 @@ interface ChatState {
   typingUsers: TypingUser[];
   isLoadingConversations: boolean;
   isLoadingMessages: boolean;
+  isLoadingMoreMessages: boolean;
   hasMoreMessages: Record<string, boolean>;
+  messageCursors: Record<string, string | null>;
 
   setConversations: (conversations: Conversation[]) => void;
   setActiveConversation: (id: string | null) => void;
@@ -36,7 +38,8 @@ interface ChatState {
   // Async actions
   fetchConversations: () => Promise<void>;
   fetchMessages: (conversationId: string, cursor?: string) => Promise<void>;
-  sendMessage: (conversationId: string, content: string, type?: MessageType, mediaUrl?: string) => void;
+  fetchMoreMessages: (conversationId: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: string, type?: MessageType, mediaUrl?: string, replyToId?: string) => void;
   openConversation: (conversationId: string) => Promise<void>;
   closeConversation: (conversationId: string) => void;
   getOrCreateConversation: (participantId: string) => Promise<Conversation>;
@@ -52,7 +55,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   typingUsers: [],
   isLoadingConversations: false,
   isLoadingMessages: false,
+  isLoadingMoreMessages: false,
   hasMoreMessages: {},
+  messageCursors: {},
 
   setConversations: (conversations) => set({ conversations }),
 
@@ -121,39 +126,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   fetchMessages: async (conversationId, cursor) => {
-    set({ isLoadingMessages: true });
+    const isPageLoad = !!cursor;
+    if (isPageLoad) {
+      set({ isLoadingMoreMessages: true });
+    } else {
+      set({ isLoadingMessages: true });
+    }
     try {
       const result = await messagesApi.listMessages(conversationId, {
         cursor,
-        limit: 50,
+        limit: 20,
         direction: 'older',
       });
 
       set((state) => {
-        const existing = cursor ? (state.messages[conversationId] ?? []) : [];
-        // The backend returns newer messages first (DESC).
-        // Since FlatList is inverted, index 0 should be the newest.
-        const newMessages = result.data.filter(
-          (m) => !existing.some((e) => e.id === m.id)
+        const current = state.messages[conversationId] ?? [];
+
+        if (cursor) {
+          // Pagination: append older messages not already present
+          const existingIds = new Set(current.map((m) => m.id));
+          const older = result.data.filter((m) => !existingIds.has(m.id));
+          return {
+            messages: { ...state.messages, [conversationId]: [...current, ...older] },
+            hasMoreMessages: { ...state.hasMoreMessages, [conversationId]: result.hasMore },
+            messageCursors: { ...state.messageCursors, [conversationId]: result.nextCursor },
+          };
+        }
+
+        // Initial fetch: API result is authoritative, but preserve
+        // socket-delivered messages that are NEWER than the API page
+        // (old paginated messages must be dropped to avoid reordering)
+        const apiIds = new Set(result.data.map((m) => m.id));
+        const newestApiTime = result.data[0]?.createdAt;
+        const socketOnly = current.filter(
+          (m) => !apiIds.has(m.id) && (!newestApiTime || m.createdAt > newestApiTime),
         );
         return {
-          messages: {
-            ...state.messages,
-            [conversationId]: [...existing, ...newMessages],
-          },
-          hasMoreMessages: {
-            ...state.hasMoreMessages,
-            [conversationId]: result.hasMore,
-          },
+          messages: { ...state.messages, [conversationId]: [...socketOnly, ...result.data] },
+          hasMoreMessages: { ...state.hasMoreMessages, [conversationId]: result.hasMore },
+          messageCursors: { ...state.messageCursors, [conversationId]: result.nextCursor },
         };
       });
     } finally {
-      set({ isLoadingMessages: false });
+      if (isPageLoad) {
+        set({ isLoadingMoreMessages: false });
+      } else {
+        set({ isLoadingMessages: false });
+      }
     }
   },
 
-  sendMessage: (conversationId, content, type = 'text', mediaUrl) => {
-    chatSendMessage({ conversationId, content, type, mediaUrl });
+  fetchMoreMessages: async (conversationId) => {
+    const { hasMoreMessages, isLoadingMoreMessages, messageCursors } = get();
+    if (isLoadingMoreMessages || !hasMoreMessages[conversationId]) return;
+    const cursor = messageCursors[conversationId];
+    if (!cursor) return;
+    await get().fetchMessages(conversationId, cursor);
+  },
+
+  sendMessage: (conversationId, content, type = 'text', mediaUrl, replyToId) => {
+    chatSendMessage({ conversationId, content, type, mediaUrl, replyToId });
   },
 
   openConversation: async (conversationId) => {
