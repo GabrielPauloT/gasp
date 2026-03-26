@@ -94,13 +94,16 @@ function MessageBubbleInner({
   const [hasActivated, setHasActivated] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
 
-  const isGaspViewed = useGaspStore((s) => isGasp && !!s.viewedChatGaspIds[message.id]);
+  const isGaspViewed = useGaspStore((s) =>
+    isGasp && (!!s.viewedChatGaspIds[message.id] || !!(message.mediaUrl && s.viewedGaspUrls[message.mediaUrl]))
+  );
   const [isPreloading, setIsPreloading] = useState(false);
 
   // ── Gasp tap → prefetch + open view-gasp modal ─────
   const handleGaspPress = useCallback(async () => {
     if (isOwnMessage || isPreloading) return;
-    if (useGaspStore.getState().viewedChatGaspIds[message.id]) return;
+    const state = useGaspStore.getState();
+    if (state.viewedChatGaspIds[message.id] || (message.mediaUrl && state.viewedGaspUrls[message.mediaUrl])) return;
 
     setIsPreloading(true);
     await openGaspViewer({

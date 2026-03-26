@@ -13,6 +13,7 @@ interface GaspState {
   isLoadingPending: boolean;
   isLoadingSent: boolean;
   viewedChatGaspIds: Record<string, true>;
+  viewedGaspUrls: Record<string, true>;
 
   setCurrentGasp: (gasp: Gasp | null) => void;
   setHolding: (holding: boolean) => void;
@@ -24,7 +25,8 @@ interface GaspState {
   setPendingGasps: (gasps: Gasp[]) => void;
   setSentGasps: (gasps: Gasp[]) => void;
   removeExpiredGasp: (gaspId: string) => void;
-  markChatGaspViewed: (messageId: string) => void;
+  markChatGaspViewed: (messageId: string, mediaUrl?: string) => void;
+  isGaspMediaViewed: (mediaUrl: string) => boolean;
   isChatGaspViewed: (messageId: string) => boolean;
   clearViewedChatGasps: () => void;
 
@@ -45,6 +47,7 @@ export const useGaspStore = create<GaspState>((set, get) => ({
   isLoadingPending: false,
   isLoadingSent: false,
   viewedChatGaspIds: {},
+  viewedGaspUrls: {},
 
   setCurrentGasp: (gasp) => set({ currentViewingGasp: gasp }),
   setHolding: (isHolding) => set({ isHolding }),
@@ -54,9 +57,15 @@ export const useGaspStore = create<GaspState>((set, get) => ({
     set((state) => ({ pendingGasps: [gasp, ...state.pendingGasps] })),
 
   markGaspViewed: (gaspId) =>
-    set((state) => ({
-      pendingGasps: state.pendingGasps.filter((g) => g.id !== gaspId),
-    })),
+    set((state) => {
+      const gasp = state.pendingGasps.find((g) => g.id === gaspId);
+      return {
+        pendingGasps: state.pendingGasps.filter((g) => g.id !== gaspId),
+        viewedGaspUrls: gasp
+          ? { ...state.viewedGaspUrls, [gasp.imageUri]: true }
+          : state.viewedGaspUrls,
+      };
+    }),
 
   addSentGasp: (gasp) =>
     set((state) => ({ sentGasps: [gasp, ...state.sentGasps] })),
@@ -72,14 +81,19 @@ export const useGaspStore = create<GaspState>((set, get) => ({
       pendingGasps: state.pendingGasps.filter((g) => g.id !== gaspId),
     })),
 
-  markChatGaspViewed: (messageId) =>
+  markChatGaspViewed: (messageId, mediaUrl) =>
     set((state) => ({
       viewedChatGaspIds: { ...state.viewedChatGaspIds, [messageId]: true },
+      viewedGaspUrls: mediaUrl
+        ? { ...state.viewedGaspUrls, [mediaUrl]: true }
+        : state.viewedGaspUrls,
     })),
+
+  isGaspMediaViewed: (mediaUrl) => !!get().viewedGaspUrls[mediaUrl],
 
   isChatGaspViewed: (messageId) => !!get().viewedChatGaspIds[messageId],
 
-  clearViewedChatGasps: () => set({ viewedChatGaspIds: {} }),
+  clearViewedChatGasps: () => set({ viewedChatGaspIds: {}, viewedGaspUrls: {} }),
 
   fetchPendingGasps: async () => {
     set({ isLoadingPending: true });

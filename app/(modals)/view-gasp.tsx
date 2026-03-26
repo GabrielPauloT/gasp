@@ -71,9 +71,9 @@ export default function ViewGaspScreen() {
   // Mark chat gasp as viewed when modal mounts
   useEffect(() => {
     if (messageId) {
-      useGaspStore.getState().markChatGaspViewed(messageId);
+      useGaspStore.getState().markChatGaspViewed(messageId, imageUri);
     }
-  }, [messageId]);
+  }, [messageId, imageUri]);
 
   // ── Começa a gravar quando o hold inicia ─────────────────────────
   const handleHoldStart = useCallback(() => {
