@@ -43,6 +43,7 @@ export default function InboxScreen() {
       mediaType: gasp.mediaType,
       blurhash: gasp.blurhash,
       textOverlay: gasp.textOverlay,
+      gaspId: gasp.id,
     });
     setPreloadingId(null);
   }, [preloadingId]);
