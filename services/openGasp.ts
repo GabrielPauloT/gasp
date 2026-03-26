@@ -6,6 +6,7 @@ interface OpenGaspParams {
   senderName: string;
   mediaType?: 'image' | 'video';
   blurhash?: string;
+  gaspId?: string;
   conversationId?: string;
   messageId?: string;
   textOverlay?: string;
@@ -16,7 +17,7 @@ interface OpenGaspParams {
  * Since the file is local when the modal opens, there's zero loading delay.
  */
 export async function openGaspViewer(params: OpenGaspParams): Promise<void> {
-  const { imageUri, senderName, mediaType, blurhash, conversationId, messageId, textOverlay } = params;
+  const { imageUri, senderName, mediaType, blurhash, gaspId, conversationId, messageId, textOverlay } = params;
 
   // Download to local cache — returns local file:// URI
   let localUri = imageUri;
@@ -31,6 +32,7 @@ export async function openGaspViewer(params: OpenGaspParams): Promise<void> {
   router.push({
     pathname: '/(modals)/view-gasp',
     params: {
+      ...(gaspId && { gaspId }),
       chatImageUri: localUri,
       chatSenderName: senderName,
       chatMediaType: mediaType ?? 'image',

@@ -37,6 +37,7 @@ export default function ViewGaspScreen() {
   const { sendMessage } = useChatStore();
 
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
+  const releasedRef = useRef(false);
 
   // ── Unified data resolution ──────────────────────────────────────
   // All callers now use openGaspViewer() which passes chatImageUri etc.
@@ -76,6 +77,7 @@ export default function ViewGaspScreen() {
 
   // ── Começa a gravar quando o hold inicia ─────────────────────────
   const handleHoldStart = useCallback(() => {
+    releasedRef.current = false;
     if (!reactionCameraRef.current) return;
     try {
       recordingPromiseRef.current = reactionCameraRef.current.recordAsync({
@@ -88,6 +90,9 @@ export default function ViewGaspScreen() {
 
   // ── Quando solta o dedo — para gravação, faz upload e envia ─────
   const handleRelease = useCallback(async () => {
+    if (releasedRef.current) return;
+    releasedRef.current = true;
+
     const userId = user?.id ?? 'guest';
     let videoUri: string | null = null;
 

@@ -28,7 +28,6 @@ export default function ChatScreen() {
   const conversations = useChatStore((s) => s.conversations);
   const isLoadingMessages = useChatStore((s) => s.isLoadingMessages);
   const isLoadingMore = useChatStore((s) => s.isLoadingMoreMessages);
-  const hasMore = useChatStore((s) => s.hasMoreMessages[id] ?? false);
 
   const messagesStore = useChatStore((s) => s.messages);
   const messages = messagesStore[id] ?? [];
@@ -83,7 +82,10 @@ export default function ChatScreen() {
     const isOwnMessage = item.senderId === user?.id;
     const currentMessages = messagesRef.current;
     const nextMessage = index > 0 ? currentMessages[index - 1] : null;
-    const isSequential = nextMessage?.senderId === item.senderId;
+    const dayChanges = nextMessage
+      ? item.createdAt.substring(0, 10) !== nextMessage.createdAt.substring(0, 10)
+      : false;
+    const isSequential = !dayChanges && nextMessage?.senderId === item.senderId;
 
     // Resolve reply-to message for reactions
     const replyToMessage = item.replyToId
@@ -92,8 +94,8 @@ export default function ChatScreen() {
 
     // Date separator: show when date changes from the older message (index+1) or it's the oldest message
     const olderMessage = currentMessages[index + 1];
-    const currentDay = new Date(item.createdAt).toDateString();
-    const olderDay = olderMessage ? new Date(olderMessage.createdAt).toDateString() : null;
+    const currentDay = item.createdAt.substring(0, 10);
+    const olderDay = olderMessage ? olderMessage.createdAt.substring(0, 10) : null;
     const showDateSeparator = !olderDay || currentDay !== olderDay;
 
     return (

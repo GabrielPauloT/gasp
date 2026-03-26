@@ -20,7 +20,7 @@ function getDateLabel(dateString: string): string {
 
   const diffDays = Math.floor((todayMs - dateMs) / (86400000));
 
-  if (diffDays < 7) {
+  if (diffDays > 0 && diffDays < 7) {
     const label = date.toLocaleDateString('pt-BR', { weekday: 'long' });
     return label.charAt(0).toUpperCase() + label.slice(1);
   }
