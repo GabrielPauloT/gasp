@@ -1,8 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Text } from '@/components/ui/Text';
+import { parseTextOverlay, TextOverlayRenderer } from './TextOverlayRenderer';
 import { GaspTimer } from './GaspTimer';
 import Animated, {
   useAnimatedStyle,
@@ -22,10 +23,14 @@ interface HoldToViewProps {
   mediaType?: GaspMediaType;
   blurhash?: string;
   senderName: string;
+  /** JSON text overlay data from message content */
+  textOverlayJson?: string;
   /** Shared value controlado pelo pai (0 = não segurando, 1 = segurando) */
   isHolding: SharedValue<number>;
   /** Shared value controlado pelo pai (0 a 1, progresso do hold) */
   holdProgress: SharedValue<number>;
+  /** Callback com duração do vídeo em ms (chamado quando o player carrega) */
+  onVideoLoad?: (durationMs: number) => void;
 }
 
 export function HoldToView({
@@ -33,15 +38,36 @@ export function HoldToView({
   mediaType = 'image',
   blurhash,
   senderName,
+  textOverlayJson,
   isHolding,
   holdProgress,
+  onVideoLoad,
 }: HoldToViewProps) {
   const isVideo = mediaType === 'video';
-  const resolvedUri = getCachedUri(imageUri) ?? imageUri;
-  const videoPlayer = useVideoPlayer(isVideo ? resolvedUri : null, (p) => {
-    p.loop = true;
+  const textOverlay = textOverlayJson ? parseTextOverlay(textOverlayJson) : null;
+  // Use cached local path if available, otherwise use the URI as-is
+  // (openGaspViewer already downloads to local cache before navigating)
+  const resolvedUri = imageUri.startsWith('file://') ? imageUri : (getCachedUri(imageUri) ?? imageUri);
+  // Pass a dummy silent URI for non-video to avoid "shared object released" crash
+  const videoPlayer = useVideoPlayer(isVideo ? resolvedUri : 'about:blank', (p) => {
+    p.loop = false;
     // Don't auto-play — controlled by hold gesture
   });
+
+  // Report video duration to parent when player is ready
+  useEffect(() => {
+    if (!isVideo || !onVideoLoad) return;
+    const handleReady = () => {
+      if (videoPlayer.duration > 0) {
+        onVideoLoad(Math.ceil(videoPlayer.duration * 1000));
+      }
+    };
+    const sub = videoPlayer.addListener('statusChange', ({ status }: { status: string }) => {
+      if (status === 'readyToPlay') handleReady();
+    });
+    if (videoPlayer.status === 'readyToPlay') handleReady();
+    return () => sub.remove();
+  }, [isVideo, videoPlayer, onVideoLoad]);
 
   const startVideo = useCallback(() => {
     if (!isVideo) return;
@@ -99,6 +125,7 @@ export function HoldToView({
           placeholder={blurhash ? { blurhash } : undefined}
           style={styles.blurredImage}
           contentFit="cover"
+          cachePolicy="memory-disk"
           blurRadius={30}
         />
       )}
@@ -117,9 +144,11 @@ export function HoldToView({
             source={{ uri: resolvedUri }}
             style={styles.revealedImage}
             contentFit="cover"
+            cachePolicy="memory-disk"
             transition={200}
           />
         )}
+        {textOverlay && <TextOverlayRenderer data={textOverlay} />}
       </Animated.View>
 
       {/* Hold instruction overlay */}

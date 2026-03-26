@@ -1,7 +1,7 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { StatsCard } from '@/components/profile/StatsCard';
 import { ActivityCard } from '@/components/profile/ActivityCard';
@@ -18,9 +18,11 @@ export default function ProfileScreen() {
     isLoading, loadProfile,
   } = useProfileStore();
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
 
   const onRefresh = useCallback(() => {
     loadProfile();

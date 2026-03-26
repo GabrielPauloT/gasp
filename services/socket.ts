@@ -22,15 +22,15 @@ export function connectSocket(token: string): Socket {
   });
 
   socket.on('connect', () => {
-    console.log('[socket] connected:', socket?.id);
+    if (__DEV__) console.log('[socket] connected:', socket?.id);
   });
 
   socket.on('disconnect', (reason) => {
-    console.log('[socket] disconnected:', reason);
+    if (__DEV__) console.log('[socket] disconnected:', reason);
   });
 
   socket.on('connect_error', (err) => {
-    console.warn('[socket] connect error:', err.message);
+    if (__DEV__) console.warn('[socket] connect error:', err.message);
   });
 
   return socket;

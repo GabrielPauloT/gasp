@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { StyleSheet, View, Pressable, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,8 +22,11 @@ export default function ViewGaspScreen() {
     gaspId?: string;
     chatImageUri?: string;
     chatSenderName?: string;
+    chatMediaType?: string;
+    chatBlurhash?: string;
     chatConversationId?: string;
     chatMessageId?: string;
+    chatTextOverlay?: string;
   }>();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -33,47 +36,55 @@ export default function ViewGaspScreen() {
   const { viewGasp, createReaction } = useGaspStore();
   const { sendMessage } = useChatStore();
 
-  // Tracks the recording promise so we can await the video URI on release
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
 
-  // ── Determine mode: inbox vs chat ──────────────────────────────────
-  const isFromChat = !!params.chatImageUri;
-  const gasp = isFromChat
-    ? null
-    : pendingGasps.find((g) => g.id === params.gaspId) ?? pendingGasps[0];
+  // ── Unified data resolution ──────────────────────────────────────
+  // All callers now use openGaspViewer() which passes chatImageUri etc.
+  // Legacy inbox path with gaspId still supported as fallback.
+  const gasp = params.gaspId
+    ? pendingGasps.find((g) => g.id === params.gaspId) ?? pendingGasps[0]
+    : null;
 
-  // Data used by HoldToView (works for both modes)
-  const imageUri = isFromChat ? params.chatImageUri! : gasp?.imageUri;
-  const senderName = isFromChat ? (params.chatSenderName ?? '') : (gasp?.senderName ?? '');
+  const imageUri = params.chatImageUri || gasp?.imageUri;
+  const senderName = params.chatSenderName || gasp?.senderName || '';
+  const mediaType = (params.chatMediaType as 'image' | 'video') || gasp?.mediaType || 'image';
+  const blurhash = params.chatBlurhash || gasp?.blurhash;
+  const conversationId = params.chatConversationId || '';
+  const messageId = params.chatMessageId || '';
+  const isFromChat = !!conversationId;
+
+  const IMAGE_VIEW_DURATION = 30_000;
+  const [holdDuration, setHoldDuration] = useState(
+    mediaType === 'video' ? 10_000 : IMAGE_VIEW_DURATION,
+  );
+
+  const handleVideoLoad = useCallback((durationMs: number) => {
+    setHoldDuration(durationMs);
+  }, []);
 
   if (!imageUri) {
     router.back();
     return null;
   }
 
-  // Mark chat gasp as viewed when modal actually mounts
+  // Mark chat gasp as viewed when modal mounts
   useEffect(() => {
-    if (isFromChat && params.chatMessageId) {
-      useGaspStore.getState().markChatGaspViewed(params.chatMessageId);
+    if (messageId) {
+      useGaspStore.getState().markChatGaspViewed(messageId);
     }
-  }, [isFromChat, params.chatMessageId]);
+  }, [messageId]);
 
   // ── Começa a gravar quando o hold inicia ─────────────────────────
   const handleHoldStart = useCallback(() => {
     if (!reactionCameraRef.current) return;
     try {
       recordingPromiseRef.current = reactionCameraRef.current.recordAsync({
-        maxDuration: 10,
+        maxDuration: Math.ceil(holdDuration / 1000),
       });
     } catch {
       recordingPromiseRef.current = null;
     }
-  }, []);
-
-  // ── Quando hold completa (3s) ────────────────────────────────────
-  const handleHoldComplete = useCallback(() => {
-    // Nada extra — o stop acontece no release
-  }, []);
+  }, [holdDuration]);
 
   // ── Quando solta o dedo — para gravação, faz upload e envia ─────
   const handleRelease = useCallback(async () => {
@@ -98,14 +109,14 @@ export default function ViewGaspScreen() {
     if (videoUri) {
       uploadReaction(videoUri, userId)
         .then((result) => {
-          if (isFromChat && params.chatConversationId) {
+          if (conversationId) {
             // From chat: send reaction as a chat message with replyToId
             sendMessage(
-              params.chatConversationId,
+              conversationId,
               '[Reaction]',
               'reaction',
               result.downloadUrl,
-              params.chatMessageId,
+              messageId || undefined,
             );
           } else if (gasp) {
             // From inbox: use the gasps/reactions API
@@ -131,13 +142,19 @@ export default function ViewGaspScreen() {
       });
     }
     router.back();
-  }, [gasp, user, viewGasp, createReaction, isFromChat, params, sendMessage]);
+  }, [gasp, user, viewGasp, createReaction, conversationId, messageId, sendMessage]);
+
+  // ── Quando timer completa — auto-release ────────────────────────
+  const handleHoldComplete = useCallback(() => {
+    handleRelease();
+  }, [handleRelease]);
 
   // ── Gesture hook ───────────────────────────────────────────────────
   const { gesture, isHolding, holdProgress } = useHoldGesture({
     onHoldStart: handleHoldStart,
     onHoldComplete: handleHoldComplete,
     onHoldEnd: handleRelease,
+    duration: holdDuration,
   });
 
   const handleClose = () => {
@@ -156,8 +173,8 @@ export default function ViewGaspScreen() {
         {/* Mostra gasp borrado como background */}
         <HoldToView
           imageUri={imageUri}
-          mediaType={gasp?.mediaType}
-          blurhash={gasp?.blurhash}
+          mediaType={mediaType}
+          blurhash={blurhash}
           senderName={senderName}
           isHolding={isHolding}
           holdProgress={holdProgress}
@@ -203,11 +220,13 @@ export default function ViewGaspScreen() {
           {/* Mídia com blur/reveal */}
           <HoldToView
             imageUri={imageUri}
-            mediaType={gasp?.mediaType}
-            blurhash={gasp?.blurhash}
+            mediaType={mediaType}
+            blurhash={blurhash}
             senderName={senderName}
+            textOverlayJson={params.chatTextOverlay}
             isHolding={isHolding}
             holdProgress={holdProgress}
+            onVideoLoad={handleVideoLoad}
           />
         </View>
       </GestureDetector>

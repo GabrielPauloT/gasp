@@ -19,7 +19,7 @@ import { getApiErrorMessage } from '@/services/api';
 import { colors } from '@/constants/colors';
 
 export default function SendGaspScreen() {
-  const { imageUri, isVideo } = useLocalSearchParams<{ imageUri: string; isVideo?: string }>();
+  const { imageUri, isVideo, textOverlay } = useLocalSearchParams<{ imageUri: string; isVideo?: string; textOverlay?: string }>();
   const isVideoMode = isVideo === 'true';
   const insets = useSafeAreaInsets();
   const friends = useInboxStore((s) => s.friends);
@@ -89,13 +89,23 @@ export default function SendGaspScreen() {
         recipientIds: recipientArray,
         imageUrl: result.downloadUrl,
         ...(isVideoMode && { mediaType: 'video' as const }),
+        ...(textOverlay && { textOverlay }),
       });
 
       // 4. Fire-and-forget socket chat messages so they visually populate the conversation stream
       for (const friendId of recipientArray) {
         try {
           const conv = await getOrCreateConversation(friendId);
-          sendMessage(conv.id, '[Gasp]', 'gasp', result.downloadUrl);
+          let content: string;
+          if (textOverlay) {
+            // Text overlay JSON already contains font/color/etc, add mediaType
+            const parsed = JSON.parse(textOverlay);
+            parsed.mediaType = isVideoMode ? 'video' : 'image';
+            content = JSON.stringify(parsed);
+          } else {
+            content = isVideoMode ? '[VideoGasp]' : '[Gasp]';
+          }
+          sendMessage(conv.id, content, 'gasp', result.downloadUrl);
         } catch {}
       }
 

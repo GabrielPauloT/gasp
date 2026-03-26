@@ -5,18 +5,24 @@ import { CameraControls } from './CameraControls';
 import { CaptureButton } from './CaptureButton';
 import { RecentThumbnail } from './RecentThumbnail';
 import { EffectsButton } from './EffectsButton';
+import { EffectsPanel } from './EffectsPanel';
 
 interface CameraOverlayProps {
   flashMode: 'off' | 'on' | 'auto';
   lastCapturedUri: string | null;
   isRecording?: boolean;
+  showEffectsPanel?: boolean;
+  timerDuration?: 0 | 3 | 10;
+  showGrid?: boolean;
   onToggleFlash: () => void;
   onFlipCamera: () => void;
   onCapture: () => void;
   onLongPressStart?: () => void;
   onLongPressEnd?: () => void;
   onOpenGallery?: () => void;
-  onOpenEffects?: () => void;
+  onToggleEffects?: () => void;
+  onCycleTimer?: () => void;
+  onToggleGrid?: () => void;
 }
 
 export function CameraOverlay({
@@ -26,10 +32,15 @@ export function CameraOverlay({
   onFlipCamera,
   onCapture,
   isRecording = false,
+  showEffectsPanel = false,
+  timerDuration = 0,
+  showGrid = false,
   onLongPressStart,
   onLongPressEnd,
   onOpenGallery,
-  onOpenEffects,
+  onToggleEffects,
+  onCycleTimer,
+  onToggleGrid,
 }: CameraOverlayProps) {
   const insets = useSafeAreaInsets();
 
@@ -57,6 +68,16 @@ export function CameraOverlay({
         colors={['transparent', 'rgba(0,0,0,0.7)']}
         style={[styles.bottomGradient, { paddingBottom: insets.bottom + 90 }]}
       >
+        {/* Effects panel (slides up above controls) */}
+        {showEffectsPanel && !isRecording && onCycleTimer && onToggleGrid && (
+          <EffectsPanel
+            timerDuration={timerDuration}
+            showGrid={showGrid}
+            onCycleTimer={onCycleTimer}
+            onToggleGrid={onToggleGrid}
+          />
+        )}
+
         <View style={[styles.bottomControls, isRecording && styles.bottomControlsRecording]}>
           {!isRecording && <RecentThumbnail uri={lastCapturedUri} onPress={onOpenGallery} />}
           <CaptureButton
@@ -65,7 +86,7 @@ export function CameraOverlay({
             onLongPressEnd={onLongPressEnd}
             isRecording={isRecording}
           />
-          {!isRecording && <EffectsButton onPress={onOpenEffects} />}
+          {!isRecording && <EffectsButton onPress={onToggleEffects} isActive={showEffectsPanel} />}
         </View>
       </LinearGradient>
     </View>

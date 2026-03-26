@@ -40,3 +40,7 @@ export async function registerDevice(data: {
 export async function removeDevice(token: string): Promise<void> {
   await api.delete(`/auth/devices/${encodeURIComponent(token)}`);
 }
+
+export async function logout(): Promise<void> {
+  await api.post('/auth/logout');
+}

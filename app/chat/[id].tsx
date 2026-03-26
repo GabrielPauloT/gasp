@@ -1,12 +1,14 @@
-import { useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { useEffect, useCallback, useRef, useState } from 'react';
+import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable } from 'react-native';
+import type { NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown } from 'lucide-react-native';
 import { IconButton } from '@/components/ui/IconButton';
 import { Text } from '@/components/ui/Text';
 import { Avatar } from '@/components/ui/Avatar';
 import { MessageBubble } from '@/components/chat/MessageBubble';
+import { DateSeparator } from '@/components/chat/DateSeparator';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -57,6 +59,22 @@ export default function ChatScreen() {
     if (id) fetchMoreMessages(id);
   }, [id, fetchMoreMessages]);
 
+  // Scroll-to-bottom button
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const isScrolledRef = useRef(false);
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const shouldShow = e.nativeEvent.contentOffset.y > 300;
+    if (isScrolledRef.current !== shouldShow) {
+      isScrolledRef.current = shouldShow;
+      setShowScrollToBottom(shouldShow);
+    }
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
+
   // Stable ref for otherParticipantName to avoid renderItem dep on it
   const otherNameRef = useRef(otherParticipantName);
   otherNameRef.current = otherParticipantName;
@@ -72,14 +90,23 @@ export default function ChatScreen() {
       ? currentMessages.find((m) => m.id === item.replyToId) ?? null
       : null;
 
+    // Date separator: show when date changes from the older message (index+1) or it's the oldest message
+    const olderMessage = currentMessages[index + 1];
+    const currentDay = new Date(item.createdAt).toDateString();
+    const olderDay = olderMessage ? new Date(olderMessage.createdAt).toDateString() : null;
+    const showDateSeparator = !olderDay || currentDay !== olderDay;
+
     return (
-      <MessageBubble
-        message={item}
-        isOwnMessage={isOwnMessage}
-        isSequential={isSequential}
-        replyToMessage={replyToMessage}
-        otherParticipantName={otherNameRef.current}
-      />
+      <>
+        <MessageBubble
+          message={item}
+          isOwnMessage={isOwnMessage}
+          isSequential={isSequential}
+          replyToMessage={replyToMessage}
+          otherParticipantName={otherNameRef.current}
+        />
+        {showDateSeparator && <DateSeparator date={item.createdAt} />}
+      </>
     );
   }, [user?.id]);
 
@@ -105,36 +132,46 @@ export default function ChatScreen() {
         </View>
 
         {/* Message List */}
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          inverted
-          contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
-          showsVerticalScrollIndicator={false}
-          keyboardDismissMode="interactive"
-          windowSize={5}
-          maxToRenderPerBatch={8}
-          initialNumToRender={10}
-          removeClippedSubviews={Platform.OS === 'android'}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.4}
-          ListFooterComponent={
-            isLoadingMore ? (
-              <ActivityIndicator size="small" color={colors.primary} style={{ paddingVertical: 16 }} />
-            ) : null
-          }
-          ListEmptyComponent={
-            isLoadingMessages ? (
-              <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 24 }} />
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Text variant="body" style={styles.emptyText}>Start the conversation by sending a gasp!</Text>
-              </View>
-            )
-          }
-        />
+        <View style={styles.listWrapper}>
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            inverted
+            contentContainerStyle={[styles.listContent, { paddingBottom: 16 }]}
+            showsVerticalScrollIndicator={false}
+            keyboardDismissMode="interactive"
+            scrollEventThrottle={16}
+            onScroll={handleScroll}
+            windowSize={5}
+            maxToRenderPerBatch={8}
+            initialNumToRender={10}
+            removeClippedSubviews={Platform.OS === 'android'}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={
+              isLoadingMore ? (
+                <ActivityIndicator size="small" color={colors.primary} style={{ paddingVertical: 16 }} />
+              ) : null
+            }
+            ListEmptyComponent={
+              isLoadingMessages ? (
+                <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 24 }} />
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text variant="body" style={styles.emptyText}>Start the conversation by sending a gasp!</Text>
+                </View>
+              )
+            }
+          />
+
+          {showScrollToBottom && (
+            <Pressable style={styles.scrollToBottom} onPress={scrollToBottom}>
+              <ChevronDown size={22} color={colors.textPrimary} />
+            </Pressable>
+          )}
+        </View>
 
         {/* Input Area */}
         <ChatInput onSend={handleSend} isLoading={isLoadingMessages && messages.length === 0} />
@@ -175,9 +212,30 @@ const styles = StyleSheet.create({
   headerTrailing: {
     width: 44, // balance back button
   },
+  listWrapper: {
+    flex: 1,
+  },
   listContent: {
     flexGrow: 1,
     paddingHorizontal: 8,
+  },
+  scrollToBottom: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderLight,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
   },
   emptyContainer: {
     flex: 1,

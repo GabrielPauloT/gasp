@@ -6,6 +6,7 @@ interface SendGaspInput {
   imageUrl: string;
   mediaType?: 'image' | 'video';
   blurhash?: string;
+  textOverlay?: string;
 }
 
 interface BatchGaspInput {
@@ -13,6 +14,7 @@ interface BatchGaspInput {
   imageUrl: string;
   mediaType?: 'image' | 'video';
   blurhash?: string;
+  textOverlay?: string;
 }
 
 /** Normalize backend pending gasp ({gasp, sender}) → frontend Gasp */
@@ -25,6 +27,7 @@ function normalizePendingGasp(item: ApiPendingGasp): Gasp {
     imageUri: item.gasp.imageUrl,
     mediaType: item.gasp.mediaType ?? 'image',
     blurhash: item.gasp.blurhash ?? '',
+    textOverlay: item.gasp.textOverlay ?? undefined,
     status: item.gasp.status,
     createdAt: item.gasp.createdAt,
     expiresAt: item.gasp.expiresAt,
@@ -42,6 +45,7 @@ function normalizeGasp(raw: ApiGasp): Gasp {
     imageUri: raw.imageUrl,
     mediaType: raw.mediaType ?? 'image',
     blurhash: raw.blurhash ?? '',
+    textOverlay: raw.textOverlay ?? undefined,
     status: raw.status,
     createdAt: raw.createdAt,
     expiresAt: raw.expiresAt,

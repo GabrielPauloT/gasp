@@ -1,12 +1,12 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View, FlatList, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import { FeedHeader } from '@/components/inbox/FeedHeader';
 import { FeedCard } from '@/components/inbox/FeedCard';
 import { Text } from '@/components/ui/Text';
 import { useGaspStore } from '@/stores/gaspStore';
 import { useAuthStore } from '@/stores/authStore';
+import { openGaspViewer } from '@/services/openGasp';
 import { colors } from '@/constants/colors';
 import type { Gasp } from '@/types/gasp';
 
@@ -16,6 +16,11 @@ export default function InboxScreen() {
   const pendingGasps = useGaspStore((s) => s.pendingGasps);
   const isLoading = useGaspStore((s) => s.isLoadingPending);
   const fetchPendingGasps = useGaspStore((s) => s.fetchPendingGasps);
+
+  const newCount = useMemo(() =>
+    pendingGasps.filter((g) => g.status === 'pending').length,
+    [pendingGasps]
+  );
 
   useEffect(() => {
     if (!isGuest) {
@@ -27,13 +32,29 @@ export default function InboxScreen() {
     if (!isGuest) fetchPendingGasps();
   }, [isGuest, fetchPendingGasps]);
 
-  const handleCardPress = useCallback((gaspId: string) => {
-    router.push({ pathname: '/(modals)/view-gasp', params: { gaspId } });
-  }, []);
+  const [preloadingId, setPreloadingId] = useState<string | null>(null);
+
+  const handleCardPress = useCallback(async (gasp: Gasp) => {
+    if (preloadingId) return;
+    setPreloadingId(gasp.id);
+    await openGaspViewer({
+      imageUri: gasp.imageUri,
+      senderName: gasp.senderName,
+      mediaType: gasp.mediaType,
+      blurhash: gasp.blurhash,
+      textOverlay: gasp.textOverlay,
+    });
+    setPreloadingId(null);
+  }, [preloadingId]);
 
   const renderItem = useCallback(
     ({ item }: { item: Gasp }) => (
-      <Pressable onPress={() => handleCardPress(item.id)}>
+      <Pressable onPress={() => handleCardPress(item)}>
+        {preloadingId === item.id && (
+          <View style={styles.preloadOverlay}>
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          </View>
+        )}
         <FeedCard
           senderName={item.senderName}
           imageUri={item.imageUri}
@@ -42,14 +63,14 @@ export default function InboxScreen() {
         />
       </Pressable>
     ),
-    [handleCardPress]
+    [handleCardPress, preloadingId]
   );
 
   const keyExtractor = useCallback((item: Gasp) => item.id, []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <FeedHeader newCount={pendingGasps.filter((g) => g.status === 'pending').length} />
+      <FeedHeader newCount={newCount} />
 
       {isLoading && pendingGasps.length === 0 ? (
         <View style={styles.loadingContainer}>
@@ -107,5 +128,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     fontSize: 15,
+  },
+  preloadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    borderRadius: 16,
   },
 });

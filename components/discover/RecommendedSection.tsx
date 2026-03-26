@@ -4,6 +4,10 @@ import { colors } from '@/constants/colors';
 import { UserCard } from './UserCard';
 import type { RecommendedUser } from '@/types/discover';
 
+function ItemSeparator() {
+  return <View style={styles.separator} />;
+}
+
 interface RecommendedSectionProps {
   title: string;
   icon: React.ReactNode;
@@ -30,7 +34,7 @@ export function RecommendedSection({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ItemSeparatorComponent={ItemSeparator}
         renderItem={({ item }) => (
           <UserCard
             user={item}

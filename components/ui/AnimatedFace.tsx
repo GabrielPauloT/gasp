@@ -177,6 +177,10 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
 
   // Continuous floating animation
   useEffect(() => {
+    if (!animated) {
+      floatY.value = 0;
+      return;
+    }
     floatY.value = withRepeat(
       withSequence(
         withTiming(-4, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
@@ -185,7 +189,7 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
       -1,
       true,
     );
-  }, [floatY]);
+  }, [animated, floatY]);
 
   // Continuous eye blink
   useEffect(() => {
@@ -202,6 +206,10 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
 
   // Continuous pupil wander
   useEffect(() => {
+    if (!animated) {
+      pupilWanderX.value = 0;
+      return;
+    }
     pupilWanderX.value = withRepeat(
       withSequence(
         withTiming(3, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
@@ -211,10 +219,14 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
       -1,
       false,
     );
-  }, [pupilWanderX]);
+  }, [animated, pupilWanderX]);
 
   // Continuous ring breathing pulse
   useEffect(() => {
+    if (!animated) {
+      ringPulse.value = 1;
+      return;
+    }
     ringPulse.value = withRepeat(
       withSequence(
         withTiming(1.03, { duration: 1500, easing: Easing.inOut(Easing.sin) }),
@@ -223,10 +235,16 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
       -1,
       true,
     );
-  }, [ringPulse]);
+  }, [animated, ringPulse]);
 
   // Floating particles — 3 staggered loops (different speeds for organic feel)
   useEffect(() => {
+    if (!animated) {
+      pFloat0.value = 0;
+      pFloat1.value = 0;
+      pFloat2.value = 0;
+      return;
+    }
     pFloat0.value = withRepeat(
       withSequence(
         withTiming(-20, { duration: 1200, easing: Easing.out(Easing.sin) }),
@@ -248,7 +266,7 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
       ),
       -1, false,
     );
-  }, [pFloat0, pFloat1, pFloat2]);
+  }, [animated, pFloat0, pFloat1, pFloat2]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- shared values are stable refs from useSharedValue
   const updateExpression = useCallback((expr: Expression) => {
@@ -440,7 +458,7 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
   }));
 
   // Particle styles — 5 groups, 3 particles each, staggered floats
-  const makeParticleStyle = (
+  const useParticleStyle = (
     opacityVal: Animated.SharedValue<number>,
     floatVal: Animated.SharedValue<number>,
     angle: number,
@@ -464,34 +482,34 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
   const r = size * 0.55; // particle orbit radius (just outside the ring)
 
   // Happy particles: ✨
-  const happyP0 = makeParticleStyle(pHappyOpacity, pFloat0, -40, r);
-  const happyP1 = makeParticleStyle(pHappyOpacity, pFloat1, 160, r);
-  const happyP2 = makeParticleStyle(pHappyOpacity, pFloat2, 60, r * 0.95);
+  const happyP0 = useParticleStyle(pHappyOpacity, pFloat0, -40, r);
+  const happyP1 = useParticleStyle(pHappyOpacity, pFloat1, 160, r);
+  const happyP2 = useParticleStyle(pHappyOpacity, pFloat2, 60, r * 0.95);
 
   // Shocked particles: ⚡
-  const shockedP0 = makeParticleStyle(pShockedOpacity, pFloat0, -30, r);
-  const shockedP1 = makeParticleStyle(pShockedOpacity, pFloat1, 200, r);
-  const shockedP2 = makeParticleStyle(pShockedOpacity, pFloat2, 90, r * 0.9);
+  const shockedP0 = useParticleStyle(pShockedOpacity, pFloat0, -30, r);
+  const shockedP1 = useParticleStyle(pShockedOpacity, pFloat1, 200, r);
+  const shockedP2 = useParticleStyle(pShockedOpacity, pFloat2, 90, r * 0.9);
 
   // Angry particles: 🔥
-  const angryP0 = makeParticleStyle(pAngryOpacity, pFloat0, -50, r);
-  const angryP1 = makeParticleStyle(pAngryOpacity, pFloat1, 230, r);
-  const angryP2 = makeParticleStyle(pAngryOpacity, pFloat2, 50, r * 0.95);
+  const angryP0 = useParticleStyle(pAngryOpacity, pFloat0, -50, r);
+  const angryP1 = useParticleStyle(pAngryOpacity, pFloat1, 230, r);
+  const angryP2 = useParticleStyle(pAngryOpacity, pFloat2, 50, r * 0.95);
 
   // Love particles: ❤️
-  const loveP0 = makeParticleStyle(pLoveOpacity, pFloat0, -45, r);
-  const loveP1 = makeParticleStyle(pLoveOpacity, pFloat1, 180, r);
-  const loveP2 = makeParticleStyle(pLoveOpacity, pFloat2, 70, r * 0.9);
+  const loveP0 = useParticleStyle(pLoveOpacity, pFloat0, -45, r);
+  const loveP1 = useParticleStyle(pLoveOpacity, pFloat1, 180, r);
+  const loveP2 = useParticleStyle(pLoveOpacity, pFloat2, 70, r * 0.9);
 
   // Cool particles: ⭐
-  const coolP0 = makeParticleStyle(pCoolOpacity, pFloat0, -20, r);
-  const coolP1 = makeParticleStyle(pCoolOpacity, pFloat1, 210, r);
-  const coolP2 = makeParticleStyle(pCoolOpacity, pFloat2, 100, r * 0.95);
+  const coolP0 = useParticleStyle(pCoolOpacity, pFloat0, -20, r);
+  const coolP1 = useParticleStyle(pCoolOpacity, pFloat1, 210, r);
+  const coolP2 = useParticleStyle(pCoolOpacity, pFloat2, 100, r * 0.95);
 
   // Sad particles: 💧
-  const sadP0 = makeParticleStyle(pSadOpacity, pFloat0, -35, r);
-  const sadP1 = makeParticleStyle(pSadOpacity, pFloat1, 190, r);
-  const sadP2 = makeParticleStyle(pSadOpacity, pFloat2, 80, r * 0.9);
+  const sadP0 = useParticleStyle(pSadOpacity, pFloat0, -35, r);
+  const sadP1 = useParticleStyle(pSadOpacity, pFloat1, 190, r);
+  const sadP2 = useParticleStyle(pSadOpacity, pFloat2, 80, r * 0.9);
 
   return (
     <Animated.View style={[styles.outerContainer, containerStyle, { width: size * 1.3, height: size * 1.3 }]}>

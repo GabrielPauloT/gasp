@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "usesCleartextTraffic": true,
+      "usesCleartextTraffic": false,
       "predictiveBackGestureEnabled": false,
       "package": "com.gasp.app",
       "googleServicesFile": "./google-services.json"

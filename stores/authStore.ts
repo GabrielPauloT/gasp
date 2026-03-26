@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { User } from '@/types/user';
+import { jwtDecode } from 'jwt-decode';
 import { getAuth, signOut as firebaseSignOut } from '@react-native-firebase/auth';
 import {
   setAuthToken,
@@ -73,6 +74,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     }),
 
   logout: async () => {
+    // Revoke token on backend (best effort)
+    try {
+      await authApi.logout();
+    } catch {
+      // Continue with local logout even if API fails
+    }
+
     try {
       disconnectSocket();
     } catch {}
@@ -145,6 +153,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const savedToken = await getAuthToken();
       if (!savedToken) {
+        set({ isInitialized: true });
+        return false;
+      }
+
+      // Check if token is expired before using it
+      try {
+        const decoded = jwtDecode<{ exp?: number }>(savedToken);
+        if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+          // Token expired — clear and go to login
+          await removeAuthToken();
+          set({ isInitialized: true });
+          return false;
+        }
+      } catch {
+        // Invalid token — clear and go to login
+        await removeAuthToken();
         set({ isInitialized: true });
         return false;
       }

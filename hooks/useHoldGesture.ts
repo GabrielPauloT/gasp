@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import {
   useSharedValue,
   withTiming,
@@ -25,6 +25,11 @@ export function useHoldGesture({
   const isHolding = useSharedValue(0);
   const holdProgress = useSharedValue(0);
   const holdCompleteRef = useRef(false);
+  const durationSV = useSharedValue(duration);
+
+  useEffect(() => {
+    durationSV.value = duration;
+  }, [duration, durationSV]);
 
   const handleHoldStart = useCallback(() => {
     holdCompleteRef.current = false;
@@ -49,7 +54,7 @@ export function useHoldGesture({
     .onStart(() => {
       isHolding.set(1);
       holdProgress.set(
-        withTiming(1, { duration }, (finished) => {
+        withTiming(1, { duration: durationSV.value }, (finished) => {
           if (finished) {
             runOnJS(handleHoldComplete)();
           }

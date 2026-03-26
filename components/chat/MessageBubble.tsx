@@ -3,10 +3,11 @@ import { View, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { Eye, Play, EyeOff, CornerDownRight } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { useGaspStore } from '@/stores/gaspStore';
+import { openGaspViewer } from '@/services/openGasp';
+import { parseTextOverlay, TextOverlayRenderer } from '@/components/gasp/TextOverlayRenderer';
 import { getCachedUri } from '@/services/mediaCache';
 import { colors } from '@/constants/colors';
 import type { Message } from '@/types/chat';
@@ -86,25 +87,32 @@ function MessageBubbleInner({
   const isMedia = isImageOrGasp || isReaction;
   const rawMediaUri = message.mediaUrl || message.content;
   const resolvedMediaUri = (isMedia && rawMediaUri) ? (getCachedUri(rawMediaUri) ?? rawMediaUri) : rawMediaUri;
+  const textOverlay = isGasp ? parseTextOverlay(message.content) : null;
+  const gaspMediaType: 'image' | 'video' = isGasp
+    ? (message.content === '[VideoGasp]' || textOverlay?.mediaType === 'video' ? 'video' : 'image')
+    : 'image';
   const [hasActivated, setHasActivated] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
 
   const isGaspViewed = useGaspStore((s) => isGasp && !!s.viewedChatGaspIds[message.id]);
+  const [isPreloading, setIsPreloading] = useState(false);
 
-  // ── Gasp tap → open view-gasp modal (only received gasps) ─────
-  const handleGaspPress = useCallback(() => {
-    if (isOwnMessage) return;
+  // ── Gasp tap → prefetch + open view-gasp modal ─────
+  const handleGaspPress = useCallback(async () => {
+    if (isOwnMessage || isPreloading) return;
     if (useGaspStore.getState().viewedChatGaspIds[message.id]) return;
-    router.push({
-      pathname: '/(modals)/view-gasp',
-      params: {
-        chatImageUri: message.mediaUrl || message.content,
-        chatSenderName: otherParticipantName ?? '',
-        chatConversationId: message.conversationId,
-        chatMessageId: message.id,
-      },
+
+    setIsPreloading(true);
+    await openGaspViewer({
+      imageUri: message.mediaUrl || message.content,
+      senderName: otherParticipantName ?? '',
+      mediaType: gaspMediaType,
+      conversationId: message.conversationId,
+      messageId: message.id,
+      textOverlay: textOverlay ? message.content : undefined,
     });
-  }, [message, otherParticipantName, isOwnMessage]);
+    setIsPreloading(false);
+  }, [message, otherParticipantName, isOwnMessage, isPreloading, textOverlay]);
 
   // ── Reaction tap → play/pause (unlimited) ─────────────────────
   const handleReactionPress = useCallback(() => {
@@ -181,6 +189,9 @@ function MessageBubbleInner({
               blurRadius={isOwnMessage ? 0 : (isGaspViewed ? 40 : 25)}
             />
 
+            {/* Text overlay — only visible on own gasps (received gasps are blurred) */}
+            {textOverlay && isOwnMessage && <TextOverlayRenderer data={textOverlay} scale={0.5} />}
+
             {/* Own gasp: image visible + subtle gradient footer */}
             {isOwnMessage && (
               <LinearGradient
@@ -204,13 +215,22 @@ function MessageBubbleInner({
                   locations={[0, 0.5, 1]}
                   style={styles.gaspOverlay}
                 >
-                  <View style={styles.eyeCircle}>
-                    <Eye size={26} color="#FFFFFF" />
-                  </View>
-                  <Text variant="body" style={styles.tapText}>Tap to view</Text>
-                  <Text variant="caption" style={styles.tapHint}>
-                    from {otherParticipantName}
-                  </Text>
+                  {isPreloading ? (
+                    <>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text variant="body" style={styles.tapText}>Loading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.eyeCircle}>
+                        <Eye size={26} color="#FFFFFF" />
+                      </View>
+                      <Text variant="body" style={styles.tapText}>Tap to view</Text>
+                      <Text variant="caption" style={styles.tapHint}>
+                        from {otherParticipantName}
+                      </Text>
+                    </>
+                  )}
                 </LinearGradient>
               )
             )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -44,7 +44,7 @@ export default function DiscoverScreen() {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const friendIds = new Set(friends.map((f) => f.id));
+  const friendIds = useMemo(() => new Set(friends.map((f) => f.id)), [friends]);
 
   useFocusEffect(
     useCallback(() => {
@@ -58,7 +58,9 @@ export default function DiscoverScreen() {
           setPeopleYouMayKnow(recommended);
           setTopGaspers(top);
         })
-        .catch(() => {})
+        .catch(() => {
+          // API not available — sections will be empty
+        })
         .finally(() => setIsLoadingRecs(false));
     }, [isGuest]),
   );
@@ -99,14 +101,18 @@ export default function DiscoverScreen() {
     [friends, sentRequestIds],
   );
 
-  const handleAdd = async (addresseeId: string) => {
-    await sendFriendRequest(addresseeId);
-    setSentRequestIds((prev) => new Set(prev).add(addresseeId));
-  };
+  const handleAdd = useCallback(async (addresseeId: string) => {
+    try {
+      await sendFriendRequest(addresseeId);
+      setSentRequestIds((prev) => new Set(prev).add(addresseeId));
+    } catch {
+      // Silently fail — UserCard handles its own error state
+    }
+  }, [sendFriendRequest]);
 
   const isShowingSearch = searchQuery.trim().length > 0 || hasSearched;
 
-  const renderSearchResult = ({ item }: { item: User }) => (
+  const renderSearchResult = useCallback(({ item }: { item: User }) => (
     <UserSearchResult
       id={item.id}
       displayName={item.displayName}
@@ -115,7 +121,7 @@ export default function DiscoverScreen() {
       status={getRequestStatus(item.id)}
       onAdd={handleAdd}
     />
-  );
+  ), [getRequestStatus, handleAdd]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

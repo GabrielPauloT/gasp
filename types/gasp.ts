@@ -9,6 +9,7 @@ export interface Gasp {
   imageUri: string;
   mediaType: GaspMediaType;
   blurhash: string;
+  textOverlay?: string;
   status: GaspStatus;
   createdAt: string;
   expiresAt: string;
@@ -23,6 +24,7 @@ export interface ApiGasp {
   imageUrl: string;
   mediaType: GaspMediaType;
   blurhash: string | null;
+  textOverlay?: string | null;
   status: GaspStatus;
   createdAt: string;
   expiresAt: string;

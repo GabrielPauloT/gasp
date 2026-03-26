@@ -30,7 +30,7 @@ interface GaspState {
 
   fetchPendingGasps: () => Promise<void>;
   fetchSentGasps: () => Promise<void>;
-  sendBatchGasp: (data: { recipientIds: string[]; imageUrl: string; mediaType?: 'image' | 'video'; blurhash?: string }) => Promise<void>;
+  sendBatchGasp: (data: { recipientIds: string[]; imageUrl: string; mediaType?: 'image' | 'video'; blurhash?: string; textOverlay?: string }) => Promise<void>;
   viewGasp: (gaspId: string) => Promise<void>;
   createReaction: (data: { gaspId: string; videoUrl: string }) => Promise<Reaction>;
 }
@@ -55,11 +55,7 @@ export const useGaspStore = create<GaspState>((set, get) => ({
 
   markGaspViewed: (gaspId) =>
     set((state) => ({
-      pendingGasps: state.pendingGasps.map((g) =>
-        g.id === gaspId
-          ? { ...g, status: 'viewed' as const, viewedAt: new Date().toISOString() }
-          : g
-      ),
+      pendingGasps: state.pendingGasps.filter((g) => g.id !== gaspId),
     })),
 
   addSentGasp: (gasp) =>
