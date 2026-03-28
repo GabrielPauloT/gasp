@@ -1,0 +1,26 @@
+export const queryKeys = {
+  conversations: {
+    all: ['conversations'] as const,
+    detail: (id: string) => ['conversations', id] as const,
+  },
+  messages: {
+    byConversation: (id: string) => ['messages', id] as const,
+  },
+  gasps: {
+    pending: ['gasps', 'pending'] as const,
+    sent: ['gasps', 'sent'] as const,
+  },
+  friends: {
+    all: ['friends'] as const,
+  },
+  profile: {
+    stats: ['profile', 'stats'] as const,
+  },
+  discover: {
+    recommended: ['discover', 'recommended'] as const,
+    topGaspers: ['discover', 'topGaspers'] as const,
+  },
+  users: {
+    search: (query: string) => ['users', 'search', query] as const,
+  },
+} as const;

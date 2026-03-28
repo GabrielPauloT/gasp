@@ -2,7 +2,7 @@ import { StyleSheet, View, FlatList } from 'react-native';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
 import { UserCard } from './UserCard';
-import type { RecommendedUser } from '@/types/discover';
+import type { RecommendedUser } from '@/services/api/schemas/user.schema';
 
 function ItemSeparator() {
   return <View style={styles.separator} />;

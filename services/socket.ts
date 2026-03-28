@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
-import type { Message } from '@/types/chat';
-import type { Gasp, Reaction } from '@/types/gasp';
+import type { Message } from '@/services/api/schemas/chat.schema';
+import type { Gasp, Reaction } from '@/services/api/schemas/gasp.schema';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 

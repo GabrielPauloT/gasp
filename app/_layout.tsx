@@ -24,6 +24,8 @@ import { useAutoDownload } from '@/hooks/useAutoDownload';
 import { initCache } from '@/services/mediaCache';
 import { useMediaCacheStore } from '@/stores/mediaCacheStore';
 import * as Sentry from '@sentry/react-native';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
@@ -77,43 +79,45 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary onGoHome={() => router.replace('/(tabs)/camera')}>
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0A0A0F' }}>
-      <Stack
-        screenOptions={{
-          contentStyle: { backgroundColor: '#0A0A0F' },
-          animation: 'fade',
-        }}
-      >
-        <Stack.Screen
-          name="(auth)"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="(tabs)"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="(modals)"
-          options={{
-            headerShown: false,
-            presentation: 'modal',
-          }}
-        />
-        <Stack.Screen
-          name="index"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="chat/[id]"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="+not-found"
-          options={{ headerShown: false }}
-        />
-      </Stack>
-      <StatusBar style="light" />
-    </GestureHandlerRootView>
+      <QueryClientProvider client={queryClient}>
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0A0A0F' }}>
+          <Stack
+            screenOptions={{
+              contentStyle: { backgroundColor: '#0A0A0F' },
+              animation: 'fade',
+            }}
+          >
+            <Stack.Screen
+              name="(auth)"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="(tabs)"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="(modals)"
+              options={{
+                headerShown: false,
+                presentation: 'modal',
+              }}
+            />
+            <Stack.Screen
+              name="index"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="chat/[id]"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="+not-found"
+              options={{ headerShown: false }}
+            />
+          </Stack>
+          <StatusBar style="light" />
+        </GestureHandlerRootView>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

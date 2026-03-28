@@ -10,7 +10,7 @@ import { openGaspViewer } from '@/services/openGasp';
 import { parseTextOverlay, TextOverlayRenderer } from '@/components/gasp/TextOverlayRenderer';
 import { getCachedUri } from '@/services/mediaCache';
 import { colors } from '@/constants/colors';
-import type { Message } from '@/types/chat';
+import type { Message } from '@/services/api/schemas/chat.schema';
 
 /** Inline looping video with loading spinner — controls play/pause without remounting */
 function InlineVideo({ uri, style, paused }: { uri: string; style: object; paused: boolean }) {

@@ -1,13 +1,5 @@
 import { api } from '@/services/api';
-import type { User } from '@/types/user';
-
-export interface UserStats {
-  gaspsSent: number;
-  gaspsReceived: number;
-  friendsCount: number;
-  streak?: number;
-  reactionsReceived?: number;
-}
+import type { User, UserStats } from '@/services/api/schemas/user.schema';
 
 export async function getMe(): Promise<User> {
   const res = await api.get<User>('/users/me');

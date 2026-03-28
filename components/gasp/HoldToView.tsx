@@ -14,7 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { colors } from '@/constants/colors';
 import { getCachedUri } from '@/services/mediaCache';
-import type { GaspMediaType } from '@/types/gasp';
+import type { GaspMediaType } from '@/services/api/schemas/gasp.schema';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 

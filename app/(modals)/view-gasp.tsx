@@ -12,6 +12,7 @@ import { useHoldGesture } from '@/hooks/useHoldGesture';
 import { useGaspStore } from '@/stores/gaspStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useViewGasp, useCreateReaction, usePendingGasps } from '@/hooks/queries/useGasps';
 import { uploadReaction } from '@/services/storage';
 import { colors } from '@/constants/colors';
 
@@ -32,8 +33,9 @@ export default function ViewGaspScreen() {
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const reactionCameraRef = useRef<CameraView>(null);
   const user = useAuthStore((s) => s.user);
-  const pendingGasps = useGaspStore((s) => s.pendingGasps);
-  const { viewGasp, createReaction } = useGaspStore();
+  const { data: pendingGasps = [] } = usePendingGasps();
+  const viewGaspMutation = useViewGasp();
+  const createReactionMutation = useCreateReaction();
   const { sendMessage } = useChatStore();
 
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
@@ -125,7 +127,7 @@ export default function ViewGaspScreen() {
             );
           } else if (gasp) {
             // From inbox: use the gasps/reactions API
-            return createReaction({
+            return createReactionMutation.mutateAsync({
               gaspId: gasp.id,
               videoUrl: result.downloadUrl,
             });
@@ -142,12 +144,10 @@ export default function ViewGaspScreen() {
 
     // Mark gasp as viewed on backend (inbox mode only)
     if (gasp) {
-      viewGasp(gasp.id).catch(() => {
-        // Silent fail — already viewed locally
-      });
+      viewGaspMutation.mutate(gasp.id);
     }
     router.back();
-  }, [gasp, user, viewGasp, createReaction, conversationId, messageId, sendMessage]);
+  }, [gasp, user, viewGaspMutation, createReactionMutation, conversationId, messageId, sendMessage]);
 
   // ── Quando timer completa — auto-release ────────────────────────
   const handleHoldComplete = useCallback(() => {

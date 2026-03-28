@@ -1,24 +1,35 @@
 import { useEffect } from 'react';
-import { useInboxStore } from '@/stores/inboxStore';
-import { useGaspStore } from '@/stores/gaspStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useInboxStore } from '@/stores/inboxStore';
+import { mapFriendToInbox } from '@/stores/inboxStore';
+import { useFriends } from '@/hooks/queries/useFriends';
+import { usePendingGasps } from '@/hooks/queries/useGasps';
 
 /**
- * Fetches initial data on mount when authenticated.
- * Real-time online status updates come via Socket.IO listeners
- * registered in useSocketListeners hook.
+ * Triggers initial data fetch when authenticated.
+ * React Query handles caching and deduplication.
+ * Real-time updates come via Socket.IO → React Query cache.
+ * Also syncs friends data into inboxStore for online status tracking + UI.
  */
 export function useOnlineStatus() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isGuest = useAuthStore((s) => s.isGuest);
-  const fetchFriends = useInboxStore((s) => s.fetchFriends);
-  const fetchPendingGasps = useGaspStore((s) => s.fetchPendingGasps);
+  const enabled = isAuthenticated && !isGuest;
 
+  const { data: friends } = useFriends(enabled);
+  usePendingGasps(enabled);
+
+  // Sync React Query friends data into inboxStore for online status tracking + UI
   useEffect(() => {
-    if (!isAuthenticated || isGuest) return;
-
-    // Fetch initial data — real-time updates come via socket
-    fetchFriends();
-    fetchPendingGasps();
-  }, [isAuthenticated, isGuest, fetchFriends, fetchPendingGasps]);
+    if (friends) {
+      const mapped = friends.map(mapFriendToInbox);
+      useInboxStore.getState().setFriends(mapped);
+      const onlineCount = mapped.filter(f => f.onlineStatus === 'online').length;
+      useInboxStore.getState().setStats({
+        friendCount: mapped.length,
+        newGaspCount: useInboxStore.getState().newGaspCount,
+        onlineCount,
+      });
+    }
+  }, [friends]);
 }

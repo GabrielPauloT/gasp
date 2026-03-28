@@ -1,5 +1,5 @@
 import { api } from '@/services/api';
-import type { RecommendedUser } from '@/types/discover';
+import type { RecommendedUser } from '@/services/api/schemas/user.schema';
 
 export async function getRecommendedUsers(): Promise<RecommendedUser[]> {
   const res = await api.get<RecommendedUser[]>('/users/recommended');

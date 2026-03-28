@@ -12,8 +12,10 @@ import { DateSeparator } from '@/components/chat/DateSeparator';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useConversations, useMessages, flattenMessages, useMarkAsRead } from '@/hooks/queries/useChat';
+import { chatJoinConversation, chatLeaveConversation, chatMarkRead } from '@/services/socket';
 import { colors } from '@/constants/colors';
-import type { Message } from '@/types/chat';
+import type { Message } from '@/services/api/schemas/chat.schema';
 
 const keyExtractor = (item: Message) => item.id;
 
@@ -23,18 +25,17 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   const user = useAuthStore((s) => s.user);
-  const { openConversation, closeConversation, sendMessage, markAsRead, fetchMoreMessages } = useChatStore();
+  const { sendMessage } = useChatStore();
 
-  const conversations = useChatStore((s) => s.conversations);
-  const isLoadingMessages = useChatStore((s) => s.isLoadingMessages);
-  const isLoadingMore = useChatStore((s) => s.isLoadingMoreMessages);
+  const { data: messagesData, isLoading: isLoadingMessages, fetchNextPage, hasNextPage, isFetchingNextPage: isLoadingMore } = useMessages(id);
+  const messages = flattenMessages(messagesData);
+  const markAsReadMutation = useMarkAsRead();
 
-  const messagesStore = useChatStore((s) => s.messages);
-  const messages = messagesStore[id] ?? [];
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
 
-  const conversation = conversations.find(c => c.id === id);
+  const { data: conversations = [] } = useConversations();
+  const conversation = conversations.find((c) => c.id === id);
 
   // Participant resolution
   const otherParticipantName = conversation?.participantNames?.find(n => n !== user?.username && n !== user?.displayName) || name || 'Unknown';
@@ -42,11 +43,12 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (id) {
-      openConversation(id);
-      markAsRead(id);
-      return () => closeConversation(id);
+      chatJoinConversation(id);
+      chatMarkRead(id);
+      markAsReadMutation.mutate(id);
+      return () => chatLeaveConversation(id);
     }
-  }, [id, openConversation, closeConversation, markAsRead]);
+  }, [id]);
 
   const handleSend = useCallback((text: string) => {
     if (id) {
@@ -55,8 +57,10 @@ export default function ChatScreen() {
   }, [id, sendMessage]);
 
   const handleLoadMore = useCallback(() => {
-    if (id) fetchMoreMessages(id);
-  }, [id, fetchMoreMessages]);
+    if (hasNextPage && !isLoadingMore) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isLoadingMore, fetchNextPage]);
 
   // Scroll-to-bottom button
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);

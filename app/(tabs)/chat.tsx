@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,39 +9,30 @@ import { FriendListItem } from '@/components/inbox/FriendListItem';
 import { SendGaspToAllButton } from '@/components/inbox/SendGaspToAllButton';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useInboxStore, useFilteredFriends } from '@/stores/inboxStore';
-import { useAuthStore } from '@/stores/authStore';
-import { useChatStore } from '@/stores/chatStore';
+import { useGetOrCreateConversation } from '@/hooks/queries/useChat';
 import type { InboxFriend } from '@/stores/inboxStore';
 import { colors } from '@/constants/colors';
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const isGuest = useAuthStore((s) => s.isGuest);
   const searchQuery = useInboxStore((s) => s.searchQuery);
   const setSearchQuery = useInboxStore((s) => s.setSearchQuery);
   const friendCount = useInboxStore((s) => s.friendCount);
   const newGaspCount = useInboxStore((s) => s.newGaspCount);
   const onlineCount = useInboxStore((s) => s.onlineCount);
-  const fetchFriends = useInboxStore((s) => s.fetchFriends);
   const filteredFriends = useFilteredFriends();
 
-  useEffect(() => {
-    if (!isGuest) {
-      fetchFriends();
-    }
-  }, [isGuest, fetchFriends]);
-
-  const getOrCreateConversation = useChatStore((s) => s.getOrCreateConversation);
+  const getOrCreateConversation = useGetOrCreateConversation();
 
   const handleFriendPress = useCallback(async (friend: InboxFriend) => {
     try {
-      const conv = await getOrCreateConversation(friend.id);
+      const conv = await getOrCreateConversation.mutateAsync(friend.id);
       router.push({
         pathname: '/chat/[id]' as any,
-        params: { 
-          id: conv.id, 
-          name: friend.name, 
-          avatarUrl: friend.avatarUrl || '' 
+        params: {
+          id: conv.id,
+          name: friend.name,
+          avatarUrl: friend.avatarUrl || ''
         },
       });
     } catch (error) {

@@ -8,9 +8,29 @@
 // ── Mocks must be declared before imports ─────────────────────────────────────
 
 jest.mock('axios', () => {
-  const actual = jest.requireActual('axios');
+  // Fully mock axios to avoid loading its fetch adapter which triggers
+  // a ReadableStream.cancel() unhandled rejection with expo's streams polyfill
+  const mockInstance = {
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+    head: jest.fn(),
+    options: jest.fn(),
+    request: jest.fn(),
+    interceptors: {
+      request: { use: jest.fn(), eject: jest.fn() },
+      response: { use: jest.fn(), eject: jest.fn() },
+    },
+    defaults: { headers: { common: {}, get: {}, post: {}, put: {}, delete: {} } },
+  };
   return {
-    ...actual,
+    default: Object.assign(jest.fn(() => mockInstance), {
+      create: jest.fn(() => mockInstance),
+      isAxiosError: jest.fn(),
+    }),
+    create: jest.fn(() => mockInstance),
     isAxiosError: jest.fn(),
   };
 });
@@ -29,7 +49,7 @@ import { getApiErrorMessage, setApiToken, registerAuthCallbacks, api } from '@/s
 
 // ── Typed mock helpers ────────────────────────────────────────────────────────
 
-const mockIsAxiosError = axios.isAxiosError as jest.Mock;
+const mockIsAxiosError = (axios.isAxiosError as unknown) as jest.Mock;
 
 // ── Helper: build a fake Axios error ─────────────────────────────────────────
 

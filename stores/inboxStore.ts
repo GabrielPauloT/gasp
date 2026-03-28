@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import type { Friend } from '@/types/user';
-import * as friendsApi from '@/services/api/friends';
+import type { Friend } from '@/services/api/schemas/user.schema';
 
 export type FriendAction = 'thumbnail' | 'badge' | 'eye' | 'none';
 
@@ -25,24 +24,16 @@ interface InboxState {
   newGaspCount: number;
   onlineCount: number;
   searchQuery: string;
-  isLoading: boolean;
 
   setFriends: (friends: InboxFriend[]) => void;
   setSearchQuery: (query: string) => void;
   setStats: (stats: { friendCount: number; newGaspCount: number; onlineCount: number }) => void;
-  setLoading: (loading: boolean) => void;
   setFriendOnlineStatus: (userId: string, status: 'online' | 'offline') => void;
   setBulkOnlineStatus: (onlineUserIds: string[]) => void;
-
-  fetchFriends: () => Promise<void>;
-  sendFriendRequest: (addresseeId: string) => Promise<void>;
-  acceptFriendRequest: (friendshipId: string) => Promise<void>;
-  rejectFriendRequest: (friendshipId: string) => Promise<void>;
-  removeFriend: (friendshipId: string) => Promise<void>;
 }
 
 /** Map backend Friend to InboxFriend for UI */
-function mapFriendToInbox(friend: Friend): InboxFriend {
+export function mapFriendToInbox(friend: Friend): InboxFriend {
   return {
     id: friend.id,
     name: friend.displayName,
@@ -59,19 +50,17 @@ function mapFriendToInbox(friend: Friend): InboxFriend {
   };
 }
 
-export const useInboxStore = create<InboxState>((set, get) => ({
+export const useInboxStore = create<InboxState>((set) => ({
   friends: [],
   friendCount: 0,
   newGaspCount: 0,
   onlineCount: 0,
   searchQuery: '',
-  isLoading: false,
 
   setFriends: (friends) => set({ friends }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setStats: ({ friendCount, newGaspCount, onlineCount }) =>
     set({ friendCount, newGaspCount, onlineCount }),
-  setLoading: (isLoading) => set({ isLoading }),
 
   setFriendOnlineStatus: (userId, status) =>
     set((state) => {
@@ -95,44 +84,6 @@ export const useInboxStore = create<InboxState>((set, get) => ({
       })),
       onlineCount: onlineUserIds.length,
     })),
-
-  fetchFriends: async () => {
-    set({ isLoading: true });
-    try {
-      const friends = await friendsApi.listFriends();
-      const inboxFriends = friends.map(mapFriendToInbox);
-      const onlineCount = inboxFriends.filter((f) => f.onlineStatus === 'online').length;
-      set({
-        friends: inboxFriends,
-        friendCount: inboxFriends.length,
-        onlineCount,
-      });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  sendFriendRequest: async (addresseeId) => {
-    await friendsApi.sendRequest(addresseeId);
-  },
-
-  acceptFriendRequest: async (friendshipId) => {
-    await friendsApi.acceptRequest(friendshipId);
-    // Refresh friend list after accepting
-    get().fetchFriends();
-  },
-
-  rejectFriendRequest: async (friendshipId) => {
-    await friendsApi.rejectRequest(friendshipId);
-  },
-
-  removeFriend: async (friendshipId) => {
-    await friendsApi.removeFriend(friendshipId);
-    set((state) => ({
-      friends: state.friends.filter((f) => f.friendshipId !== friendshipId),
-      friendCount: Math.max(0, state.friendCount - 1),
-    }));
-  },
 }));
 
 // Selector for filtered friends

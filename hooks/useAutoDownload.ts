@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
 import NetInfo from '@react-native-community/netinfo';
-import { useGaspStore } from '@/stores/gaspStore';
 import { useMediaCacheStore } from '@/stores/mediaCacheStore';
+import { usePendingGasps } from '@/hooks/queries/useGasps';
 import { cacheMedia } from '@/services/mediaCache';
 
 export function useAutoDownload(): void {
-  const pendingGasps = useGaspStore((s) => s.pendingGasps);
+  const { data: pendingGasps = [] } = usePendingGasps();
   const cachedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {

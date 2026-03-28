@@ -1,36 +1,28 @@
-import { useEffect, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View, FlatList, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FeedHeader } from '@/components/inbox/FeedHeader';
 import { FeedCard } from '@/components/inbox/FeedCard';
 import { Text } from '@/components/ui/Text';
-import { useGaspStore } from '@/stores/gaspStore';
 import { useAuthStore } from '@/stores/authStore';
+import { usePendingGasps } from '@/hooks/queries/useGasps';
 import { openGaspViewer } from '@/services/openGasp';
 import { colors } from '@/constants/colors';
-import type { Gasp } from '@/types/gasp';
+import type { Gasp } from '@/services/api/schemas/gasp.schema';
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const isGuest = useAuthStore((s) => s.isGuest);
-  const pendingGasps = useGaspStore((s) => s.pendingGasps);
-  const isLoading = useGaspStore((s) => s.isLoadingPending);
-  const fetchPendingGasps = useGaspStore((s) => s.fetchPendingGasps);
+  const { data: pendingGasps = [], isLoading, refetch } = usePendingGasps(!isGuest);
 
   const newCount = useMemo(() =>
     pendingGasps.filter((g) => g.status === 'pending').length,
     [pendingGasps]
   );
 
-  useEffect(() => {
-    if (!isGuest) {
-      fetchPendingGasps();
-    }
-  }, [isGuest, fetchPendingGasps]);
-
   const handleRefresh = useCallback(() => {
-    if (!isGuest) fetchPendingGasps();
-  }, [isGuest, fetchPendingGasps]);
+    if (!isGuest) refetch();
+  }, [isGuest, refetch]);
 
   const [preloadingId, setPreloadingId] = useState<string | null>(null);
 

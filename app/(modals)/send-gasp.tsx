@@ -8,10 +8,11 @@ import { X, Send, Check } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useInboxStore } from '@/stores/inboxStore';
-import { useGaspStore } from '@/stores/gaspStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import type { InboxFriend } from '@/stores/inboxStore';
+import { useSendBatchGasp } from '@/hooks/queries/useGasps';
+import { useGetOrCreateConversation } from '@/hooks/queries/useChat';
 import { uploadGasp } from '@/services/storage';
 import { compressImage } from '@/services/imageCompression';
 import { compressVideo } from '@/services/videoCompression';
@@ -24,6 +25,8 @@ export default function SendGaspScreen() {
   const insets = useSafeAreaInsets();
   const friends = useInboxStore((s) => s.friends);
   const user = useAuthStore((s) => s.user);
+  const sendBatchMutation = useSendBatchGasp();
+  const getOrCreateMutation = useGetOrCreateConversation();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -63,8 +66,7 @@ export default function SendGaspScreen() {
     if (!imageUri || isUploading) return;
 
     const userId = user?.id ?? 'guest';
-    const sendBatchGasp = useGaspStore.getState().sendBatchGasp;
-    const { getOrCreateConversation, sendMessage } = useChatStore.getState();
+    const { sendMessage } = useChatStore.getState();
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -83,9 +85,9 @@ export default function SendGaspScreen() {
 
       // 3. Save gasp metadata to backend
       setUploadProgress(0.9);
-      
+
       const recipientArray = Array.from(selectedIds);
-      await sendBatchGasp({
+      await sendBatchMutation.mutateAsync({
         recipientIds: recipientArray,
         imageUrl: result.downloadUrl,
         ...(isVideoMode && { mediaType: 'video' as const }),
@@ -95,7 +97,7 @@ export default function SendGaspScreen() {
       // 4. Fire-and-forget socket chat messages so they visually populate the conversation stream
       for (const friendId of recipientArray) {
         try {
-          const conv = await getOrCreateConversation(friendId);
+          const conv = await getOrCreateMutation.mutateAsync(friendId);
           let content: string;
           if (textOverlay) {
             // Text overlay JSON already contains font/color/etc, add mediaType

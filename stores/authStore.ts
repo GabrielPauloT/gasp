@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User } from '@/types/user';
+import type { User } from '@/services/api/schemas/user.schema';
 import { jwtDecode } from 'jwt-decode';
 import { getAuth, signOut as firebaseSignOut } from '@react-native-firebase/auth';
 import {

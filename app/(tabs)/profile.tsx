@@ -1,32 +1,29 @@
 import { useCallback } from 'react';
 import { StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, router } from 'expo-router';
+import { router } from 'expo-router';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { StatsCard } from '@/components/profile/StatsCard';
 import { ActivityCard } from '@/components/profile/ActivityCard';
 import { useAuthStore } from '@/stores/authStore';
-import { useProfileStore } from '@/stores/profileStore';
+import { useProfileStats, calculateGaspScore } from '@/hooks/queries/useProfile';
 import { colors } from '@/constants/colors';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
-  const {
-    gaspsSent, gaspsReceived, friendsCount,
-    streak, reactionsReceived, gaspScore, memberSince,
-    isLoading, loadProfile,
-  } = useProfileStore();
+  const isGuest = useAuthStore((s) => s.isGuest);
+  const { data: stats, isLoading, refetch } = useProfileStats(!isGuest);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadProfile();
-    }, [loadProfile])
-  );
+  const gaspsSent = stats?.gaspsSent ?? 0;
+  const gaspsReceived = stats?.gaspsReceived ?? 0;
+  const friendsCount = stats?.friendsCount ?? 0;
+  const streak = stats?.streak ?? 0;
+  const reactionsReceived = stats?.reactionsReceived ?? 0;
+  const gaspScore = calculateGaspScore(gaspsSent, gaspsReceived, streak, reactionsReceived);
+  const memberSince = user?.createdAt ?? '';
 
-  const onRefresh = useCallback(() => {
-    loadProfile();
-  }, [loadProfile]);
+  const onRefresh = useCallback(() => { refetch(); }, [refetch]);
 
   return (
     <ScrollView

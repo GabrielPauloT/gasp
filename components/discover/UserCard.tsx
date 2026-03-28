@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/Text';
 import { GradientCircle } from '@/components/ui/GradientCircle';
 import { UserPlus, Check } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
-import type { RecommendedUser, UserBadge } from '@/types/discover';
+import type { RecommendedUser, UserBadge } from '@/services/api/schemas/user.schema';
 
 const BADGE_CONFIG: Record<Exclude<UserBadge, null>, { label: string; color: string; bg: string }> = {
   top10: { label: 'Top 10%', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' },

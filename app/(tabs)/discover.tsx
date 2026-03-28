@@ -7,7 +7,8 @@ import {
   Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/services/queryKeys';
 import { Text } from '@/components/ui/Text';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { DiscoverHeader } from '@/components/discover/DiscoverHeader';
@@ -18,10 +19,10 @@ import {
 } from '@/components/discover/UserSearchResult';
 import { useInboxStore } from '@/stores/inboxStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useSendFriendRequest } from '@/hooks/queries/useFriends';
 import * as usersApi from '@/services/api/users';
 import * as discoverApi from '@/services/api/discover';
-import type { User } from '@/types/user';
-import type { RecommendedUser } from '@/types/discover';
+import type { User } from '@/services/api/schemas/user.schema';
 import { colors } from '@/constants/colors';
 import { Users, Trophy, UserX } from 'lucide-react-native';
 
@@ -30,7 +31,7 @@ export default function DiscoverScreen() {
   const isGuest = useAuthStore((s) => s.isGuest);
   const currentUser = useAuthStore((s) => s.user);
   const friends = useInboxStore((s) => s.friends);
-  const sendFriendRequest = useInboxStore((s) => s.sendFriendRequest);
+  const sendFriendRequestMutation = useSendFriendRequest();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -38,32 +39,21 @@ export default function DiscoverScreen() {
   const [hasSearched, setHasSearched] = useState(false);
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
 
-  const [peopleYouMayKnow, setPeopleYouMayKnow] = useState<RecommendedUser[]>([]);
-  const [topGaspers, setTopGaspers] = useState<RecommendedUser[]>([]);
-  const [isLoadingRecs, setIsLoadingRecs] = useState(false);
+  const { data: peopleYouMayKnow = [], isLoading: isLoadingRecs } = useQuery({
+    queryKey: queryKeys.discover.recommended,
+    queryFn: () => discoverApi.getRecommendedUsers(),
+    enabled: !isGuest,
+  });
+
+  const { data: topGaspers = [] } = useQuery({
+    queryKey: queryKeys.discover.topGaspers,
+    queryFn: () => discoverApi.getTopGaspers(),
+    enabled: !isGuest,
+  });
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const friendIds = useMemo(() => new Set(friends.map((f) => f.id)), [friends]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (isGuest) return;
-      setIsLoadingRecs(true);
-      Promise.all([
-        discoverApi.getRecommendedUsers(),
-        discoverApi.getTopGaspers(),
-      ])
-        .then(([recommended, top]) => {
-          setPeopleYouMayKnow(recommended);
-          setTopGaspers(top);
-        })
-        .catch(() => {
-          // API not available — sections will be empty
-        })
-        .finally(() => setIsLoadingRecs(false));
-    }, [isGuest]),
-  );
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -103,12 +93,12 @@ export default function DiscoverScreen() {
 
   const handleAdd = useCallback(async (addresseeId: string) => {
     try {
-      await sendFriendRequest(addresseeId);
+      await sendFriendRequestMutation.mutateAsync(addresseeId);
       setSentRequestIds((prev) => new Set(prev).add(addresseeId));
     } catch {
       // Silently fail — UserCard handles its own error state
     }
-  }, [sendFriendRequest]);
+  }, [sendFriendRequestMutation]);
 
   const isShowingSearch = searchQuery.trim().length > 0 || hasSearched;
 

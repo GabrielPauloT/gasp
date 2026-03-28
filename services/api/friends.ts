@@ -1,5 +1,5 @@
 import { api } from '@/services/api';
-import type { Friend } from '@/types/user';
+import type { Friend } from '@/services/api/schemas/user.schema';
 
 interface FriendRequestRequester {
   id: string;

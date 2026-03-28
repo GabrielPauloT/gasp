@@ -1,18 +1,6 @@
 import { api } from '@/services/api';
-import type { Reaction, ApiReaction } from '@/types/gasp';
-
-/** Normalize backend reaction → frontend Reaction */
-function normalizeReaction(raw: ApiReaction): Reaction {
-  return {
-    id: raw.id,
-    gaspId: raw.gaspId,
-    reactorId: raw.reactorId,
-    reactorName: '',
-    reactionVideoUri: raw.videoUrl,
-    originalImageUri: '',
-    capturedAt: raw.createdAt,
-  };
-}
+import type { Reaction, ApiReaction } from '@/services/api/schemas/gasp.schema';
+import { normalizeReaction } from '@/services/api/schemas/gasp.schema';
 
 export async function createReaction(data: {
   gaspId: string;

@@ -1,6 +1,6 @@
 import { api } from '@/services/api';
-import type { PaginatedResponse } from '@/services/api';
-import type { Message, MessageType } from '@/types/chat';
+import type { PaginatedResponse } from '@/services/api/schemas/common.schema';
+import type { Message, MessageType } from '@/services/api/schemas/chat.schema';
 
 export async function listMessages(
   conversationId: string,

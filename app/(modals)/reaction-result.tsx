@@ -5,7 +5,7 @@ import { ReactionPreview } from '@/components/gasp/ReactionPreview';
 import { useGaspStore } from '@/stores/gaspStore';
 import { useAuthStore } from '@/stores/authStore';
 import { colors } from '@/constants/colors';
-import type { Reaction } from '@/types/gasp';
+import type { Reaction } from '@/services/api/schemas/gasp.schema';
 
 export default function ReactionResultScreen() {
   const insets = useSafeAreaInsets();

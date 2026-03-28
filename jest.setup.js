@@ -98,6 +98,21 @@ jest.mock('react-native-gesture-handler', () => {
   };
 });
 
+// ── Mock @tanstack/react-query ───────────────────────────────────────
+jest.mock('@tanstack/react-query', () => ({
+  useQuery: jest.fn(() => ({ data: undefined, isLoading: false, error: null })),
+  useInfiniteQuery: jest.fn(() => ({ data: undefined, isLoading: false, fetchNextPage: jest.fn() })),
+  useMutation: jest.fn(() => ({ mutate: jest.fn(), mutateAsync: jest.fn() })),
+  useQueryClient: jest.fn(() => ({
+    setQueryData: jest.fn(),
+    invalidateQueries: jest.fn(),
+    cancelQueries: jest.fn(),
+    getQueryData: jest.fn(),
+  })),
+  QueryClient: jest.fn(),
+  QueryClientProvider: jest.fn(({ children }) => children),
+}));
+
 // ── Suppress noisy warnings in tests ─────────────────────────────────
 const originalWarn = console.warn;
 console.warn = (...args) => {

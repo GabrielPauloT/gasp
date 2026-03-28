@@ -1,4 +1,4 @@
-import type { Gasp } from '@/types/gasp';
+import type { Gasp } from '@/services/api/schemas/gasp.schema';
 
 const NOW = new Date().toISOString();
 const EXPIRES = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -14,6 +14,7 @@ export const MOCK_GASPS: Record<string, Gasp> = {
     senderName: 'Sarah',
     senderAvatarUrl: 'https://i.pravatar.cc/150?img=1',
     imageUri: 'https://picsum.photos/seed/gasp1/400/800',
+    mediaType: 'image',
     blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
     status: 'pending',
     createdAt: NOW,
@@ -25,6 +26,7 @@ export const MOCK_GASPS: Record<string, Gasp> = {
     senderName: 'Emily',
     senderAvatarUrl: 'https://i.pravatar.cc/150?img=5',
     imageUri: 'https://picsum.photos/seed/gasp2/400/800',
+    mediaType: 'image',
     blurhash: 'LGF5]+Yk^6#M@-5c,1J5@[or[Q6.',
     status: 'pending',
     createdAt: NOW,
@@ -36,6 +38,7 @@ export const MOCK_GASPS: Record<string, Gasp> = {
     senderName: 'Jake',
     senderAvatarUrl: 'https://i.pravatar.cc/150?img=3',
     imageUri: 'https://picsum.photos/seed/gasp3/400/800',
+    mediaType: 'image',
     blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
     status: 'pending',
     createdAt: NOW,
@@ -47,6 +50,7 @@ export const MOCK_GASPS: Record<string, Gasp> = {
     senderName: 'Emma',
     senderAvatarUrl: 'https://i.pravatar.cc/150?img=9',
     imageUri: 'https://picsum.photos/seed/gasp4/400/800',
+    mediaType: 'image',
     blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
     status: 'pending',
     createdAt: NOW,
@@ -58,6 +62,7 @@ export const MOCK_GASPS: Record<string, Gasp> = {
     senderName: 'Marcus',
     senderAvatarUrl: 'https://i.pravatar.cc/150?img=7',
     imageUri: 'https://picsum.photos/seed/gasp5/400/800',
+    mediaType: 'image',
     blurhash: 'L5H2EC=PM+yV0g-mq.wG9c010J}I',
     status: 'pending',
     createdAt: NOW,
@@ -69,6 +74,7 @@ export const MOCK_GASPS: Record<string, Gasp> = {
     senderName: 'Olivia',
     senderAvatarUrl: 'https://i.pravatar.cc/150?img=10',
     imageUri: 'https://picsum.photos/seed/gasp6/400/800',
+    mediaType: 'image',
     blurhash: 'LNAdAqj[00aymkj[TKay00ay~qj[',
     status: 'pending',
     createdAt: NOW,
@@ -80,6 +86,7 @@ export const MOCK_GASPS: Record<string, Gasp> = {
     senderName: 'Alex',
     senderAvatarUrl: 'https://i.pravatar.cc/150?img=11',
     imageUri: 'https://picsum.photos/seed/gasp7/400/800',
+    mediaType: 'image',
     blurhash: 'LFJH2i-;9FNH~q-;M{M{00D%IUxu',
     status: 'pending',
     createdAt: NOW,
@@ -91,6 +98,7 @@ export const MOCK_GASPS: Record<string, Gasp> = {
     senderName: 'Sophia',
     senderAvatarUrl: 'https://i.pravatar.cc/150?img=20',
     imageUri: 'https://picsum.photos/seed/gasp8/400/800',
+    mediaType: 'image',
     blurhash: 'LHB{.OxuD%M{~qRjM{of9FIUayj[',
     status: 'pending',
     createdAt: NOW,
