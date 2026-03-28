@@ -41,14 +41,17 @@ export default function CameraScreen() {
 
   const doCapture = useCallback(async () => {
     setIsProcessing(true);
-    const uri = await takePicture();
-    if (uri) {
-      router.push({
-        pathname: '/(modals)/camera-preview',
-        params: { imageUri: uri },
-      });
+    try {
+      const uri = await takePicture();
+      if (uri) {
+        router.push({
+          pathname: '/(modals)/camera-preview',
+          params: { imageUri: uri },
+        });
+      }
+    } finally {
+      setIsProcessing(false);
     }
-    setTimeout(() => setIsProcessing(false), 600);
   }, [takePicture]);
 
   const handleTimerComplete = useCallback(() => {
@@ -72,12 +75,10 @@ export default function CameraScreen() {
   const handleRecordStart = () => {
     startRecording().then((uri) => {
       if (uri) {
-        setIsProcessing(true);
         router.push({
           pathname: '/(modals)/camera-preview',
           params: { imageUri: uri, isVideo: 'true' },
         });
-        setTimeout(() => setIsProcessing(false), 600);
       }
     });
   };
@@ -88,24 +89,24 @@ export default function CameraScreen() {
 
   const handleOpenGallery = async () => {
     setIsLoadingGallery(true);
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      quality: 0.8,
-      videoMaxDuration: 10,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      router.push({
-        pathname: '/(modals)/camera-preview',
-        params: {
-          imageUri: asset.uri,
-          ...(asset.type === 'video' && { isVideo: 'true' }),
-        },
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        quality: 0.8,
+        videoMaxDuration: 10,
       });
-      setTimeout(() => setIsLoadingGallery(false), 600);
-    } else {
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        router.push({
+          pathname: '/(modals)/camera-preview',
+          params: {
+            imageUri: asset.uri,
+            ...(asset.type === 'video' && { isVideo: 'true' }),
+          },
+        });
+      }
+    } finally {
       setIsLoadingGallery(false);
     }
   };

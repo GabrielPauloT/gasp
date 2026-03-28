@@ -30,9 +30,7 @@ export function useCamera() {
   }, [setCapturedUri]);
 
   const startRecording = useCallback(async (): Promise<string | null> => {
-    console.log('[camera] startRecording called');
     if (!cameraRef.current) {
-      console.warn('[camera] no cameraRef');
       return null;
     }
 
@@ -50,11 +48,9 @@ export function useCamera() {
 
     try {
       setRecording(true);
-      console.log('[camera] calling recordAsync...');
       const video = await cameraRef.current.recordAsync({
         maxDuration: 10,
       });
-      console.log('[camera] recordAsync resolved:', video?.uri ? 'got URI' : 'no URI');
 
       if (video?.uri) {
         setCapturedUri(video.uri);
@@ -62,7 +58,6 @@ export function useCamera() {
       }
       return null;
     } catch (error) {
-      console.warn('[camera] Failed to record:', error);
       Alert.alert(
         'Recording failed',
         'Video recording is not supported on this device. Try on a physical device.',
@@ -74,7 +69,6 @@ export function useCamera() {
   }, [micPermission, requestMicPermission, setCapturedUri, setRecording]);
 
   const stopRecording = useCallback(() => {
-    console.log('[camera] stopRecording called');
     if (!cameraRef.current) return;
     cameraRef.current.stopRecording();
   }, []);

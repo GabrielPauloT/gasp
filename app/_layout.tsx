@@ -7,7 +7,8 @@ if (__DEV__) {
 
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 // Suppress warnings from third-party dependencies we don't control
 LogBox.ignoreLogs([
@@ -22,6 +23,15 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useAutoDownload } from '@/hooks/useAutoDownload';
 import { initCache } from '@/services/mediaCache';
 import { useMediaCacheStore } from '@/stores/mediaCacheStore';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
+  enabled: !__DEV__,
+  tracesSampleRate: 0.2,
+  attachScreenshot: true,
+  enableAutoSessionTracking: true,
+});
 
 // Keep splash screen visible while we initialize auth
 SplashScreen.preventAutoHideAsync();
@@ -33,6 +43,7 @@ export const unstable_settings = {
 export default function RootLayout() {
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
+  const user = useAuthStore((s) => s.user);
 
   // Register all Socket.IO listeners for real-time updates
   useSocketListeners();
@@ -53,10 +64,19 @@ export default function RootLayout() {
     });
   }, [initializeAuth]);
 
+  useEffect(() => {
+    if (user) {
+      Sentry.setUser({ id: user.id, username: user.username });
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [user]);
+
   // Don't render routes until auth state is known
   if (!isInitialized) return null;
 
   return (
+    <ErrorBoundary onGoHome={() => router.replace('/(tabs)/camera')}>
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0A0A0F' }}>
       <Stack
         screenOptions={{
@@ -94,5 +114,6 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="light" />
     </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

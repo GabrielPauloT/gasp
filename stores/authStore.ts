@@ -13,6 +13,7 @@ import { registerAuthCallbacks, setApiToken } from '@/services/api';
 import * as authApi from '@/services/api/auth';
 import * as usersApi from '@/services/api/users';
 import { connectSocket, disconnectSocket } from '@/services/socket';
+import * as Sentry from '@sentry/react-native';
 
 interface AuthState {
   user: User | null;
@@ -83,16 +84,22 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     try {
       disconnectSocket();
-    } catch {}
+    } catch (e) {
+      Sentry.captureException(e);
+    }
 
     try {
       await firebaseSignOut(getAuth());
-    } catch {}
+    } catch (e) {
+      Sentry.captureException(e);
+    }
 
     try {
       await removeAuthToken();
       await removeUserData();
-    } catch {}
+    } catch (e) {
+      Sentry.captureException(e);
+    }
 
     setApiToken(null);
     set({

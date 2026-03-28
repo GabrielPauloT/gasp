@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as usersApi from '@/services/api/users';
 import { useAuthStore } from '@/stores/authStore';
+import * as Sentry from '@sentry/react-native';
 
 interface ProfileState {
   gaspsSent: number;
@@ -53,7 +54,8 @@ export const useProfileStore = create<ProfileState>((set) => ({
         memberSince: user?.createdAt ?? '',
         isLoading: false,
       });
-    } catch {
+    } catch (e) {
+      Sentry.captureException(e);
       set({ isLoading: false });
     }
   },
