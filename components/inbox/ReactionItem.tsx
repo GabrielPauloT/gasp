@@ -1,5 +1,6 @@
 import { StyleSheet, View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
+import { useTranslation } from 'react-i18next';
 import { Text } from '@/components/ui/Text';
 import { Avatar } from '@/components/ui/Avatar';
 import { colors } from '@/constants/colors';
@@ -12,13 +13,15 @@ interface ReactionItemProps {
 }
 
 export function ReactionItem({ reaction, onPress }: ReactionItemProps) {
+  const { t } = useTranslation();
   const timeLabel = formatRelativeTime(reaction.capturedAt);
+  const reactorLabel = reaction.reactorName || t('reaction.someone');
 
   return (
     <Pressable
       onPress={() => onPress(reaction)}
       style={styles.container}
-      accessibilityLabel={`${reaction.reactorName || 'Someone'} reacted to your gasp`}
+      accessibilityLabel={t('reaction.reactedToYourGasp', { name: reactorLabel })}
     >
       <Avatar
         uri={null}
@@ -27,8 +30,8 @@ export function ReactionItem({ reaction, onPress }: ReactionItemProps) {
       />
       <View style={styles.textContainer}>
         <Text variant="body" style={styles.text}>
-          <Text variant="body" style={styles.name}>{reaction.reactorName || 'Someone'}</Text>
-          {' reacted to your gasp'}
+          <Text variant="body" style={styles.name}>{reactorLabel}</Text>
+          {t('reaction.reacted')}
         </Text>
         <Text variant="caption" style={styles.time}>{timeLabel}</Text>
       </View>

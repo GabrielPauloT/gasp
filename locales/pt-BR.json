@@ -28,8 +28,22 @@
     "text": "Text"
   },
   "inbox": {
-    "noGasps": "No gasps yet. Send one to a friend!",
-    "openCamera": "Open Camera"
+    "noGasps": "Nenhum gasp ainda. Envie um para um amigo!",
+    "openCamera": "Abrir Câmera",
+    "noActivity": "Nenhuma atividade ainda",
+    "sendGaspToFriend": "Envie um gasp para um amigo!",
+    "friendRequests": "PEDIDOS DE AMIZADE",
+    "newGasps": "NOVOS GASPS",
+    "reactions": "REAÇÕES"
+  },
+  "friendRequest": {
+    "accept": "Aceitar",
+    "wantsToBeYourFriend": "{{name}} quer ser seu amigo"
+  },
+  "reaction": {
+    "reactedToYourGasp": "{{name}} reagiu ao seu gasp",
+    "reacted": " reagiu ao seu gasp",
+    "someone": "Alguém"
   },
   "chat": {
     "startConversation": "Start the conversation by sending a gasp!",

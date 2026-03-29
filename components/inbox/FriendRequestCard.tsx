@@ -1,7 +1,8 @@
-import { StyleSheet, View, Pressable } from 'react-native';
+import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Check, X } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
 import { openFriendProfile } from '@/services/navigation';
@@ -11,9 +12,11 @@ interface FriendRequestCardProps {
   request: FriendRequest;
   onAccept: (friendshipId: string) => void;
   onReject: (friendshipId: string) => void;
+  isProcessing?: boolean;
 }
 
-export function FriendRequestCard({ request, onAccept, onReject }: FriendRequestCardProps) {
+export function FriendRequestCard({ request, onAccept, onReject, isProcessing = false }: FriendRequestCardProps) {
+  const { t } = useTranslation();
   const { requester, friendshipId } = request;
 
   const handleCardPress = () => {
@@ -28,7 +31,7 @@ export function FriendRequestCard({ request, onAccept, onReject }: FriendRequest
     <Pressable
       onPress={handleCardPress}
       style={styles.card}
-      accessibilityLabel={`${requester.displayName} wants to be your friend`}
+      accessibilityLabel={t('friendRequest.wantsToBeYourFriend', { name: requester.displayName })}
     >
       {/* Avatar with gradient ring */}
       <View style={styles.avatarRing}>
@@ -69,6 +72,7 @@ export function FriendRequestCard({ request, onAccept, onReject }: FriendRequest
           style={styles.acceptButton}
           accessibilityLabel="Accept friend request"
           accessibilityRole="button"
+          disabled={isProcessing}
         >
           <LinearGradient
             colors={['#7C3AED', '#EC4899']}
@@ -76,8 +80,14 @@ export function FriendRequestCard({ request, onAccept, onReject }: FriendRequest
             end={{ x: 1, y: 0 }}
             style={styles.acceptGradient}
           >
-            <Check size={13} color="#FFFFFF" strokeWidth={3} />
-            <Text variant="caption" style={styles.acceptText}>Accept</Text>
+            {isProcessing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Check size={13} color="#FFFFFF" strokeWidth={3} />
+                <Text variant="caption" style={styles.acceptText}>{t('friendRequest.accept')}</Text>
+              </>
+            )}
           </LinearGradient>
         </Pressable>
         <Pressable
@@ -85,6 +95,7 @@ export function FriendRequestCard({ request, onAccept, onReject }: FriendRequest
           style={styles.rejectButton}
           accessibilityLabel="Reject friend request"
           accessibilityRole="button"
+          disabled={isProcessing}
         >
           <X size={13} color={colors.textSecondary} strokeWidth={2.5} />
         </Pressable>

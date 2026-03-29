@@ -29,7 +29,21 @@
   },
   "inbox": {
     "noGasps": "No gasps yet. Send one to a friend!",
-    "openCamera": "Open Camera"
+    "openCamera": "Open Camera",
+    "noActivity": "No activity yet",
+    "sendGaspToFriend": "Send a gasp to a friend!",
+    "friendRequests": "FRIEND REQUESTS",
+    "newGasps": "NEW GASPS",
+    "reactions": "REACTIONS"
+  },
+  "friendRequest": {
+    "accept": "Accept",
+    "wantsToBeYourFriend": "{{name}} wants to be your friend"
+  },
+  "reaction": {
+    "reactedToYourGasp": "{{name}} reacted to your gasp",
+    "reacted": " reacted to your gasp",
+    "someone": "Someone"
   },
   "chat": {
     "startConversation": "Start the conversation by sending a gasp!",

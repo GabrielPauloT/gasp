@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View, ScrollView, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -20,6 +21,7 @@ import type { Gasp } from '@/services/api/schemas/gasp.schema';
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const isGuest = useAuthStore((s) => s.isGuest);
 
   // Friend requests
@@ -27,13 +29,23 @@ export default function InboxScreen() {
   const acceptMutation = useAcceptFriendRequest();
   const rejectMutation = useRejectFriendRequest();
 
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
   const handleAccept = useCallback((friendshipId: string) => {
-    acceptMutation.mutate(friendshipId);
-  }, [acceptMutation]);
+    if (processingId) return;
+    setProcessingId(friendshipId);
+    acceptMutation.mutate(friendshipId, {
+      onSettled: () => setProcessingId(null),
+    });
+  }, [acceptMutation, processingId]);
 
   const handleReject = useCallback((friendshipId: string) => {
-    rejectMutation.mutate(friendshipId);
-  }, [rejectMutation]);
+    if (processingId) return;
+    setProcessingId(friendshipId);
+    rejectMutation.mutate(friendshipId, {
+      onSettled: () => setProcessingId(null),
+    });
+  }, [rejectMutation, processingId]);
 
   // Gasps
   const { data: pendingGasps = [], isLoading: isLoadingGasps, isRefetching: isRefetchingGasps, isError: isErrorGasps, refetch: refetchGasps } = usePendingGasps(!isGuest);
@@ -89,13 +101,14 @@ export default function InboxScreen() {
               requests={friendRequests}
               onAccept={handleAccept}
               onReject={handleReject}
+              processingId={processingId}
             />
           )}
 
           {/* Section 2: Gasps — SectionHeader + FeedCards mapped directly */}
           {pendingGasps.length > 0 && (
             <>
-              <SectionHeader icon={<Flame size={16} color="#EC4899" />} title="NEW GASPS" count={pendingGasps.length} badgeColor="#EC4899" />
+              <SectionHeader icon={<Flame size={16} color="#EC4899" />} title={t('inbox.newGasps')} count={pendingGasps.length} badgeColor="#EC4899" />
               {pendingGasps.map((gasp) => (
                 <Pressable
                   key={gasp.id}
@@ -132,10 +145,10 @@ export default function InboxScreen() {
               isError={false}
               refetch={() => {}}
               skeleton={null}
-              emptyTitle="No activity yet"
-              emptySubtitle="Send a gasp to a friend!"
+              emptyTitle={t('inbox.noActivity')}
+              emptySubtitle={t('inbox.sendGaspToFriend')}
               emptyIcon={<Camera size={40} color={colors.textTertiary} />}
-              emptyCta={{ label: 'Open Camera', onPress: () => router.push('/(tabs)/camera') }}
+              emptyCta={{ label: t('inbox.openCamera'), onPress: () => router.push('/(tabs)/camera') }}
             >
               {() => null}
             </QueryState>
