@@ -1,5 +1,6 @@
 import { StyleSheet, View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Check, X } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
@@ -29,24 +30,37 @@ export function FriendRequestCard({ request, onAccept, onReject }: FriendRequest
       style={styles.card}
       accessibilityLabel={`${requester.displayName} wants to be your friend`}
     >
-      {/* Avatar */}
-      {requester.avatarUrl ? (
-        <Image source={{ uri: requester.avatarUrl }} style={styles.avatar} contentFit="cover" />
-      ) : (
-        <View style={[styles.avatar, styles.avatarPlaceholder]}>
-          <Text variant="body" style={styles.avatarInitial}>
-            {requester.displayName.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-      )}
+      {/* Avatar with gradient ring */}
+      <View style={styles.avatarRing}>
+        <LinearGradient
+          colors={['#EC4899', '#7C3AED', '#06B6D4']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.avatarGradient}
+        >
+          <View style={styles.avatarInner}>
+            {requester.avatarUrl ? (
+              <Image source={{ uri: requester.avatarUrl }} style={styles.avatar} contentFit="cover" />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <Text variant="body" style={styles.avatarInitial}>
+                  {requester.displayName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </View>
+        </LinearGradient>
+      </View>
 
-      {/* Name */}
-      <Text variant="body" style={styles.name} numberOfLines={1}>
-        {requester.displayName}
-      </Text>
-      <Text variant="caption" style={styles.username} numberOfLines={1}>
-        @{requester.username}
-      </Text>
+      {/* Name & username */}
+      <View style={styles.info}>
+        <Text variant="body" style={styles.name} numberOfLines={1}>
+          {requester.displayName}
+        </Text>
+        <Text variant="caption" style={styles.username} numberOfLines={1}>
+          @{requester.username}
+        </Text>
+      </View>
 
       {/* Action buttons */}
       <View style={styles.actions}>
@@ -56,8 +70,15 @@ export function FriendRequestCard({ request, onAccept, onReject }: FriendRequest
           accessibilityLabel="Accept friend request"
           accessibilityRole="button"
         >
-          <Check size={14} color="#FFFFFF" strokeWidth={3} />
-          <Text variant="caption" style={styles.acceptText}>Accept</Text>
+          <LinearGradient
+            colors={['#7C3AED', '#EC4899']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.acceptGradient}
+          >
+            <Check size={13} color="#FFFFFF" strokeWidth={3} />
+            <Text variant="caption" style={styles.acceptText}>Accept</Text>
+          </LinearGradient>
         </Pressable>
         <Pressable
           onPress={() => onReject(friendshipId)}
@@ -65,7 +86,7 @@ export function FriendRequestCard({ request, onAccept, onReject }: FriendRequest
           accessibilityLabel="Reject friend request"
           accessibilityRole="button"
         >
-          <X size={14} color={colors.textSecondary} strokeWidth={3} />
+          <X size={13} color={colors.textSecondary} strokeWidth={2.5} />
         </Pressable>
       </View>
     </Pressable>
@@ -74,20 +95,42 @@ export function FriendRequestCard({ request, onAccept, onReject }: FriendRequest
 
 const styles = StyleSheet.create({
   card: {
-    width: 130,
+    width: 140,
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 24,
     borderCurve: 'continuous',
-    padding: 14,
+    paddingTop: 20,
+    paddingBottom: 16,
+    paddingHorizontal: 14,
     alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: 8,
+    // iOS shadow only — Android elevation causes square shadow behind borderRadius
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  avatarRing: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  avatarGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    padding: 2.5,
+  },
+  avatarInner: {
+    flex: 1,
+    borderRadius: 26,
+    overflow: 'hidden',
+    backgroundColor: colors.background,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: '100%',
+    height: '100%',
+    borderRadius: 26,
   },
   avatarPlaceholder: {
     backgroundColor: colors.surfaceElevated,
@@ -95,12 +138,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarInitial: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: colors.textPrimary,
   },
+  info: {
+    alignItems: 'center',
+    gap: 2,
+    width: '100%',
+  },
   name: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.textPrimary,
     textAlign: 'center',
@@ -117,28 +165,30 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   acceptButton: {
-    flex: 2,
+    flex: 1,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+  },
+  acceptGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: '#22C55E',
-    paddingVertical: 7,
-    borderRadius: 10,
-    borderCurve: 'continuous',
+    paddingVertical: 9,
   },
   acceptText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   rejectButton: {
-    flex: 1,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingVertical: 7,
-    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
     borderCurve: 'continuous',
   },
 });

@@ -9,20 +9,96 @@ GASP is a React Native mobile app (Expo 54) — an ephemeral media platform (Sna
 ## Commands
 
 ```bash
-npm install                  # Install dependencies
+npm install                  # Install dependencies (use --legacy-peer-deps if needed)
 npx expo start               # Dev server (Expo Go or dev client)
 expo run:android             # Build & run on Android
 expo run:ios                 # Build & run on iOS
 npm run lint                 # ESLint (expo lint)
+npm run test                 # Jest (88 tests)
+npm run test:watch           # Jest watch mode
 ```
 
 Set `EXPO_PUBLIC_API_URL` to point at the backend (defaults to `http://localhost:3000`).
 
-No test runner is configured in this project.
-
 ## Stack
 
-Expo 54 + React Native 0.81 + TypeScript (strict) + NativeWind v4 (Tailwind) + Zustand 5 + Socket.IO client + Axios + React Native Reanimated + Lucide icons
+Expo 54 + React Native 0.81 + TypeScript (strict) + NativeWind v4 (Tailwind) + Zustand 5 + React Query (TanStack) + Zod + Socket.IO client + Axios + React Native Reanimated + Lucide icons + Sentry + i18next
+
+---
+
+## Architecture Rules (MANDATORY)
+
+**These rules are NON-NEGOTIABLE. Follow them for ALL new code. Do NOT deviate without explicit user approval.**
+
+### Rule 1: React Query for ALL server state — NEVER fetch in stores
+
+- ALL data from the backend (lists, details, stats) MUST go through React Query hooks in `hooks/queries/`.
+- Zustand stores are for **UI-only state**: typing indicators, online status, viewed tracking, hold gesture, camera state, search queries.
+- **NEVER** add `fetch*`, `load*`, or `isLoading` to a Zustand store. Use `useQuery`/`useMutation` instead.
+- New data domain? Create a new hook file in `hooks/queries/` following the existing pattern.
+- Use `queryKeys` from `services/queryKeys.ts` for ALL cache keys. Add new keys there.
+
+### Rule 2: Zod schemas are the SINGLE source of truth for types
+
+- ALL domain types (User, Message, Gasp, etc.) MUST be defined as Zod schemas in `services/api/schemas/`.
+- Types are derived via `z.infer<typeof Schema>`. NEVER create manual `interface`/`type` in `types/` files.
+- API service functions MUST validate responses with `validateResponse(schema, data, context)` (graceful degradation via safeParse).
+- New API endpoint? Add schema first, derive type, then write the service function.
+
+### Rule 3: Components must be small, single-purpose (<200 lines)
+
+- No component file should exceed ~200 lines. If it does, decompose it.
+- Use the **dispatcher pattern** for components that render different variants (see MessageBubble → TextBubble/GaspBubble/ReactionBubble).
+- Extract complex state logic into custom hooks (see `useTextOverlay` extracted from camera-preview).
+- Shared styles between sibling components go in a shared `*Styles.ts` file (see `chatMediaStyles.ts`).
+
+### Rule 4: Typed navigation — no raw router.push with params
+
+- Use typed navigation functions from `services/navigation.ts` for ALL routes that accept params.
+- New param-heavy route? Add a typed function to `services/navigation.ts`.
+- Simple routes without params (e.g., `router.push('/(tabs)/camera')`) are fine as-is.
+
+### Rule 5: Socket events → React Query cache for data, Zustand for UI
+
+- Socket events that deliver DATA (new message, new gasp, gasp viewed/expired) MUST update React Query cache via `queryClient.setQueryData`.
+- Socket events that deliver UI STATE (typing, presence online/offline) update Zustand stores.
+- Use the singleton `queryClient` import from `@/lib/queryClient` (NOT `useQueryClient()` hook) in socket listeners.
+- New socket event? Add handler in `hooks/useSocketListeners.ts` following the existing pattern.
+
+### Rule 6: Error handling — ErrorBoundary + Sentry + QueryState
+
+- All screens MUST be wrapped by ErrorBoundary (root layout covers this).
+- All `catch` blocks MUST call `Sentry.captureException(e)` — NEVER empty catches.
+- List screens MUST use `<QueryState>` wrapper with appropriate skeleton loaders.
+- New list screen? Create a domain skeleton component and wrap with QueryState.
+
+### Rule 7: Accessibility on ALL interactive elements
+
+- Every `Pressable`, `TouchableOpacity`, and interactive element MUST have `accessibilityLabel`.
+- Buttons: add `accessibilityRole="button"`.
+- Tabs: add `accessibilityRole="tab"` + `accessibilityState={{ selected }}`.
+- Images: add `accessibilityRole="image"`.
+- Inputs: add `accessibilityLabel` + `accessibilityHint`.
+
+### Rule 8: Uploads use uploadWithRetry
+
+- ALL file uploads MUST go through `uploadWithRetry` from `services/uploadQueue.ts`.
+- NEVER call `uploadMedia`/`uploadGasp` directly — always use the retry wrapper.
+- Failed uploads are captured by Sentry automatically.
+
+### Rule 9: User-facing strings in locale files
+
+- New user-facing strings SHOULD be added to `locales/en.json` and referenced via `useTranslation()`.
+- At minimum, error messages and empty states MUST use i18n.
+- Keep keys organized by screen/domain (e.g., `chat.startConversation`, `inbox.noGasps`).
+
+### Rule 10: _layout.tsx structure — providers vs hooks
+
+- `RootLayout` contains ONLY providers (ErrorBoundary, QueryClientProvider).
+- `RootContent` contains ALL hooks that need provider context (useSocketListeners, useOnlineStatus, etc.).
+- NEVER add hooks that use React Query in `RootLayout` — they must go in `RootContent`.
+
+---
 
 ## Architecture
 
@@ -128,9 +204,14 @@ Backend API types (`Api*` prefixed) are validated at the API boundary by Zod sch
 
 ## Known Gotchas
 
-1. **Two Firebase packages**: `@react-native-firebase/*` for native auth, `firebase` JS SDK for Storage. Don't mix them — auth uses the native module, storage uses the JS SDK.
-2. **No test setup**: There's no test runner configured. `package.json` has no test script.
-3. **Expo prebuild required**: Native modules (`@react-native-firebase`, `expo-camera`, etc.) require a dev client — Expo Go won't work for full functionality.
-4. **Socket listeners are global**: Registered once in root layout, not per-screen. Individual screens should NOT register their own socket listeners for events already handled globally.
-5. **Token refresh race**: The Axios interceptor reads token from `authStore.getState()` synchronously. If multiple 401s fire simultaneously, only the first triggers refresh.
-6. **`constants/colors.ts` vs `tailwind.config.js`**: Both define the color palette. Tailwind classes use `tailwind.config.js` tokens; JS/StyleSheet code should use `constants/colors.ts`. Keep them in sync.
+1. **Two Firebase packages**: `@react-native-firebase/*` for native auth, `firebase` JS SDK for Storage. Don't mix them.
+2. **Expo prebuild required**: Native modules require a dev client — Expo Go won't work for full functionality.
+3. **Socket listeners are global**: Registered once in `RootContent`, not per-screen. Individual screens should NOT register their own socket listeners.
+4. **Token refresh race**: The Axios interceptor serializes concurrent 401 refreshes. Socket has its own token refresh in `connect_error`.
+5. **`constants/colors.ts` vs `tailwind.config.js`**: Both define the color palette. Keep them in sync.
+6. **`--legacy-peer-deps`**: Required for `npm install` due to Firebase peer dependency conflict.
+7. **RootLayout vs RootContent**: Hooks using React Query MUST be in `RootContent` (inside QueryClientProvider), NEVER in `RootLayout`.
+8. **useSocketListeners uses singleton queryClient**: Imports `queryClient` directly from `@/lib/queryClient`, NOT via `useQueryClient()` hook.
+9. **gaspStore.markGaspViewed signature**: Accepts `(gaspId, imageUri?)` — pendingGasps data lives in React Query, not the store.
+10. **Android ReactionBubble**: Reply strip JSX is fragile — NEVER change JSX structure, only styles. See `components/chat/ReactionBubble.tsx`.
+11. **Discover error handling**: Treats API errors as empty state (recommendations are optional, don't block the screen).
