@@ -4,6 +4,7 @@ import * as friendsApi from '@/services/api/friends';
 import { z } from 'zod';
 import { FriendSchema } from '@/services/api/schemas/user.schema';
 import { validateResponse } from '@/services/api/schemas/common.schema';
+import { FriendRequestSchema } from '@/services/api/schemas/friendRequest.schema';
 
 export function useFriends(enabled = true) {
   return useQuery({
@@ -11,6 +12,17 @@ export function useFriends(enabled = true) {
     queryFn: async () => {
       const data = await friendsApi.listFriends();
       return validateResponse(z.array(FriendSchema), data, 'listFriends');
+    },
+    enabled,
+  });
+}
+
+export function usePendingFriendRequests(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.friends.requests,
+    queryFn: async () => {
+      const data = await friendsApi.getPendingRequests();
+      return validateResponse(z.array(FriendRequestSchema), data, 'getPendingRequests');
     },
     enabled,
   });
@@ -32,13 +44,18 @@ export function useAcceptFriendRequest() {
     mutationFn: (friendshipId: string) => friendsApi.acceptRequest(friendshipId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests });
     },
   });
 }
 
 export function useRejectFriendRequest() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (friendshipId: string) => friendsApi.rejectRequest(friendshipId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests });
+    },
   });
 }
 

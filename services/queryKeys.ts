@@ -12,6 +12,7 @@ export const queryKeys = {
   },
   friends: {
     all: ['friends'] as const,
+    requests: ['friends', 'requests'] as const,
   },
   profile: {
     stats: ['profile', 'stats'] as const,
