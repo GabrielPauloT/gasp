@@ -44,6 +44,8 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
           onChangeText={setText}
           multiline
           maxLength={500}
+          accessibilityLabel="Message input"
+          accessibilityHint="Type a message"
         />
       </View>
       <IconButton

@@ -37,7 +37,7 @@ export function FriendListItem({
   };
 
   return (
-    <Pressable onPress={handlePress} style={styles.container}>
+    <Pressable onPress={handlePress} style={styles.container} accessibilityLabel={`Chat with ${name}`} accessibilityRole="button">
       {/* Avatar */}
       <View style={styles.avatarContainer}>
         {avatarUrl ? (

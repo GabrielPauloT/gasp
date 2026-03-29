@@ -18,14 +18,14 @@ export function PreviewBottomBar({ onRetake, onSend, onOpenText, isSending, bott
       entering={FadeInUp.duration(400).delay(200)}
       style={[styles.bottomBar, { paddingBottom: bottomInset + 16 }]}
     >
-      <Pressable onPress={onRetake} style={styles.bottomAction}>
+      <Pressable onPress={onRetake} style={styles.bottomAction} accessibilityLabel="Retake" accessibilityRole="button">
         <View style={styles.actionCircle}>
           <RotateCcw size={22} color="#FFFFFF" />
         </View>
         <Text variant="caption" style={styles.actionLabel}>Retake</Text>
       </Pressable>
 
-      <Pressable onPress={onSend} disabled={isSending} style={[styles.sendButton, isSending && { opacity: 0.6 }]}>
+      <Pressable onPress={onSend} disabled={isSending} style={[styles.sendButton, isSending && { opacity: 0.6 }]} accessibilityLabel="Send" accessibilityRole="button">
         {isSending ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
         ) : (
@@ -34,7 +34,7 @@ export function PreviewBottomBar({ onRetake, onSend, onOpenText, isSending, bott
         <Text variant="body" style={styles.sendText}>{isSending ? 'Preparing...' : 'Send'}</Text>
       </Pressable>
 
-      <Pressable onPress={onOpenText} style={styles.bottomAction}>
+      <Pressable onPress={onOpenText} style={styles.bottomAction} accessibilityLabel="Add text" accessibilityRole="button">
         <View style={styles.actionCircle}>
           <Type size={22} color="#FFFFFF" />
         </View>

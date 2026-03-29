@@ -2,6 +2,7 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
 import { AlertTriangle, RotateCcw, Home } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 interface ErrorFallbackProps {
   error: Error;
@@ -12,28 +13,29 @@ interface ErrorFallbackProps {
 }
 
 export function ErrorFallback({ error, onRetry, onGoHome, compact }: ErrorFallbackProps) {
+  const { t } = useTranslation();
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
       <AlertTriangle size={compact ? 32 : 48} color={colors.error} />
       <Text variant="title" style={styles.title}>
-        {compact ? 'Something went wrong' : 'Oops! Something went wrong'}
+        {compact ? t('errors.somethingWentWrong') : `Oops! ${t('errors.somethingWentWrong')}`}
       </Text>
       {!compact && (
         <Text variant="body" style={styles.message}>
-          {__DEV__ ? error.message : "We're working on fixing this. Please try again."}
+          {__DEV__ ? error.message : t('errors.workingOnFix')}
         </Text>
       )}
       <View style={styles.actions}>
         {onRetry && (
-          <Pressable onPress={onRetry} style={styles.button} accessibilityLabel="Try again" accessibilityRole="button">
+          <Pressable onPress={onRetry} style={styles.button} accessibilityLabel={t('common.tryAgain')} accessibilityRole="button">
             <RotateCcw size={18} color="#FFFFFF" />
-            <Text variant="body" style={styles.buttonText}>Try Again</Text>
+            <Text variant="body" style={styles.buttonText}>{t('common.tryAgain')}</Text>
           </Pressable>
         )}
         {onGoHome && !compact && (
-          <Pressable onPress={onGoHome} style={styles.buttonSecondary} accessibilityLabel="Go to home screen" accessibilityRole="button">
+          <Pressable onPress={onGoHome} style={styles.buttonSecondary} accessibilityLabel={t('common.goHome')} accessibilityRole="button">
             <Home size={18} color={colors.textSecondary} />
-            <Text variant="body" style={styles.buttonSecondaryText}>Go Home</Text>
+            <Text variant="body" style={styles.buttonSecondaryText}>{t('common.goHome')}</Text>
           </Pressable>
         )}
       </View>

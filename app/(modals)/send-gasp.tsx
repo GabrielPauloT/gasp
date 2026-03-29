@@ -13,7 +13,7 @@ import { useChatStore } from '@/stores/chatStore';
 import type { InboxFriend } from '@/stores/inboxStore';
 import { useSendBatchGasp } from '@/hooks/queries/useGasps';
 import { useGetOrCreateConversation } from '@/hooks/queries/useChat';
-import { uploadGasp } from '@/services/storage';
+import { uploadWithRetry } from '@/services/uploadQueue';
 import { compressImage } from '@/services/imageCompression';
 import { compressVideo } from '@/services/videoCompression';
 import { getApiErrorMessage } from '@/services/api';
@@ -79,7 +79,7 @@ export default function SendGaspScreen() {
         : await compressImage(imageUri);
 
       // 2. Upload to Firebase Storage
-      const result = await uploadGasp(compressedUri, userId, ({ progress }) => {
+      const result = await uploadWithRetry(compressedUri, 'gasps', userId, ({ progress }) => {
         setUploadProgress(0.1 + progress * 0.7); // 10-80% for upload
       });
 

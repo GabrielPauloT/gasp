@@ -1,9 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View, FlatList, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Camera } from 'lucide-react-native';
 import { FeedHeader } from '@/components/inbox/FeedHeader';
 import { FeedCard } from '@/components/inbox/FeedCard';
-import { Text } from '@/components/ui/Text';
+import { FeedCardSkeleton } from '@/components/inbox/FeedCardSkeleton';
+import { QueryState } from '@/components/ui/QueryState';
 import { useAuthStore } from '@/stores/authStore';
 import { usePendingGasps } from '@/hooks/queries/useGasps';
 import { openGaspViewer } from '@/services/navigation';
@@ -13,10 +16,10 @@ import type { Gasp } from '@/services/api/schemas/gasp.schema';
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const isGuest = useAuthStore((s) => s.isGuest);
-  const { data: pendingGasps = [], isLoading, refetch } = usePendingGasps(!isGuest);
+  const { data: pendingGasps, isLoading, isError, refetch } = usePendingGasps(!isGuest);
 
   const newCount = useMemo(() =>
-    pendingGasps.filter((g) => g.status === 'pending').length,
+    (pendingGasps ?? []).filter((g) => g.status === 'pending').length,
     [pendingGasps]
   );
 
@@ -65,35 +68,37 @@ export default function InboxScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <FeedHeader newCount={newCount} />
 
-      {isLoading && pendingGasps.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : pendingGasps.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text variant="body" style={styles.emptyText}>
-            {'No gasps yet. Send one to a friend!'}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={pendingGasps}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + 100 },
-          ]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isLoading}
-              onRefresh={handleRefresh}
-              tintColor={colors.primary}
-            />
-          }
-        />
-      )}
+      <QueryState
+        data={pendingGasps}
+        isLoading={isLoading}
+        isError={isError}
+        refetch={refetch}
+        skeleton={<FeedCardSkeleton />}
+        emptyTitle="No gasps yet"
+        emptySubtitle="Send one to a friend!"
+        emptyIcon={<Camera size={40} color={colors.textTertiary} />}
+        emptyCta={{ label: 'Open Camera', onPress: () => router.push('/(tabs)/camera') }}
+      >
+        {(gasps) => (
+          <FlatList
+            data={gasps}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: insets.bottom + 100 },
+            ]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isLoading}
+                onRefresh={handleRefresh}
+                tintColor={colors.primary}
+              />
+            }
+          />
+        )}
+      </QueryState>
     </View>
   );
 }
@@ -105,22 +110,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: 4,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontSize: 15,
   },
   preloadOverlay: {
     ...StyleSheet.absoluteFillObject,

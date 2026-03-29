@@ -27,6 +27,8 @@ export interface IconButtonProps {
   disabled?: boolean;
   /** NativeWind class names */
   className?: string;
+  /** Accessibility label for screen readers */
+  accessibilityLabel?: string;
 }
 
 const SIZE_CONFIG: Record<IconButtonSize, number> = {
@@ -63,6 +65,7 @@ export function IconButton({
   onPress,
   disabled = false,
   className,
+  accessibilityLabel,
 }: IconButtonProps) {
   const scale = useSharedValue(1);
 
@@ -95,6 +98,8 @@ export function IconButton({
       <AnimatedPressable
         className={clsx(className)}
         disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
         style={[
           animatedStyle,
           styles.base,

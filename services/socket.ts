@@ -1,10 +1,29 @@
 import { io, Socket } from 'socket.io-client';
 import type { Message } from '@/services/api/schemas/chat.schema';
 import type { Gasp, Reaction } from '@/services/api/schemas/gasp.schema';
+import { refreshToken } from '@/services/api/auth';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 let socket: Socket | null = null;
+
+// ── Event buffer ───────────────────────────────────────────────────
+
+interface BufferedEvent {
+  event: string;
+  data: unknown;
+}
+
+const eventBuffer: BufferedEvent[] = [];
+const MAX_BUFFER_SIZE = 50;
+
+function bufferedEmit(event: string, data: unknown) {
+  if (socket?.connected) {
+    socket.emit(event, data);
+  } else if (eventBuffer.length < MAX_BUFFER_SIZE) {
+    eventBuffer.push({ event, data });
+  }
+}
 
 // ── Connection management ──────────────────────────────────────────
 
@@ -22,6 +41,11 @@ export function connectSocket(token: string): Socket {
   });
 
   socket.on('connect', () => {
+    // Flush buffered events
+    while (eventBuffer.length > 0) {
+      const item = eventBuffer.shift()!;
+      socket?.emit(item.event, item.data);
+    }
     if (__DEV__) console.log('[socket] connected:', socket?.id);
   });
 
@@ -29,8 +53,32 @@ export function connectSocket(token: string): Socket {
     if (__DEV__) console.log('[socket] disconnected:', reason);
   });
 
-  socket.on('connect_error', (err) => {
+  socket.on('connect_error', async (err) => {
     if (__DEV__) console.warn('[socket] connect error:', err.message);
+
+    // Detect expired/invalid token errors
+    const isTokenError = err.message.includes('jwt') ||
+      err.message.includes('token') ||
+      err.message.includes('unauthorized') ||
+      err.message.includes('Unauthorized');
+
+    if (isTokenError) {
+      try {
+        const response = await refreshToken();
+        if (response.token) {
+          const { setAuthToken } = await import('@/utils/storage');
+          const { setApiToken } = await import('@/services/api');
+          await setAuthToken(response.token);
+          setApiToken(response.token);
+          if (socket) {
+            socket.auth = { token: response.token };
+            socket.connect();
+          }
+        }
+      } catch {
+        // Refresh failed — auth interceptor will handle logout
+      }
+    }
   });
 
   return socket;
@@ -79,27 +127,27 @@ export function chatSendMessage(data: {
   mediaUrl?: string;
   replyToId?: string;
 }) {
-  socket?.emit('chat:send_message', data);
+  bufferedEmit('chat:send_message', data);
 }
 
 export function chatStartTyping(conversationId: string) {
-  socket?.emit('chat:typing_start', { conversationId });
+  bufferedEmit('chat:typing_start', { conversationId });
 }
 
 export function chatStopTyping(conversationId: string) {
-  socket?.emit('chat:typing_stop', { conversationId });
+  bufferedEmit('chat:typing_stop', { conversationId });
 }
 
 export function chatMarkRead(conversationId: string, messageId?: string) {
-  socket?.emit('chat:mark_read', { conversationId, messageId });
+  bufferedEmit('chat:mark_read', { conversationId, messageId });
 }
 
 export function chatJoinConversation(conversationId: string) {
-  socket?.emit('chat:join_conversation', conversationId);
+  bufferedEmit('chat:join_conversation', conversationId);
 }
 
 export function chatLeaveConversation(conversationId: string) {
-  socket?.emit('chat:leave_conversation', conversationId);
+  bufferedEmit('chat:leave_conversation', conversationId);
 }
 
 // ── Presence events ────────────────────────────────────────────────

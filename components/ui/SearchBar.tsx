@@ -34,6 +34,7 @@ export function SearchBar({
         autoCapitalize="none"
         autoCorrect={false}
         returnKeyType="search"
+        accessibilityLabel="Search"
       />
 
       {hasText ? (
@@ -41,6 +42,8 @@ export function SearchBar({
           onPress={() => onChangeText('')}
           style={styles.clearButton}
           hitSlop={8}
+          accessibilityLabel="Clear search"
+          accessibilityRole="button"
         >
           <View style={styles.clearCircle}>
             <X size={12} color="#0A0A0F" />

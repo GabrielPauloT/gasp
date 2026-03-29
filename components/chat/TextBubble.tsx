@@ -10,6 +10,7 @@ interface TextBubbleProps {
 export function TextBubble({ content, isOwnMessage }: TextBubbleProps) {
   return (
     <View
+      accessibilityLabel={content}
       style={[
         styles.bubble,
         isOwnMessage ? styles.ownBubble : styles.otherBubble,

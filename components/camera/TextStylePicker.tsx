@@ -71,6 +71,8 @@ export function TextStylePicker({
             key={f.key}
             onPress={() => onChangeFont(f.key)}
             style={[styles.fontTab, font === f.key && styles.fontTabActive]}
+            accessibilityLabel={`${f.label} font`}
+            accessibilityRole="button"
           >
             <Text
               variant="caption"
@@ -87,6 +89,8 @@ export function TextStylePicker({
         <Pressable
           onPress={() => canDecrease && onChangeFontSize(fontSize - FONT_SIZE_STEP)}
           style={[styles.sizeButton, !canDecrease && styles.sizeButtonDisabled]}
+          accessibilityLabel="Decrease font size"
+          accessibilityRole="button"
         >
           <Minus size={16} color={canDecrease ? '#FFFFFF' : 'rgba(255,255,255,0.25)'} />
         </Pressable>
@@ -103,6 +107,8 @@ export function TextStylePicker({
         <Pressable
           onPress={() => canIncrease && onChangeFontSize(fontSize + FONT_SIZE_STEP)}
           style={[styles.sizeButton, !canIncrease && styles.sizeButtonDisabled]}
+          accessibilityLabel="Increase font size"
+          accessibilityRole="button"
         >
           <Plus size={16} color={canIncrease ? '#FFFFFF' : 'rgba(255,255,255,0.25)'} />
         </Pressable>
@@ -111,7 +117,7 @@ export function TextStylePicker({
       {/* ── Tools row: colors + controls ──────────────────────────── */}
       <View style={styles.toolsRow}>
         {/* Alignment */}
-        <Pressable onPress={onToggleAlign} style={styles.toolButton}>
+        <Pressable onPress={onToggleAlign} style={styles.toolButton} accessibilityLabel="Toggle alignment" accessibilityRole="button">
           <AlignIcon size={18} color="#FFFFFF" />
         </Pressable>
 
@@ -122,7 +128,7 @@ export function TextStylePicker({
           contentContainerStyle={styles.colorStrip}
         >
           {COLORS.map((c) => (
-            <Pressable key={c} onPress={() => onChangeColor(c)}>
+            <Pressable key={c} onPress={() => onChangeColor(c)} accessibilityLabel={`Select color ${c}`} accessibilityRole="button">
               <View
                 style={[
                   styles.colorSwatch,
@@ -136,13 +142,13 @@ export function TextStylePicker({
         </ScrollView>
 
         {/* Background toggle */}
-        <Pressable onPress={onToggleBg} style={[styles.toolButton, bgMode !== 'none' && styles.toolButtonActive]}>
+        <Pressable onPress={onToggleBg} style={[styles.toolButton, bgMode !== 'none' && styles.toolButtonActive]} accessibilityLabel="Toggle text background" accessibilityRole="button">
           <Text variant="caption" style={styles.bgLabel}>A</Text>
         </Pressable>
       </View>
 
       {/* ── Done ─────────────────────────────────────────────────── */}
-      <Pressable onPress={onDone} style={styles.doneButton}>
+      <Pressable onPress={onDone} style={styles.doneButton} accessibilityLabel="Done" accessibilityRole="button">
         <Text variant="body" style={styles.doneText}>Done</Text>
       </Pressable>
     </Animated.View>

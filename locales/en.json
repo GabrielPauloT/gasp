@@ -1,0 +1,78 @@
+{
+  "common": {
+    "tryAgain": "Try Again",
+    "goHome": "Go Home",
+    "cancel": "Cancel",
+    "ok": "OK",
+    "loading": "Loading...",
+    "error": "Error",
+    "send": "Send",
+    "done": "Done"
+  },
+  "auth": {
+    "whatsYourNumber": "What's your number?",
+    "sendVerificationCode": "We'll send you a verification code",
+    "continue": "Continue",
+    "invalidPhone": "Invalid phone number. Please check and try again.",
+    "tooManyAttempts": "Too many attempts. Please try again later.",
+    "appVerificationFailed": "App verification failed. Please try again.",
+    "couldNotSendCode": "Could not send verification code. Please try again."
+  },
+  "camera": {
+    "cameraAccess": "Camera Access",
+    "grantAccess": "Grant Access",
+    "needsCameraAccess": "GASP needs camera and microphone access to capture moments and reactions",
+    "processing": "Processing...",
+    "preparing": "Preparing...",
+    "retake": "Retake",
+    "text": "Text"
+  },
+  "inbox": {
+    "noGasps": "No gasps yet. Send one to a friend!",
+    "openCamera": "Open Camera"
+  },
+  "chat": {
+    "startConversation": "Start the conversation by sending a gasp!",
+    "searchFriends": "Search friends..."
+  },
+  "discover": {
+    "searchPlaceholder": "Search by username or name...",
+    "noUsersFound": "No users found",
+    "peopleYouMayKnow": "People You May Know",
+    "topGaspers": "Top Gaspers",
+    "selectCountry": "Select country",
+    "searchCountry": "Search country or code..."
+  },
+  "sendGasp": {
+    "sendTo": "Send to",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "selected": "selected",
+    "sendToFriend": "Send to {{count}} friend",
+    "sendToFriends": "Send to {{count}} friends",
+    "compressing": "Compressing...",
+    "uploading": "Uploading...",
+    "sendFailed": "Send failed"
+  },
+  "viewGasp": {
+    "cameraMicRequired": "Camera & Microphone Required",
+    "needsFrontCamera": "GASP needs your front camera and microphone to capture your reaction while viewing",
+    "reactionNotSent": "Reaction not sent",
+    "reactionUploadFailed": "Your reaction video could not be uploaded. Please try again."
+  },
+  "errors": {
+    "somethingWentWrong": "Something went wrong",
+    "workingOnFix": "We're working on fixing this. Please try again.",
+    "nothingHereYet": "Nothing here yet"
+  },
+  "connection": {
+    "offline": "You're offline",
+    "reconnecting": "Reconnecting..."
+  },
+  "profile": {
+    "gaspScore": "GASP Score",
+    "gaspsSent": "Gasps Sent",
+    "gaspsReceived": "Gasps Received",
+    "friends": "Friends"
+  }
+}

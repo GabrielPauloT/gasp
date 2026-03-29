@@ -53,9 +53,16 @@ export function GaspBubble({ message, isOwnMessage, otherParticipantName }: Gasp
     setIsPreloading(false);
   }, [message, otherParticipantName, isOwnMessage, isPreloading, gaspMediaType, textOverlay]);
 
+  const gaspAccessibilityLabel = isOwnMessage
+    ? 'Your gasp'
+    : isGaspViewed
+      ? 'Opened gasp'
+      : `Gasp from ${otherParticipantName}, tap to view`;
+
   return (
     <Pressable
       onPress={handleGaspPress}
+      accessibilityLabel={gaspAccessibilityLabel}
       style={[
         chatMediaStyles.bubble,
         isOwnMessage ? chatMediaStyles.ownBubble : chatMediaStyles.otherBubble,

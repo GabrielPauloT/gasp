@@ -59,9 +59,9 @@ export function TabBarIcon({
         },
         animatedStyle,
       ]}
-      accessibilityRole="button"
+      accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
-      accessibilityLabel={label}
+      accessibilityLabel={`${label} tab`}
     >
       <Icon
         size={22}

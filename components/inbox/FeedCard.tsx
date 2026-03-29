@@ -30,7 +30,10 @@ export function FeedCard({
     rawTime === 'JUST NOW' ? 'just now' : `${rawTime.toLowerCase()} ago`;
 
   return (
-    <View style={styles.cardWrapper}>
+    <View
+      style={styles.cardWrapper}
+      accessibilityLabel={`Gasp from ${senderName}`}
+    >
       {/* Purple glow border */}
       <View style={styles.glowBorder}>
         <View style={styles.card}>

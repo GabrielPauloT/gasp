@@ -20,14 +20,14 @@ export function CameraControls({
 
   return (
     <View style={styles.container}>
-      <Pressable onPress={onToggleFlash} style={styles.iconButton}>
+      <Pressable onPress={onToggleFlash} style={styles.iconButton} accessibilityLabel="Toggle flash" accessibilityRole="button">
         <FlashIcon size={20} color={flashColor} />
         <Text style={[styles.label, flashMode === 'on' && styles.labelActive]}>
           {FLASH_LABELS[flashMode]}
         </Text>
       </Pressable>
 
-      <Pressable onPress={onFlipCamera} style={styles.iconButton}>
+      <Pressable onPress={onFlipCamera} style={styles.iconButton} accessibilityLabel="Flip camera" accessibilityRole="button">
         <SwitchCamera size={22} color="#FFFFFF" />
       </Pressable>
     </View>

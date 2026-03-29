@@ -6,7 +6,7 @@ import {
 } from '@react-native-firebase/storage';
 import { getAuth } from '@react-native-firebase/auth';
 
-type MediaType = 'gasps' | 'reactions' | 'avatars';
+export type MediaType = 'gasps' | 'reactions' | 'avatars';
 
 /**
  * Generate a unique storage path for a media file.

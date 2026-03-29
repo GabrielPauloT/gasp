@@ -1,5 +1,6 @@
 import 'react-native-reanimated';
 import '@/global.css';
+import '@/lib/i18n';
 
 if (__DEV__) {
   require('../reactotron.config');
@@ -23,9 +24,11 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useAutoDownload } from '@/hooks/useAutoDownload';
 import { initCache } from '@/services/mediaCache';
 import { useMediaCacheStore } from '@/stores/mediaCacheStore';
+import { processQueue } from '@/services/uploadQueue';
 import * as Sentry from '@sentry/react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
+import { ConnectionBanner } from '@/components/ui/ConnectionBanner';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
@@ -63,6 +66,7 @@ function RootContent() {
   useEffect(() => {
     // Initialize media cache + preferences in parallel with auth
     initCache();
+    processQueue();
     useMediaCacheStore.getState().loadPreferences();
 
     initializeAuth().finally(() => {
@@ -83,6 +87,7 @@ function RootContent() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0A0A0F' }}>
+      <ConnectionBanner />
       <Stack
         screenOptions={{
           contentStyle: { backgroundColor: '#0A0A0F' },

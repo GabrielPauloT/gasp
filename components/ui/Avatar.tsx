@@ -20,6 +20,8 @@ export interface AvatarProps {
   initials?: string;
   /** NativeWind class names */
   className?: string;
+  /** Accessibility label for screen readers. Defaults to initials when available */
+  accessibilityLabel?: string;
 }
 
 const STATUS_COLORS: Record<OnlineStatus, string> = {
@@ -36,15 +38,21 @@ export function Avatar({
   borderColor,
   initials,
   className,
+  accessibilityLabel,
 }: AvatarProps) {
   const borderRadius = size / 2;
   const indicatorSize = Math.max(12, size * 0.25);
   const indicatorBorderWidth = Math.max(2, size * 0.05);
   const initialsFontSize = size * 0.38;
 
+  const resolvedAccessibilityLabel =
+    accessibilityLabel ?? (initials ? initials.slice(0, 2).toUpperCase() : undefined);
+
   return (
     <View
       className={clsx(className)}
+      accessibilityRole="image"
+      accessibilityLabel={resolvedAccessibilityLabel}
       style={[
         styles.container,
         {

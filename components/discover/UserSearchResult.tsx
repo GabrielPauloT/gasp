@@ -59,7 +59,7 @@ export function UserSearchResult({
       </View>
 
       {localStatus === 'none' && (
-        <Pressable style={styles.addButton} onPress={handleAdd}>
+        <Pressable style={styles.addButton} onPress={handleAdd} accessibilityLabel={`Add ${displayName}`} accessibilityRole="button">
           <UserPlus size={18} color="#FFFFFF" />
           <Text variant="caption" style={styles.addText}>
             {'Add'}

@@ -135,6 +135,9 @@ export function CaptureButton({
       {/* Capture button */}
       <GestureDetector gesture={gesture}>
         <Animated.View
+          accessibilityRole="button"
+          accessibilityLabel="Take photo"
+          accessibilityHint="Long press to record video"
           style={[
             styles.outer,
             { width: size, height: size, borderRadius: size / 2 },

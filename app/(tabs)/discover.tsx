@@ -13,6 +13,8 @@ import { Text } from '@/components/ui/Text';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { DiscoverHeader } from '@/components/discover/DiscoverHeader';
 import { RecommendedSection } from '@/components/discover/RecommendedSection';
+import { UserCardSkeleton } from '@/components/discover/UserCardSkeleton';
+import { QueryState } from '@/components/ui/QueryState';
 import {
   UserSearchResult,
   type RequestStatus,
@@ -39,7 +41,7 @@ export default function DiscoverScreen() {
   const [hasSearched, setHasSearched] = useState(false);
   const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
 
-  const { data: peopleYouMayKnow = [], isLoading: isLoadingRecs } = useQuery({
+  const { data: peopleYouMayKnow, isLoading: isLoadingRecs, isError: isErrorRecs, refetch: refetchRecs } = useQuery({
     queryKey: queryKeys.discover.recommended,
     queryFn: () => discoverApi.getRecommendedUsers(),
     enabled: !isGuest,
@@ -136,32 +138,38 @@ export default function DiscoverScreen() {
 
             {!isShowingSearch && (
               <View style={styles.recommendationsContainer}>
-                {isLoadingRecs && (
-                  <View style={styles.loadingState}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                  </View>
-                )}
+                <QueryState
+                  data={isErrorRecs ? [] : peopleYouMayKnow}
+                  isLoading={isLoadingRecs}
+                  isError={false}
+                  refetch={refetchRecs}
+                  skeleton={<UserCardSkeleton count={4} />}
+                  isEmpty={(d) => d.length === 0}
+                  emptyTitle="No suggestions yet"
+                  emptySubtitle="Add friends to see recommendations"
+                  emptyIcon={<Users size={40} color={colors.textTertiary} />}
+                >
+                  {(recs) => (
+                    <>
+                      <RecommendedSection
+                        title="People You May Know"
+                        icon={<Users size={18} color={colors.accentPink} />}
+                        users={recs}
+                        onAddUser={handleAdd}
+                        friendIds={friendIds}
+                      />
 
-                {!isLoadingRecs && (
-                  <>
-                    <RecommendedSection
-                      title="People You May Know"
-                      icon={<Users size={18} color={colors.accentPink} />}
-                      users={peopleYouMayKnow}
-                      onAddUser={handleAdd}
-                      friendIds={friendIds}
-                    />
-
-                    <RecommendedSection
-                      title="Top Gaspers"
-                      icon={<Trophy size={18} color="#F59E0B" />}
-                      users={topGaspers}
-                      showGradientRing
-                      onAddUser={handleAdd}
-                      friendIds={friendIds}
-                    />
-                  </>
-                )}
+                      <RecommendedSection
+                        title="Top Gaspers"
+                        icon={<Trophy size={18} color="#F59E0B" />}
+                        users={topGaspers}
+                        showGradientRing
+                        onAddUser={handleAdd}
+                        friendIds={friendIds}
+                      />
+                    </>
+                  )}
+                </QueryState>
               </View>
             )}
 
@@ -201,10 +209,6 @@ const styles = StyleSheet.create({
   recommendationsContainer: {
     gap: 24,
     paddingBottom: 16,
-  },
-  loadingState: {
-    paddingVertical: 48,
-    alignItems: 'center',
   },
   centerState: {
     alignItems: 'center',

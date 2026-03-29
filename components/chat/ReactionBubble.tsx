@@ -55,6 +55,7 @@ export function ReactionBubble({
 
       <Pressable
         onPress={handleReactionPress}
+        accessibilityLabel="Reaction video, tap to play"
         style={[
           chatMediaStyles.bubble,
           isOwnMessage ? chatMediaStyles.ownBubble : chatMediaStyles.otherBubble,
