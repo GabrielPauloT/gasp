@@ -11,7 +11,7 @@ import { useCamera } from '@/hooks/useCamera';
 import { useCameraStore } from '@/stores/cameraStore';
 import { colors } from '@/constants/colors';
 import { CameraOff } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { openCameraPreview } from '@/services/navigation';
 
 export default function CameraScreen() {
   const isFocused = useIsFocused();
@@ -44,10 +44,7 @@ export default function CameraScreen() {
     try {
       const uri = await takePicture();
       if (uri) {
-        router.push({
-          pathname: '/(modals)/camera-preview',
-          params: { imageUri: uri },
-        });
+        openCameraPreview({ imageUri: uri });
       }
     } finally {
       setIsProcessing(false);
@@ -75,10 +72,7 @@ export default function CameraScreen() {
   const handleRecordStart = () => {
     startRecording().then((uri) => {
       if (uri) {
-        router.push({
-          pathname: '/(modals)/camera-preview',
-          params: { imageUri: uri, isVideo: 'true' },
-        });
+        openCameraPreview({ imageUri: uri, isVideo: true });
       }
     });
   };
@@ -98,13 +92,7 @@ export default function CameraScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        router.push({
-          pathname: '/(modals)/camera-preview',
-          params: {
-            imageUri: asset.uri,
-            ...(asset.type === 'video' && { isVideo: 'true' }),
-          },
-        });
+        openCameraPreview({ imageUri: asset.uri, isVideo: asset.type === 'video' });
       }
     } finally {
       setIsLoadingGallery(false);

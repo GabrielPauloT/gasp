@@ -42,7 +42,11 @@ export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
 
-export default function RootLayout() {
+/**
+ * Inner component that uses hooks requiring QueryClientProvider context.
+ * Separated from RootLayout because hooks run BEFORE the return's JSX providers.
+ */
+function RootContent() {
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
   const user = useAuthStore((s) => s.user);
@@ -78,45 +82,54 @@ export default function RootLayout() {
   if (!isInitialized) return null;
 
   return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0A0A0F' }}>
+      <Stack
+        screenOptions={{
+          contentStyle: { backgroundColor: '#0A0A0F' },
+          animation: 'fade',
+        }}
+      >
+        <Stack.Screen
+          name="(auth)"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="(tabs)"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="(modals)"
+          options={{
+            headerShown: false,
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen
+          name="index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="chat/[id]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="+not-found"
+          options={{ headerShown: false }}
+        />
+      </Stack>
+      <StatusBar style="light" />
+    </GestureHandlerRootView>
+  );
+}
+
+/**
+ * Root layout — providers only. Hooks that need QueryClient live in RootContent.
+ */
+export default function RootLayout() {
+  return (
     <ErrorBoundary onGoHome={() => router.replace('/(tabs)/camera')}>
       <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0A0A0F' }}>
-          <Stack
-            screenOptions={{
-              contentStyle: { backgroundColor: '#0A0A0F' },
-              animation: 'fade',
-            }}
-          >
-            <Stack.Screen
-              name="(auth)"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="(tabs)"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="(modals)"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-              }}
-            />
-            <Stack.Screen
-              name="index"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="chat/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="+not-found"
-              options={{ headerShown: false }}
-            />
-          </Stack>
-          <StatusBar style="light" />
-        </GestureHandlerRootView>
+        <RootContent />
       </QueryClientProvider>
     </ErrorBoundary>
   );

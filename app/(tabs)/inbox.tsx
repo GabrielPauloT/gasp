@@ -6,7 +6,7 @@ import { FeedCard } from '@/components/inbox/FeedCard';
 import { Text } from '@/components/ui/Text';
 import { useAuthStore } from '@/stores/authStore';
 import { usePendingGasps } from '@/hooks/queries/useGasps';
-import { openGaspViewer } from '@/services/openGasp';
+import { openGaspViewer } from '@/services/navigation';
 import { colors } from '@/constants/colors';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 

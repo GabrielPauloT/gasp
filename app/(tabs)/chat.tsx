@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { openChat } from '@/services/navigation';
 import { InboxHeader } from '@/components/inbox/InboxHeader';
 import { StatsRow } from '@/components/inbox/StatsRow';
 import { FriendListItem } from '@/components/inbox/FriendListItem';
@@ -27,13 +28,10 @@ export default function ChatScreen() {
   const handleFriendPress = useCallback(async (friend: InboxFriend) => {
     try {
       const conv = await getOrCreateConversation.mutateAsync(friend.id);
-      router.push({
-        pathname: '/chat/[id]' as any,
-        params: {
-          id: conv.id,
-          name: friend.name,
-          avatarUrl: friend.avatarUrl || ''
-        },
+      openChat({
+        conversationId: conv.id,
+        name: friend.name,
+        avatarUrl: friend.avatarUrl || undefined,
       });
     } catch (error) {
       console.error('Failed to open chat:', error);

@@ -39,6 +39,8 @@ Expo 54 + React Native 0.81 + TypeScript (strict) + NativeWind v4 (Tailwind) + Z
 
 Each store is a standalone `create<T>()` call. Access outside React via `useXStore.getState()`.
 
+Stores contain **UI/client state only**. Server state (friends, gasps, profile stats, etc.) is managed by React Query hooks in `hooks/queries/`.
+
 | Store | Responsibility |
 |-------|---------------|
 | `authStore` | User, token, login/register/logout, session restore (`initializeAuth`) |
@@ -46,15 +48,25 @@ Each store is a standalone `create<T>()` call. Access outside React via `useXSto
 | `gaspStore` | Pending/sent gasps, reactions, hold-to-view state, batch send |
 | `inboxStore` | Friend list with online status, friend requests, search filtering |
 | `cameraStore` | Camera facing, flash mode, captured URI |
-| `profileStore` | User stats (gasps sent/received, friends count), sent gasps grid |
 | `appStore` | Onboarding state, device permissions |
+| `mediaCacheStore` | Local media cache (downloaded gasp/reaction URIs) |
+
+> `profileStore` was removed — profile stats are now fetched via the `useProfileStats` hook in `hooks/queries/useProfile.ts`.
 
 ### API Layer
 
 - `services/api.ts` — Axios instance at `{API_URL}/api/v1`. Request interceptor injects JWT from authStore. Response interceptor auto-refreshes on 401.
 - `services/api/*.ts` — Domain-specific API calls: auth, users, friends, conversations, messages, gasps, reactions.
+- `services/api/schemas/` — Zod validation schemas: `user.schema.ts`, `chat.schema.ts`, `gasp.schema.ts`, `common.schema.ts`. Types are derived from these schemas (see Types section).
+- `services/queryKeys.ts` — React Query key factory. All query keys centralized here.
+- `services/navigation.ts` — Typed navigation helper functions wrapping `router` from Expo Router.
 - `services/socket.ts` — Socket.IO singleton. Typed event emitters (`chatSendMessage`, `chatStartTyping`, etc.) and listener registrars (`onChatNewMessage`, `onGaspReceived`, etc.) that return cleanup functions.
 - `services/storage.ts` — Firebase Storage upload (gasps, reactions, avatars) with progress callbacks.
+- `hooks/queries/` — React Query hooks for server state:
+  - `useFriends.ts` — friend list, friend requests
+  - `useGasps.ts` — received/sent gasps
+  - `useChat.ts` — conversation list, messages
+  - `useProfile.ts` — user stats (`useProfileStats`), sent gasps grid
 
 ### Real-Time (Socket.IO)
 
@@ -81,12 +93,12 @@ Project ID: `gasp-cab37`
 
 ## Styling
 
-- **NativeWind v4** with Tailwind classes. Global CSS in `global.css`.
+- **NativeWind v4** with Tailwind classes. Global CSS in `global.css`. This is the **default** for layout and styling.
 - **Dark theme only** (background `#0A0A0F`, `userInterfaceStyle: "dark"` in app.json).
 - Custom color tokens in `tailwind.config.js`: `bg`, `surface`, `primary`, `accent-pink/magenta/cyan`, `border`.
 - Full color palette (including text, semantic, gradient definitions) in `constants/colors.ts`.
 - Icons: `lucide-react-native`.
-- Some components use `StyleSheet.create` alongside NativeWind (e.g., CustomTabBar uses BlurView with absolute positioning).
+- **Use `StyleSheet.create` only when required**: animations (Reanimated), complex absolute positioning, or `BlurView` (which requires numeric styles). Otherwise prefer Tailwind classes.
 
 ## Key Patterns
 
@@ -98,15 +110,21 @@ Project ID: `gasp-cab37`
 - **Messages are stored newest-first** in chatStore (index 0 = newest) since FlatList is inverted.
 - **Socket listener pattern**: Each `on*` function in `services/socket.ts` returns a cleanup function. `useSocketListeners` collects them all and calls them on unmount.
 - **Component organization**: By domain — `components/ui/` (shared primitives), `components/auth/`, `components/camera/`, `components/chat/`, `components/gasp/`, `components/inbox/`, `components/profile/`, `components/discover/`, `components/navigation/`.
+  - `components/chat/` contains: `MessageBubble` (dispatcher by type), `BubbleWrapper`, `TextBubble`, `GaspBubble`, `ReactionBubble`, `MediaBadge`, `DateSeparator`, `ChatInput`
+  - `components/ui/InlineVideo.tsx` — standalone video player (used in gasp view and reactions)
 
 ## Types
 
-Domain types in `types/`:
-- `user.ts` — `User`, `Friend`, `OnlineStatus`
-- `chat.ts` — `Message`, `MessageType`, `Conversation`
-- `gasp.ts` — `Gasp`, `GaspStatus`, `Reaction`, `ApiGasp`, `ApiPendingGasp`, `ApiReaction`
+Domain types are now **derived from Zod schemas** in `services/api/schemas/`:
+- `services/api/schemas/user.schema.ts` — `User`, `Friend`, `OnlineStatus` and related Zod schemas
+- `services/api/schemas/chat.schema.ts` — `Message`, `MessageType`, `Conversation` and related Zod schemas
+- `services/api/schemas/gasp.schema.ts` — `Gasp`, `GaspStatus`, `Reaction`, `ApiGasp`, `ApiPendingGasp`, `ApiReaction` and related Zod schemas
+- `services/api/schemas/common.schema.ts` — Shared primitive schemas (pagination, IDs, etc.)
 
-Backend API types (`Api*` prefixed) are transformed into frontend types in stores/services before reaching components.
+`types/user.ts`, `types/chat.ts`, and `types/gasp.ts` have been deleted. The only remaining file in `types/` is:
+- `types/navigation.ts` — Expo Router typed route params
+
+Backend API types (`Api*` prefixed) are validated at the API boundary by Zod schemas and transformed into frontend types in services/hooks before reaching components.
 
 ## Known Gotchas
 

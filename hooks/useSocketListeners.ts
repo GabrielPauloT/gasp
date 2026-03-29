@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useGaspStore } from '@/stores/gaspStore';
 import { useInboxStore } from '@/stores/inboxStore';
@@ -32,7 +32,6 @@ import {
 export function useSocketListeners() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isGuest = useAuthStore((s) => s.isGuest);
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!isAuthenticated || isGuest || !getSocket()) return;
@@ -144,5 +143,5 @@ export function useSocketListeners() {
     return () => {
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [isAuthenticated, isGuest, queryClient]);
+  }, [isAuthenticated, isGuest]);
 }
