@@ -1,18 +1,233 @@
-import { View, Text } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View, ScrollView, Pressable, Alert } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
+import { ArrowLeft, MoreHorizontal } from 'lucide-react-native';
+import { useUserProfile, useUserStats } from '@/hooks/queries/useUserProfile';
+import {
+  useFriends,
+  usePendingFriendRequests,
+  useSendFriendRequest,
+  useAcceptFriendRequest,
+  useRejectFriendRequest,
+  useRemoveFriend,
+} from '@/hooks/queries/useFriends';
+import { useGetOrCreateConversation } from '@/hooks/queries/useChat';
+import { openChat } from '@/services/navigation';
+import { calculateGaspScore } from '@/hooks/queries/useProfile';
+import { FriendProfileHeader } from '@/components/profile/FriendProfileHeader';
+import { FriendActionButtons, type FriendshipStatus } from '@/components/profile/FriendActionButtons';
+import { MutualFriendsSection } from '@/components/profile/MutualFriendsSection';
+import { ProfileMenu } from '@/components/profile/ProfileMenu';
+import { StatsCard } from '@/components/profile/StatsCard';
+import { ActivityCard } from '@/components/profile/ActivityCard';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { colors } from '@/constants/colors';
 
 export default function FriendProfileScreen() {
+  const insets = useSafeAreaInsets();
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
+
+  const { userId, displayName, avatarUrl } = useLocalSearchParams<{
+    userId: string;
+    displayName: string;
+    avatarUrl?: string;
+  }>();
+
+  const { data: profile } = useUserProfile(userId);
+  const { data: stats, isError: statsError } = useUserStats(userId);
+
+  const { data: friends = [] } = useFriends();
+  const { data: friendRequests = [] } = usePendingFriendRequests();
+
+  const friendEntry = friends.find((f) => f.id === userId);
+  const isFriend = !!friendEntry;
+  const pendingRequest = friendRequests.find((r) => r.requester.id === userId);
+
+  const friendshipStatus: FriendshipStatus = isFriend
+    ? 'friends'
+    : pendingRequest
+      ? 'request_received'
+      : requestSent
+        ? 'request_sent'
+        : 'none';
+
+  const name = profile?.displayName ?? displayName ?? '';
+  const username = profile?.username ?? '';
+  const avatar = profile?.avatarUrl ?? avatarUrl ?? null;
+
+  const gaspScore = stats
+    ? calculateGaspScore(
+        stats.gaspsSent,
+        stats.gaspsReceived,
+        stats.streak ?? 0,
+        stats.reactionsReceived ?? 0,
+      )
+    : undefined;
+
+  const sendFriendRequest = useSendFriendRequest();
+  const acceptRequest = useAcceptFriendRequest();
+  const rejectRequest = useRejectFriendRequest();
+  const removeFriend = useRemoveFriend();
+  const getOrCreateConversation = useGetOrCreateConversation();
+
+  const handleSendGasp = () => {
+    router.back();
+    router.push('/(tabs)/camera');
+  };
+
+  const handleChat = async () => {
+    try {
+      const conv = await getOrCreateConversation.mutateAsync(userId);
+      router.back();
+      openChat({ conversationId: conv.id, name, avatarUrl: avatar ?? undefined });
+    } catch (e) {
+      Sentry.captureException(e);
+      Alert.alert('Error', 'Could not open chat. Please try again.');
+    }
+  };
+
+  const handleAddFriend = () => {
+    sendFriendRequest.mutate(userId, {
+      onSuccess: () => setRequestSent(true),
+      onError: (e) => {
+        Sentry.captureException(e);
+        Alert.alert('Error', 'Could not send friend request. Please try again.');
+      },
+    });
+  };
+
+  const handleAccept = () => {
+    if (pendingRequest) {
+      acceptRequest.mutate(pendingRequest.friendshipId);
+    }
+  };
+
+  const handleDecline = () => {
+    if (pendingRequest) {
+      rejectRequest.mutate(pendingRequest.friendshipId);
+      router.back();
+    }
+  };
+
+  const handleRemoveFriend = () => {
+    if (friendEntry) {
+      removeFriend.mutate(friendEntry.friendshipId);
+      router.back();
+    }
+  };
+
+  const handleBlock = () =>
+    Alert.alert('Coming soon', 'Block feature will be available in a future update.');
+
+  const handleReport = () =>
+    Alert.alert('Coming soon', 'Report feature will be available in a future update.');
+
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: '#0A0A0F',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '600' }}>
-        Friend Profile
-      </Text>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Top bar */}
+      <View style={styles.topBar}>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.iconButton}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
+          <ArrowLeft size={22} color={colors.textPrimary} />
+        </Pressable>
+        <Pressable
+          onPress={() => setMenuVisible(true)}
+          style={styles.iconButton}
+          accessibilityLabel="Profile options"
+          accessibilityRole="button"
+        >
+          <MoreHorizontal size={22} color={colors.textPrimary} />
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <FriendProfileHeader
+          displayName={name}
+          username={username}
+          avatarUrl={avatar}
+          gaspScore={gaspScore}
+        />
+
+        {/* Stats — show skeleton while loading, hide on error */}
+        {stats ? (
+          <StatsCard
+            gaspsSent={stats.gaspsSent}
+            gaspsReceived={stats.gaspsReceived}
+            friendsCount={stats.friendsCount}
+          />
+        ) : !statsError ? (
+          <View style={styles.skeletonContainer}>
+            <Skeleton width="100%" height={80} borderRadius={16} />
+          </View>
+        ) : null}
+
+        <FriendActionButtons
+          status={friendshipStatus}
+          onSendGasp={handleSendGasp}
+          onChat={handleChat}
+          onAddFriend={handleAddFriend}
+          onAcceptRequest={handleAccept}
+          onDeclineRequest={handleDecline}
+          isProcessing={
+            sendFriendRequest.isPending || acceptRequest.isPending || rejectRequest.isPending
+          }
+        />
+
+        {/* Activity — show only if stats loaded */}
+        {stats && (
+          <ActivityCard
+            streak={stats.streak ?? 0}
+            reactionsReceived={stats.reactionsReceived ?? 0}
+            memberSince={profile?.createdAt ?? ''}
+          />
+        )}
+
+        <MutualFriendsSection />
+      </ScrollView>
+
+      <ProfileMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        isFriend={isFriend}
+        onRemoveFriend={handleRemoveFriend}
+        onBlock={handleBlock}
+        onReport={handleReport}
+      />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollContent: {
+    paddingBottom: 40,
+    gap: 20,
+  },
+  skeletonContainer: {
+    paddingHorizontal: 20,
+  },
+});

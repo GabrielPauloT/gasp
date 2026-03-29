@@ -23,5 +23,7 @@ export const queryKeys = {
   },
   users: {
     search: (query: string) => ['users', 'search', query] as const,
+    profile: (id: string) => ['users', 'profile', id] as const,
+    stats: (id: string) => ['users', 'stats', id] as const,
   },
 } as const;
