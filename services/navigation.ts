@@ -105,3 +105,18 @@ export function openFriendProfile({ userId, displayName, avatarUrl }: FriendProf
     params: { userId, displayName, avatarUrl: avatarUrl ?? '' },
   });
 }
+
+// ── Reaction Result ──────────────────────────────────────────────────
+interface ReactionResultParams {
+  reactionVideoUri: string;
+  originalImageUri: string;
+  senderName: string;
+  gaspId: string;
+}
+
+export function openReactionResult({ reactionVideoUri, originalImageUri, senderName, gaspId }: ReactionResultParams) {
+  router.push({
+    pathname: '/(modals)/reaction-result',
+    params: { reactionVideoUri, originalImageUri, senderName, gaspId },
+  });
+}

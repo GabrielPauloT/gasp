@@ -23,7 +23,7 @@ export default function InboxScreen() {
   const isGuest = useAuthStore((s) => s.isGuest);
 
   // Friend requests
-  const { data: friendRequests = [], isLoading: isLoadingRequests, refetch: refetchRequests } = usePendingFriendRequests(!isGuest);
+  const { data: friendRequests = [], isLoading: isLoadingRequests, isRefetching: isRefetchingRequests, refetch: refetchRequests } = usePendingFriendRequests(!isGuest);
   const acceptMutation = useAcceptFriendRequest();
   const rejectMutation = useRejectFriendRequest();
 
@@ -36,7 +36,7 @@ export default function InboxScreen() {
   }, [rejectMutation]);
 
   // Gasps
-  const { data: pendingGasps = [], isLoading: isLoadingGasps, isError: isErrorGasps, refetch: refetchGasps } = usePendingGasps(!isGuest);
+  const { data: pendingGasps = [], isLoading: isLoadingGasps, isRefetching: isRefetchingGasps, isError: isErrorGasps, refetch: refetchGasps } = usePendingGasps(!isGuest);
 
   // Reactions (from Zustand store)
   const reactions = useGaspStore((s) => s.reactions);
@@ -77,7 +77,7 @@ export default function InboxScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
           refreshControl={
             <RefreshControl
-              refreshing={isLoadingGasps || isLoadingRequests}
+              refreshing={isRefetchingGasps || isRefetchingRequests}
               onRefresh={handleRefresh}
               tintColor={colors.primary}
             />
