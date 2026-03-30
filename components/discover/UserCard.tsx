@@ -5,6 +5,7 @@ import { Text } from '@/components/ui/Text';
 import { GradientCircle } from '@/components/ui/GradientCircle';
 import { UserPlus, Check } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
+import { openFriendProfile } from '@/services/navigation';
 import type { RecommendedUser, UserBadge } from '@/services/api/schemas/user.schema';
 
 const BADGE_CONFIG: Record<Exclude<UserBadge, null>, { label: string; color: string; bg: string }> = {
@@ -55,8 +56,20 @@ function UserCardInner({ user, showGradientRing, onAdd, isFriend }: UserCardProp
   if (user.streak > 0) subtitleParts.push(`🔥 ${user.streak}d`);
   if (user.mutualFriendsCount > 0) subtitleParts.push(`${user.mutualFriendsCount} mutual`);
 
+  const handleOpenProfile = () => {
+    openFriendProfile({
+      userId: user.id,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+    });
+  };
+
   return (
-    <View style={styles.card}>
+    <Pressable
+      style={styles.card}
+      onPress={handleOpenProfile}
+      accessibilityLabel={`View ${user.displayName}'s profile`}
+    >
       {/* Badge as top accent strip */}
       {user.badge && (
         <View style={[styles.badgeStrip, { backgroundColor: BADGE_CONFIG[user.badge].bg }]}>
@@ -120,7 +133,7 @@ function UserCardInner({ user, showGradientRing, onAdd, isFriend }: UserCardProp
           </Text>
         </View>
       )}
-    </View>
+    </Pressable>
   );
 }
 

@@ -3,6 +3,7 @@ import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/ui/Text';
 import { UserPlus, Check, Clock } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
+import { openFriendProfile } from '@/services/navigation';
 
 export type RequestStatus = 'none' | 'sending' | 'sent' | 'already_friends';
 
@@ -43,8 +44,12 @@ export function UserSearchResult({
     .slice(0, 2)
     .toUpperCase();
 
+  const handleOpenProfile = () => {
+    openFriendProfile({ userId: id, displayName, avatarUrl });
+  };
+
   return (
-    <View style={styles.container}>
+    <Pressable style={styles.container} onPress={handleOpenProfile} accessibilityLabel={`View ${displayName}'s profile`}>
       <View style={styles.avatar}>
         <Text style={styles.avatarText}>{initials}</Text>
       </View>
@@ -90,7 +95,7 @@ export function UserSearchResult({
           </Text>
         </View>
       )}
-    </View>
+    </Pressable>
   );
 }
 
