@@ -21,7 +21,7 @@ import {
 } from '@/components/discover/UserSearchResult';
 import { useInboxStore } from '@/stores/inboxStore';
 import { useAuthStore } from '@/stores/authStore';
-import { useSendFriendRequest } from '@/hooks/queries/useFriends';
+import { useSendFriendRequest, usePendingFriendRequests, useAcceptFriendRequest, useRejectFriendRequest } from '@/hooks/queries/useFriends';
 import * as usersApi from '@/services/api/users';
 import * as discoverApi from '@/services/api/discover';
 import type { User } from '@/services/api/schemas/user.schema';
@@ -34,6 +34,15 @@ export default function DiscoverScreen() {
   const currentUser = useAuthStore((s) => s.user);
   const friends = useInboxStore((s) => s.friends);
   const sendFriendRequestMutation = useSendFriendRequest();
+  const acceptMutation = useAcceptFriendRequest();
+  const rejectMutation = useRejectFriendRequest();
+  const { data: pendingRequests } = usePendingFriendRequests(!isGuest);
+
+  const pendingRequestMap = useMemo(() => {
+    const map = new Map<string, string>();
+    pendingRequests?.forEach((r) => map.set(r.requester.id, r.friendshipId));
+    return map;
+  }, [pendingRequests]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -102,6 +111,14 @@ export default function DiscoverScreen() {
     }
   }, [sendFriendRequestMutation]);
 
+  const handleAccept = useCallback((friendshipId: string) => {
+    acceptMutation.mutate(friendshipId);
+  }, [acceptMutation]);
+
+  const handleReject = useCallback((friendshipId: string) => {
+    rejectMutation.mutate(friendshipId);
+  }, [rejectMutation]);
+
   const isShowingSearch = searchQuery.trim().length > 0 || hasSearched;
 
   const renderSearchResult = useCallback(({ item }: { item: User }) => (
@@ -138,36 +155,42 @@ export default function DiscoverScreen() {
 
             {!isShowingSearch && (
               <View style={styles.recommendationsContainer}>
+                {topGaspers.length > 0 && (
+                  <RecommendedSection
+                    title="Top Gaspers"
+                    icon={<Trophy size={18} color="#F59E0B" />}
+                    users={topGaspers}
+                    showGradientRing
+                    onAddUser={handleAdd}
+                    friendIds={friendIds}
+                    pendingRequestMap={pendingRequestMap}
+                    onAcceptRequest={handleAccept}
+                    onRejectRequest={handleReject}
+                  />
+                )}
+
                 <QueryState
                   data={isErrorRecs ? [] : peopleYouMayKnow}
                   isLoading={isLoadingRecs}
                   isError={false}
                   refetch={refetchRecs}
                   skeleton={<UserCardSkeleton count={4} />}
-                  isEmpty={(d) => d.length === 0}
+                  isEmpty={(d) => d.length === 0 && topGaspers.length === 0}
                   emptyTitle="No suggestions yet"
                   emptySubtitle="Add friends to see recommendations"
                   emptyIcon={<Users size={40} color={colors.textTertiary} />}
                 >
                   {(recs) => (
-                    <>
-                      <RecommendedSection
-                        title="People You May Know"
-                        icon={<Users size={18} color={colors.accentPink} />}
-                        users={recs}
-                        onAddUser={handleAdd}
-                        friendIds={friendIds}
-                      />
-
-                      <RecommendedSection
-                        title="Top Gaspers"
-                        icon={<Trophy size={18} color="#F59E0B" />}
-                        users={topGaspers}
-                        showGradientRing
-                        onAddUser={handleAdd}
-                        friendIds={friendIds}
-                      />
-                    </>
+                    <RecommendedSection
+                      title="People You May Know"
+                      icon={<Users size={18} color={colors.accentPink} />}
+                      users={recs}
+                      onAddUser={handleAdd}
+                      friendIds={friendIds}
+                      pendingRequestMap={pendingRequestMap}
+                      onAcceptRequest={handleAccept}
+                      onRejectRequest={handleReject}
+                    />
                   )}
                 </QueryState>
               </View>

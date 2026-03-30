@@ -15,10 +15,14 @@ interface RecommendedSectionProps {
   showGradientRing?: boolean;
   onAddUser: (id: string) => Promise<void>;
   friendIds: Set<string>;
+  pendingRequestMap?: Map<string, string>;
+  onAcceptRequest?: (friendshipId: string) => void;
+  onRejectRequest?: (friendshipId: string) => void;
 }
 
 export function RecommendedSection({
   title, icon, users, showGradientRing, onAddUser, friendIds,
+  pendingRequestMap, onAcceptRequest, onRejectRequest,
 }: RecommendedSectionProps) {
   if (users.length === 0) return null;
 
@@ -41,6 +45,9 @@ export function RecommendedSection({
             showGradientRing={showGradientRing}
             onAdd={onAddUser}
             isFriend={friendIds.has(item.id)}
+            pendingFriendshipId={pendingRequestMap?.get(item.id)}
+            onAccept={onAcceptRequest}
+            onReject={onRejectRequest}
           />
         )}
       />

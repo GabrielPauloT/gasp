@@ -38,6 +38,10 @@
   },
   "friendRequest": {
     "accept": "Aceitar",
+    "reject": "Recusar",
+    "friends": "Amigos",
+    "declined": "Recusado",
+    "sent": "Enviado",
     "wantsToBeYourFriend": "{{name}} quer ser seu amigo"
   },
   "reaction": {

@@ -1,9 +1,11 @@
 import { useState, memo, useMemo } from 'react';
 import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { Text } from '@/components/ui/Text';
 import { GradientCircle } from '@/components/ui/GradientCircle';
-import { UserPlus, Check } from 'lucide-react-native';
+import { UserPlus, Check, X } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { openFriendProfile } from '@/services/navigation';
 import type { RecommendedUser, UserBadge } from '@/services/api/schemas/user.schema';
@@ -20,12 +22,17 @@ interface UserCardProps {
   showGradientRing?: boolean;
   onAdd: (id: string) => Promise<void>;
   isFriend?: boolean;
+  pendingFriendshipId?: string;
+  onAccept?: (friendshipId: string) => void;
+  onReject?: (friendshipId: string) => void;
 }
 
-function UserCardInner({ user, showGradientRing, onAdd, isFriend }: UserCardProps) {
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>(
+function UserCardInner({ user, showGradientRing, onAdd, isFriend, pendingFriendshipId, onAccept, onReject }: UserCardProps) {
+  const { t } = useTranslation();
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'accepted' | 'rejected'>(
     isFriend ? 'sent' : 'idle',
   );
+  const hasPendingRequest = !!pendingFriendshipId && status !== 'accepted' && status !== 'rejected';
 
   const handleAdd = async () => {
     if (status !== 'idle') return;
@@ -108,8 +115,48 @@ function UserCardInner({ user, showGradientRing, onAdd, isFriend }: UserCardProp
       {/* Spacer */}
       <View style={styles.spacer} />
 
-      {/* Add button — full width */}
-      {status === 'idle' && (
+      {/* Action buttons */}
+      {hasPendingRequest && (
+        <View style={styles.requestActions}>
+          <Pressable
+            style={styles.acceptButton}
+            onPress={() => { setStatus('accepted'); onAccept?.(pendingFriendshipId!); }}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('friendRequest.accept')} ${user.displayName}`}
+          >
+            <LinearGradient
+              colors={['#7C3AED', '#EC4899']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.acceptGradient}
+            >
+              <Check size={13} color="#FFFFFF" strokeWidth={3} />
+              <Text variant="caption" style={styles.acceptText}>{t('friendRequest.accept')}</Text>
+            </LinearGradient>
+          </Pressable>
+          <Pressable
+            style={styles.rejectButton}
+            onPress={() => { setStatus('rejected'); onReject?.(pendingFriendshipId!); }}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('friendRequest.reject')} ${user.displayName}`}
+          >
+            <X size={13} color={colors.textSecondary} strokeWidth={2.5} />
+          </Pressable>
+        </View>
+      )}
+      {status === 'accepted' && (
+        <View style={styles.sentButton}>
+          <Check size={14} color={colors.success} />
+          <Text variant="caption" style={styles.sentText}>{t('friendRequest.friends')}</Text>
+        </View>
+      )}
+      {status === 'rejected' && (
+        <View style={styles.sentButton}>
+          <X size={14} color={colors.textTertiary} />
+          <Text variant="caption" style={styles.sentText}>{t('friendRequest.declined')}</Text>
+        </View>
+      )}
+      {!hasPendingRequest && status === 'idle' && (
         <Pressable
           style={styles.addButton}
           onPress={handleAdd}
@@ -129,7 +176,7 @@ function UserCardInner({ user, showGradientRing, onAdd, isFriend }: UserCardProp
         <View style={styles.sentButton}>
           <Check size={14} color={colors.success} />
           <Text variant="caption" style={styles.sentText}>
-            {isFriend ? 'Friends' : 'Sent'}
+            {isFriend ? t('friendRequest.friends') : t('friendRequest.sent')}
           </Text>
         </View>
       )}
@@ -141,6 +188,7 @@ export const UserCard = memo(UserCardInner, (prev, next) =>
   prev.user.id === next.user.id
   && prev.isFriend === next.isFriend
   && prev.showGradientRing === next.showGradientRing
+  && prev.pendingFriendshipId === next.pendingFriendshipId
 );
 
 const CARD_WIDTH = 160;
@@ -270,5 +318,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: 6,
+    width: '100%',
+  },
+  acceptButton: {
+    flex: 1,
+    borderRadius: 12,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+  },
+  acceptGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 9,
+  },
+  acceptText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  rejectButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    borderCurve: 'continuous',
   },
 });

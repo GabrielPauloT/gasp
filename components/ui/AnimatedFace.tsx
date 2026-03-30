@@ -10,6 +10,7 @@ import Animated, {
   withSequence,
   Easing,
   interpolateColor,
+  type SharedValue,
 } from 'react-native-reanimated';
 import Svg, { Circle, Ellipse, Path, Line, Rect } from 'react-native-svg';
 import { springConfigs, timingConfigs } from '@/constants/animations';
@@ -459,8 +460,8 @@ export function AnimatedFace({ size, animated = true, interval = 2500 }: Animate
 
   // Particle styles — 5 groups, 3 particles each, staggered floats
   const useParticleStyle = (
-    opacityVal: Animated.SharedValue<number>,
-    floatVal: Animated.SharedValue<number>,
+    opacityVal: SharedValue<number>,
+    floatVal: SharedValue<number>,
     angle: number,
     radius: number,
   ) => {
