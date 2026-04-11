@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,12 +13,17 @@ import { colors } from '@/constants/colors';
 import { CameraOff } from 'lucide-react-native';
 import { openCameraPreview } from '@/services/navigation';
 
+const CAMERA_MODE_SWITCH_DELAY = 300;
+
 export default function CameraScreen() {
   const isFocused = useIsFocused();
   const [isLoadingGallery, setIsLoadingGallery] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
   const [isCountingDown, setIsCountingDown] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'picture' | 'video'>('picture');
+  const recordingIntentRef = useRef(false);
+  const modeSwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const {
@@ -31,6 +36,14 @@ export default function CameraScreen() {
     startRecording,
     stopRecording,
   } = useCamera();
+
+  useEffect(() => {
+    return () => {
+      if (modeSwitchTimeoutRef.current) {
+        clearTimeout(modeSwitchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const lastCapturedUri = useCameraStore((s) => s.lastCapturedUri);
   const isRecording = useCameraStore((s) => s.isRecording);
@@ -70,14 +83,27 @@ export default function CameraScreen() {
   };
 
   const handleRecordStart = () => {
-    startRecording().then((uri) => {
-      if (uri) {
-        openCameraPreview({ imageUri: uri, isVideo: true });
+    if (modeSwitchTimeoutRef.current) {
+      clearTimeout(modeSwitchTimeoutRef.current);
+    }
+    recordingIntentRef.current = true;
+    setCameraMode('video');
+    modeSwitchTimeoutRef.current = setTimeout(() => {
+      if (!recordingIntentRef.current) {
+        setCameraMode('picture');
+        return;
       }
-    });
+      startRecording().then((uri) => {
+        setCameraMode('picture');
+        if (uri) {
+          openCameraPreview({ imageUri: uri, isVideo: true });
+        }
+      });
+    }, CAMERA_MODE_SWITCH_DELAY);
   };
 
   const handleRecordStop = () => {
+    recordingIntentRef.current = false;
     stopRecording();
   };
 
@@ -134,7 +160,7 @@ export default function CameraScreen() {
           facing={facing}
           flash={flashMode}
           enableTorch={flashMode === 'on'}
-          mode="video"
+          mode={cameraMode}
         />
       ) : (
         <View style={styles.cameraPlaceholder} />
