@@ -137,7 +137,7 @@ Stores contain **UI/client state only**. Server state (friends, gasps, profile s
 - `services/queryKeys.ts` — React Query key factory. All query keys centralized here.
 - `services/navigation.ts` — Typed navigation helper functions wrapping `router` from Expo Router.
 - `services/socket.ts` — Socket.IO singleton. Typed event emitters (`chatSendMessage`, `chatStartTyping`, etc.) and listener registrars (`onChatNewMessage`, `onGaspReceived`, etc.) that return cleanup functions.
-- `services/storage.ts` — Firebase Storage upload (gasps, reactions, avatars) with progress callbacks.
+- `services/storage.ts` — Media upload (gasps, reactions, avatars) via backend `POST /api/v1/uploads` (multipart). Backend streams the file to Firebase Storage with `firebase-admin` and returns `{ downloadUrl, storagePath }`.
 - `hooks/queries/` — React Query hooks for server state:
   - `useFriends.ts` — friend list, friend requests
   - `useGasps.ts` — received/sent gasps
@@ -161,9 +161,8 @@ Stores contain **UI/client state only**. Server state (friends, gasps, profile s
 
 ### Firebase
 
-Two Firebase integrations:
-- **`@react-native-firebase/app` + `/auth`** — Native modules for phone SMS authentication
-- **`firebase` JS SDK** (`lib/firebase.ts`) — Firebase Storage for media uploads only
+- **`@react-native-firebase/app` + `/auth`** — Native modules for phone SMS authentication.
+- **No Firebase JS SDK in the client.** Storage uploads go through the backend (`POST /api/v1/uploads`), which uses `firebase-admin` server-side and returns a public download URL. This avoids the auth-state mismatch between native `@react-native-firebase/auth` and the JS SDK.
 
 Project ID: `gasp-cab37`
 

@@ -14,6 +14,8 @@ export interface UploadProgress {
   totalBytes: number;
 }
 
+const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+
 function getExtension(uri: string): string {
   const match = uri.match(/\.(\w+)(?:\?.*)?$/);
   return match?.[1]?.toLowerCase() ?? 'jpg';
@@ -37,6 +39,8 @@ function getMimeType(extension: string): string {
 export async function uploadMedia(
   uri: string,
   type: MediaType,
+  // _userId kept for API backwards-compat with uploadQueue; backend
+  // resolves the actual userId from the JWT in the request.
   _userId: string,
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
@@ -52,9 +56,7 @@ export async function uploadMedia(
   } as unknown as Blob);
 
   const response = await api.post<UploadResult>('/uploads', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    timeout: UPLOAD_TIMEOUT_MS,
     onUploadProgress: (event) => {
       const total = event.total;
       if (total && onProgress) {
