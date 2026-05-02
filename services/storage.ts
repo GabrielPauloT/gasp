@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import api from './api';
+import { api } from '@/services/api';
 
 export type MediaType = 'gasps' | 'reactions' | 'avatars';
 
