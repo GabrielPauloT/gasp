@@ -1,41 +1,53 @@
-import 'react-native-reanimated';
 import '@/global.css';
 import '@/lib/i18n';
+import 'react-native-reanimated';
 
 if (__DEV__) {
   require('../reactotron.config');
 }
 
+import { ConnectionBanner } from '@/components/ui/ConnectionBanner';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { useAutoDownload } from '@/hooks/useAutoDownload';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useSocketListeners } from '@/hooks/useSocketListeners';
+import { queryClient } from '@/lib/queryClient';
+import { initCache } from '@/services/mediaCache';
+import { processQueue } from '@/services/uploadQueue';
+import { useAuthStore } from '@/stores/authStore';
+import { useMediaCacheStore } from '@/stores/mediaCacheStore';
+import * as Sentry from '@sentry/react-native';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { Stack, router } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
-import { Stack, router } from 'expo-router';
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Suppress warnings from third-party dependencies we don't control
 LogBox.ignoreLogs([
   'SafeAreaView has been deprecated',
 ]);
-import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import * as SplashScreen from 'expo-splash-screen';
-import { useAuthStore } from '@/stores/authStore';
-import { useSocketListeners } from '@/hooks/useSocketListeners';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { useAutoDownload } from '@/hooks/useAutoDownload';
-import { initCache } from '@/services/mediaCache';
-import { useMediaCacheStore } from '@/stores/mediaCacheStore';
-import { processQueue } from '@/services/uploadQueue';
-import * as Sentry from '@sentry/react-native';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
-import { ConnectionBanner } from '@/components/ui/ConnectionBanner';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
-  enabled: !__DEV__,
+  enabled: true, //!__DEV__,
   tracesSampleRate: 0.2,
   attachScreenshot: true,
   enableAutoSessionTracking: true,
+  // Propagate `sentry-trace` and `baggage` headers on outgoing requests so
+  // client errors and backend errors land in the same trace in Sentry.
+  // The backend (@sentry/node) picks up these headers automatically.
+  integrations: [
+    Sentry.reactNativeTracingIntegration({
+      tracePropagationTargets: [
+        'gasp-backend-production.up.railway.app',
+        /^https:\/\/gasp-backend-production\.up\.railway\.app/,
+        'localhost',
+      ],
+    }),
+  ],
 });
 
 // Keep splash screen visible while we initialize auth
