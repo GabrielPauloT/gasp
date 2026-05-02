@@ -10,7 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.gasp.app"
+      "bundleIdentifier": "com.gasp.app",
+      "buildNumber": "1",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +28,17 @@
       "usesCleartextTraffic": false,
       "predictiveBackGestureEnabled": false,
       "package": "com.gasp.app",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -31,7 +46,6 @@
     },
     "plugins": [
       "expo-router",
-      "@sentry/react-native/expo",
       [
         "expo-splash-screen",
         {
@@ -42,6 +56,14 @@
           "dark": {
             "backgroundColor": "#0A0A0F"
           }
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "gasp-cv",
+          "project": "gasp"
         }
       ],
       [
@@ -74,16 +96,33 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "useFrameworks": "static"
+          },
           "android": {
             "minSdkVersion": 24
           }
         }
       ],
-      "expo-video"
+      "expo-video",
+      "./plugins/withModularHeaders"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3a55e98d-0809-4d0a-8c94-9c9cf0b3fe99"
+      }
+    },
+    "owner": "gabrielpaulot",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3a55e98d-0809-4d0a-8c94-9c9cf0b3fe99"
     }
   }
 }
