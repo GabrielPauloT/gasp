@@ -33,13 +33,7 @@ jest.mock('@react-native-firebase/auth', () => ({
   signOut: jest.fn(() => Promise.resolve()),
 }));
 
-// ── Mock @react-native-firebase/storage ──────────────────────────────
-jest.mock('@react-native-firebase/storage', () => ({
-  getStorage: jest.fn(),
-  ref: jest.fn(),
-  putFile: jest.fn(),
-  getDownloadURL: jest.fn(),
-}));
+// ── Storage uploads now go through backend API (no Firebase JS SDK) ──
 
 // ── Mock socket.io-client ────────────────────────────────────────────
 jest.mock('socket.io-client', () => ({

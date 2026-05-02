@@ -1,41 +1,7 @@
-import {
-  getStorage,
-  ref,
-  putFile,
-  getDownloadURL,
-} from '@react-native-firebase/storage';
-import { getAuth } from '@react-native-firebase/auth';
+import { Platform } from 'react-native';
+import api from './api';
 
 export type MediaType = 'gasps' | 'reactions' | 'avatars';
-
-/**
- * Generate a unique storage path for a media file.
- */
-function buildStoragePath(
-  type: MediaType,
-  userId: string,
-  extension: string = 'jpg',
-): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 8);
-  return `${type}/${userId}/${timestamp}_${random}.${extension}`;
-}
-
-/**
- * Detect file extension from URI.
- */
-function getExtension(uri: string): string {
-  const match = uri.match(/\.(\w+)(?:\?.*)?$/);
-  if (match) return match[1]!.toLowerCase();
-  return 'jpg';
-}
-
-/**
- * Strip file:// prefix for native putFile (expects a raw path).
- */
-function toLocalPath(uri: string): string {
-  return uri.startsWith('file://') ? uri.slice(7) : uri;
-}
 
 export interface UploadResult {
   downloadUrl: string;
@@ -43,65 +9,67 @@ export interface UploadResult {
 }
 
 export interface UploadProgress {
-  /** 0 to 1 */
   progress: number;
   bytesTransferred: number;
   totalBytes: number;
 }
 
-/**
- * Upload a local image/video to Firebase Storage using the native SDK.
- * Auth is shared with @react-native-firebase/auth — no permission issues.
- */
+function getExtension(uri: string): string {
+  const match = uri.match(/\.(\w+)(?:\?.*)?$/);
+  return match?.[1]?.toLowerCase() ?? 'jpg';
+}
+
+function getMimeType(extension: string): string {
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    heic: 'image/heic',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    m4v: 'video/x-m4v',
+  };
+  return map[extension] ?? 'application/octet-stream';
+}
+
 export async function uploadMedia(
   uri: string,
   type: MediaType,
-  userId: string,
+  _userId: string,
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
-  const firebaseUid = getAuth().currentUser?.uid;
-  if (!firebaseUid) {
-    throw new Error('Cannot upload without Firebase authentication.');
-  }
-
   const extension = getExtension(uri);
-  const storagePath = buildStoragePath(type, firebaseUid, extension);
-  const storageRef = ref(getStorage(), storagePath);
+  const mimeType = getMimeType(extension);
 
-  return new Promise((resolve, reject) => {
-    const task = putFile(storageRef, toLocalPath(uri), {
-      customMetadata: {
-        uploadedBy: userId,
-        uploadedAt: new Date().toISOString(),
-        mediaType: type,
-      },
-    });
+  const formData = new FormData();
+  formData.append('type', type);
+  formData.append('file', {
+    uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+    name: `upload.${extension}`,
+    type: mimeType,
+  } as unknown as Blob);
 
-    task.on(
-      'state_changed',
-      (snapshot) => {
-        onProgress?.({
-          progress: snapshot.bytesTransferred / snapshot.totalBytes,
-          bytesTransferred: snapshot.bytesTransferred,
-          totalBytes: snapshot.totalBytes,
+  const response = await api.post<UploadResult>('/uploads', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    onUploadProgress: (event) => {
+      const total = event.total;
+      if (total && onProgress) {
+        onProgress({
+          progress: event.loaded / total,
+          bytesTransferred: event.loaded,
+          totalBytes: total,
         });
-      },
-      (error) => reject(error),
-      async () => {
-        try {
-          const downloadUrl = await getDownloadURL(storageRef);
-          resolve({ downloadUrl, storagePath });
-        } catch (error) {
-          reject(error);
-        }
-      },
-    );
+      }
+    },
   });
+
+  return response.data;
 }
 
-/**
- * Upload a gasp image/video. Convenience wrapper.
- */
 export async function uploadGasp(
   uri: string,
   userId: string,
@@ -110,9 +78,6 @@ export async function uploadGasp(
   return uploadMedia(uri, 'gasps', userId, onProgress);
 }
 
-/**
- * Upload a reaction video. Convenience wrapper.
- */
 export async function uploadReaction(
   uri: string,
   userId: string,
