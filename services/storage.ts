@@ -57,6 +57,12 @@ export async function uploadMedia(
 
   const response = await api.post<UploadResult>('/uploads', formData, {
     timeout: UPLOAD_TIMEOUT_MS,
+    headers: {
+      // React Native's axios cannot introspect FormData like the browser does,
+      // so it won't set Content-Type automatically. We set it explicitly here;
+      // the native bridge fills in the proper `boundary` parameter.
+      'Content-Type': 'multipart/form-data',
+    },
     onUploadProgress: (event) => {
       const total = event.total;
       if (total && onProgress) {
