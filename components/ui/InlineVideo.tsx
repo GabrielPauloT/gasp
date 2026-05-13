@@ -4,11 +4,21 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { colors } from '@/constants/colors';
 
 /** Inline looping video with loading spinner — controls play/pause without remounting */
-export function InlineVideo({ uri, style, paused }: { uri: string; style: object; paused: boolean }) {
+export function InlineVideo({
+  uri,
+  style,
+  paused,
+  muted = true,
+}: {
+  uri: string;
+  style: object;
+  paused: boolean;
+  muted?: boolean;
+}) {
   const [ready, setReady] = useState(false);
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = muted;
     p.play();
   });
 

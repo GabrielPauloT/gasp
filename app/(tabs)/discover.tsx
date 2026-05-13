@@ -30,13 +30,12 @@ import { Users, Trophy, UserX } from 'lucide-react-native';
 
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
-  const isGuest = useAuthStore((s) => s.isGuest);
   const currentUser = useAuthStore((s) => s.user);
   const friends = useInboxStore((s) => s.friends);
   const sendFriendRequestMutation = useSendFriendRequest();
   const acceptMutation = useAcceptFriendRequest();
   const rejectMutation = useRejectFriendRequest();
-  const { data: pendingRequests } = usePendingFriendRequests(!isGuest);
+  const { data: pendingRequests } = usePendingFriendRequests();
 
   const pendingRequestMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -53,13 +52,11 @@ export default function DiscoverScreen() {
   const { data: peopleYouMayKnow, isLoading: isLoadingRecs, isError: isErrorRecs, refetch: refetchRecs } = useQuery({
     queryKey: queryKeys.discover.recommended,
     queryFn: () => discoverApi.getRecommendedUsers(),
-    enabled: !isGuest,
   });
 
   const { data: topGaspers = [] } = useQuery({
     queryKey: queryKeys.discover.topGaspers,
     queryFn: () => discoverApi.getTopGaspers(),
-    enabled: !isGuest,
   });
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

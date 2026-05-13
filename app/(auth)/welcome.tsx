@@ -3,17 +3,14 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { Text } from '@/components/ui/Text';
-import { Divider } from '@/components/ui/Divider';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { TermsFooter } from '@/components/auth/TermsFooter';
 import { AnimatedFace } from '@/components/ui/AnimatedFace';
-import { useAuthStore } from '@/stores/authStore';
 import { colors } from '@/constants/colors';
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
-  const { continueAsGuest } = useAuthStore();
 
   // Responsive sizing
   const isSmallScreen = height < 700;
@@ -23,16 +20,6 @@ export default function WelcomeScreen() {
 
   const handlePhoneLogin = () => {
     router.push('/(auth)/phone-login');
-  };
-
-  const handleAppleLogin = () => {
-    // TODO: Implement Apple Sign-In
-    handleGuestLogin();
-  };
-
-  const handleGuestLogin = () => {
-    continueAsGuest();
-    router.replace('/(tabs)/camera');
   };
 
   return (
@@ -103,18 +90,7 @@ export default function WelcomeScreen() {
             entering={FadeInDown.duration(500).delay(900)}
             style={styles.buttonWrapper}
           >
-            <AuthButton variant="apple" onPress={handleAppleLogin} />
-          </Animated.View>
-
-          <Animated.View entering={FadeInDown.duration(500).delay(1000)}>
-            <Divider text="or" />
-          </Animated.View>
-
-          <Animated.View
-            entering={FadeInDown.duration(500).delay(1100)}
-            style={styles.buttonWrapper}
-          >
-            <AuthButton variant="guest" onPress={handleGuestLogin} />
+            <AuthButton variant="apple" onPress={() => {}} disabled />
           </Animated.View>
         </View>
 

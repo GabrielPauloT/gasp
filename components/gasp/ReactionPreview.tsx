@@ -26,7 +26,7 @@ export function ReactionPreview({
 }: ReactionPreviewProps) {
   const player = useVideoPlayer(reactionVideoUri, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = false;
     p.play();
   });
   return (

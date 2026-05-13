@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+export const FriendshipStatusForUserSchema = z.enum([
+  'none',
+  'pending_outgoing',
+  'pending_incoming',
+  'friends',
+  'blocked',
+]);
+
+export type FriendshipStatusForUser = z.infer<typeof FriendshipStatusForUserSchema>;
+
 export const UserSchema = z.object({
   id: z.string(),
   displayName: z.string(),
@@ -7,6 +17,8 @@ export const UserSchema = z.object({
   avatarUrl: z.string().nullable(),
   phoneNumber: z.string().optional(),
   createdAt: z.string(),
+  friendshipStatus: FriendshipStatusForUserSchema.optional(),
+  friendshipId: z.string().optional(),
 });
 
 export type User = z.infer<typeof UserSchema>;

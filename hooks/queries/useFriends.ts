@@ -32,8 +32,9 @@ export function useSendFriendRequest() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (addresseeId: string) => friendsApi.sendRequest(addresseeId),
-    onSuccess: () => {
+    onSuccess: (_, addresseeId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.profile(addresseeId) });
     },
   });
 }
@@ -45,6 +46,7 @@ export function useAcceptFriendRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests });
+      queryClient.invalidateQueries({ queryKey: ['users', 'profile'] });
     },
   });
 }
@@ -55,6 +57,7 @@ export function useRejectFriendRequest() {
     mutationFn: (friendshipId: string) => friendsApi.rejectRequest(friendshipId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests });
+      queryClient.invalidateQueries({ queryKey: ['users', 'profile'] });
     },
   });
 }
@@ -65,6 +68,7 @@ export function useRemoveFriend() {
     mutationFn: (friendshipId: string) => friendsApi.removeFriend(friendshipId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
+      queryClient.invalidateQueries({ queryKey: ['users', 'profile'] });
     },
   });
 }

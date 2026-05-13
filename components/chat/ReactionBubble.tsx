@@ -65,7 +65,12 @@ export function ReactionBubble({
         <View style={chatMediaStyles.mediaContainer}>
           {hasActivated && (
             <View style={[StyleSheet.absoluteFill, { zIndex: 1 }]}>
-              <InlineVideo uri={resolvedMediaUri} style={chatMediaStyles.media} paused={isPaused} />
+              <InlineVideo
+                uri={resolvedMediaUri}
+                style={chatMediaStyles.media}
+                paused={isPaused}
+                muted={false}
+              />
             </View>
           )}
           {!hasActivated && (

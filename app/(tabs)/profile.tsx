@@ -14,8 +14,7 @@ import { colors } from '@/constants/colors';
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
-  const isGuest = useAuthStore((s) => s.isGuest);
-  const { data: stats, isLoading, isError, refetch } = useProfileStats(!isGuest);
+  const { data: stats, isLoading, isError, refetch } = useProfileStats();
 
   const gaspScore = calculateGaspScore(
     stats?.gaspsSent ?? 0,

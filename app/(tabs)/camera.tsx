@@ -13,7 +13,7 @@ import { colors } from '@/constants/colors';
 import { CameraOff } from 'lucide-react-native';
 import { openCameraPreview } from '@/services/navigation';
 
-const CAMERA_MODE_SWITCH_DELAY = 300;
+const CAMERA_MODE_SWITCH_DELAY = 600;
 
 export default function CameraScreen() {
   const isFocused = useIsFocused();
@@ -93,7 +93,9 @@ export default function CameraScreen() {
         setCameraMode('picture');
         return;
       }
-      startRecording().then((uri) => {
+      startRecording({
+        shouldRetry: () => recordingIntentRef.current,
+      }).then((uri) => {
         setCameraMode('picture');
         if (uri) {
           openCameraPreview({ imageUri: uri, isVideo: true });

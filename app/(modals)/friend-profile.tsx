@@ -46,13 +46,19 @@ export default function FriendProfileScreen() {
   const isFriend = !!friendEntry;
   const pendingRequest = friendRequests.find((r) => r.requester.id === userId);
 
-  const friendshipStatus: FriendshipStatus = isFriend
-    ? 'friends'
-    : pendingRequest
-      ? 'request_received'
-      : requestSent
-        ? 'request_sent'
-        : 'none';
+  const friendshipStatus: FriendshipStatus = (() => {
+    // Optimistic local override after pressing "Add Friend" on this screen
+    if (requestSent) return 'request_sent';
+    // Server-side authority — covers requests sent from other screens (e.g. Discover)
+    if (profile?.friendshipStatus === 'friends') return 'friends';
+    if (profile?.friendshipStatus === 'pending_outgoing') return 'request_sent';
+    if (profile?.friendshipStatus === 'pending_incoming') return 'request_received';
+    if (profile?.friendshipStatus === 'none') return 'none';
+    // Legacy fallback for clients hitting an older backend response
+    if (isFriend) return 'friends';
+    if (pendingRequest) return 'request_received';
+    return 'none';
+  })();
 
   const name = profile?.displayName ?? displayName ?? '';
   const username = profile?.username ?? '';

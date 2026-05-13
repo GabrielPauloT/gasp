@@ -8,38 +8,38 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { Phone, Apple, UserCircle } from 'lucide-react-native';
+import { Phone, Apple } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
-type AuthButtonVariant = 'phone' | 'apple' | 'guest';
+type AuthButtonVariant = 'phone' | 'apple';
 
 interface AuthButtonProps {
   variant: AuthButtonVariant;
   onPress: () => void;
   loading?: boolean;
+  disabled?: boolean;
 }
 
 const ICON_MAP = {
   phone: Phone,
   apple: Apple,
-  guest: UserCircle,
 } as const;
 
 const LABEL_MAP = {
   phone: 'Continue with Phone',
   apple: 'Continue with Apple',
-  guest: 'Continue as Guest',
 } as const;
 
 const triggerHaptic = () => {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 };
 
-export function AuthButton({ variant, onPress, loading }: AuthButtonProps) {
+export function AuthButton({ variant, onPress, loading, disabled }: AuthButtonProps) {
   const pressed = useSharedValue(0);
+  const isInteractive = !loading && !disabled;
 
   const tap = Gesture.Tap()
-    .enabled(!loading)
+    .enabled(isInteractive)
     .onBegin(() => {
       pressed.set(withTiming(1, { duration: 100 }));
     })
@@ -62,19 +62,19 @@ export function AuthButton({ variant, onPress, loading }: AuthButtonProps) {
   const label = LABEL_MAP[variant];
 
   const isPhone = variant === 'phone';
-  const isGuest = variant === 'guest';
 
   return (
     <GestureDetector gesture={tap}>
       <Animated.View
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityState={{ disabled: !isInteractive }}
         style={[
           styles.button,
           variant === 'phone' && styles.phoneButton,
           variant === 'apple' && styles.darkButton,
-          variant === 'guest' && styles.guestButton,
           loading && { opacity: 0.7 },
+          disabled && { opacity: 0.4 },
           animatedStyle,
         ]}
       >
@@ -122,12 +122,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(24, 24, 36, 0.8)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  guestButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    minHeight: 52,
   },
   content: {
     flexDirection: 'row',

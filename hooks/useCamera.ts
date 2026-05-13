@@ -1,9 +1,19 @@
 import { useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { CameraView, useMicrophonePermissions } from 'expo-camera';
+import { useTranslation } from 'react-i18next';
+import * as Sentry from '@sentry/react-native';
 import { useCameraStore } from '@/stores/cameraStore';
 
+const RECORD_RETRY_DELAY_MS = 500;
+
+interface StartRecordingOptions {
+  /** Called before the retry attempt — return false to abort if the user has already released. */
+  shouldRetry?: () => boolean;
+}
+
 export function useCamera() {
+  const { t } = useTranslation();
   const cameraRef = useRef<CameraView>(null);
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const { facing, flashMode, toggleFacing, cycleFlash, setCapturedUri, setRecording } =
@@ -29,7 +39,9 @@ export function useCamera() {
     }
   }, [setCapturedUri]);
 
-  const startRecording = useCallback(async (): Promise<string | null> => {
+  const startRecording = useCallback(async (
+    options?: StartRecordingOptions,
+  ): Promise<string | null> => {
     if (!cameraRef.current) {
       return null;
     }
@@ -39,34 +51,54 @@ export function useCamera() {
       const { granted } = await requestMicPermission();
       if (!granted) {
         Alert.alert(
-          'Microphone required',
-          'GASP needs microphone access to record videos. Please enable it in Settings.',
+          t('camera.microphoneRequiredTitle'),
+          t('camera.microphoneRequiredBody'),
         );
         return null;
       }
     }
 
-    try {
-      setRecording(true);
-      const video = await cameraRef.current.recordAsync({
-        maxDuration: 10,
-      });
-
+    const tryRecord = async (): Promise<string | null> => {
+      if (!cameraRef.current) return null;
+      const video = await cameraRef.current.recordAsync({ maxDuration: 10 });
       if (video?.uri) {
         setCapturedUri(video.uri);
         return video.uri;
       }
       return null;
-    } catch (error) {
-      Alert.alert(
-        'Recording failed',
-        'Video recording is not supported on this device. Try on a physical device.',
-      );
-      return null;
+    };
+
+    setRecording(true);
+    try {
+      return await tryRecord();
+    } catch (firstError) {
+      // recordAsync can throw if AVCaptureSession is still reconfiguring after a
+      // mode change (picture -> video). Wait for the session to settle and retry once.
+      Sentry.captureException(firstError, {
+        tags: { feature: 'camera-record', phase: 'first-attempt' },
+      });
+      await new Promise((resolve) => setTimeout(resolve, RECORD_RETRY_DELAY_MS));
+      // Bail if the caller signals the user already released the longpress —
+      // otherwise we'd record a "ghost" video without intent.
+      if (options?.shouldRetry && !options.shouldRetry()) {
+        return null;
+      }
+      try {
+        return await tryRecord();
+      } catch (secondError) {
+        Sentry.captureException(secondError, {
+          tags: { feature: 'camera-record', phase: 'retry' },
+        });
+        Alert.alert(
+          t('camera.recordingFailedTitle'),
+          t('camera.recordingFailedBody'),
+        );
+        return null;
+      }
     } finally {
       setRecording(false);
     }
-  }, [micPermission, requestMicPermission, setCapturedUri, setRecording]);
+  }, [micPermission, requestMicPermission, setCapturedUri, setRecording, t]);
 
   const stopRecording = useCallback(() => {
     if (!cameraRef.current) return;

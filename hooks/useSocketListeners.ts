@@ -31,10 +31,9 @@ import {
  */
 export function useSocketListeners() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isGuest = useAuthStore((s) => s.isGuest);
 
   useEffect(() => {
-    if (!isAuthenticated || isGuest || !getSocket()) return;
+    if (!isAuthenticated || !getSocket()) return;
 
     const cleanups: (() => void)[] = [];
 
@@ -143,5 +142,5 @@ export function useSocketListeners() {
     return () => {
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [isAuthenticated, isGuest]);
+  }, [isAuthenticated]);
 }

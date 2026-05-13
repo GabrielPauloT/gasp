@@ -25,7 +25,11 @@
     "processing": "Processing...",
     "preparing": "Preparing...",
     "retake": "Retake",
-    "text": "Text"
+    "text": "Text",
+    "microphoneRequiredTitle": "Microfone necessário",
+    "microphoneRequiredBody": "O GASP precisa de acesso ao microfone para gravar vídeos. Habilite nas Configurações.",
+    "recordingFailedTitle": "Falha na gravação",
+    "recordingFailedBody": "Não foi possível iniciar a gravação. Tente novamente."
   },
   "inbox": {
     "noGasps": "Nenhum gasp ainda. Envie um para um amigo!",

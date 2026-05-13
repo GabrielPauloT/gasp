@@ -11,7 +11,6 @@ import { SectionHeader } from '@/components/inbox/SectionHeader';
 import { FriendRequestSection } from '@/components/inbox/FriendRequestSection';
 import { ReactionSection } from '@/components/inbox/ReactionSection';
 import { QueryState } from '@/components/ui/QueryState';
-import { useAuthStore } from '@/stores/authStore';
 import { useGaspStore } from '@/stores/gaspStore';
 import { usePendingGasps } from '@/hooks/queries/useGasps';
 import { usePendingFriendRequests, useAcceptFriendRequest, useRejectFriendRequest } from '@/hooks/queries/useFriends';
@@ -22,10 +21,9 @@ import type { Gasp } from '@/services/api/schemas/gasp.schema';
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const isGuest = useAuthStore((s) => s.isGuest);
 
   // Friend requests
-  const { data: friendRequests = [], isLoading: isLoadingRequests, isRefetching: isRefetchingRequests, refetch: refetchRequests } = usePendingFriendRequests(!isGuest);
+  const { data: friendRequests = [], isLoading: isLoadingRequests, isRefetching: isRefetchingRequests, refetch: refetchRequests } = usePendingFriendRequests();
   const acceptMutation = useAcceptFriendRequest();
   const rejectMutation = useRejectFriendRequest();
 
@@ -48,7 +46,7 @@ export default function InboxScreen() {
   }, [rejectMutation, processingId]);
 
   // Gasps
-  const { data: pendingGasps = [], isLoading: isLoadingGasps, isRefetching: isRefetchingGasps, isError: isErrorGasps, refetch: refetchGasps } = usePendingGasps(!isGuest);
+  const { data: pendingGasps = [], isLoading: isLoadingGasps, isRefetching: isRefetchingGasps, isError: isErrorGasps, refetch: refetchGasps } = usePendingGasps();
 
   // Reactions (from Zustand store)
   const reactions = useGaspStore((s) => s.reactions);

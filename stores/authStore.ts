@@ -18,14 +18,12 @@ import * as Sentry from '@sentry/react-native';
 interface AuthState {
   user: User | null;
   token: string | null;
-  isGuest: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
   isInitialized: boolean;
 
   setUser: (user: User) => void;
   setToken: (token: string) => void;
-  continueAsGuest: () => void;
   logout: () => Promise<void>;
   setLoading: (loading: boolean) => void;
 
@@ -46,7 +44,6 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
-  isGuest: false,
   isAuthenticated: false,
   isLoading: false,
   isInitialized: false,
@@ -59,20 +56,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     setApiToken(token);
     set({ token, isAuthenticated: true });
   },
-
-  continueAsGuest: () =>
-    set({
-      isGuest: true,
-      isAuthenticated: true,
-      isInitialized: true,
-      user: {
-        id: 'guest',
-        displayName: 'Guest',
-        username: 'guest',
-        avatarUrl: null,
-        createdAt: new Date().toISOString(),
-      },
-    }),
 
   logout: async () => {
     // Revoke token on backend (best effort)
@@ -105,7 +88,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: null,
       token: null,
-      isGuest: false,
       isAuthenticated: false,
       isInitialized: true,
     });
@@ -125,7 +107,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         user,
         token,
         isAuthenticated: true,
-        isGuest: false,
         isInitialized: true,
       });
       return user;
@@ -146,7 +127,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         user,
         token,
         isAuthenticated: true,
-        isGuest: false,
         isInitialized: true,
       });
       return user;
@@ -191,7 +171,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({
           user,
           isAuthenticated: true,
-          isGuest: false,
           isInitialized: true,
         });
         return true;

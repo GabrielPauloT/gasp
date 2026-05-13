@@ -13,11 +13,9 @@ import { usePendingGasps } from '@/hooks/queries/useGasps';
  */
 export function useOnlineStatus() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isGuest = useAuthStore((s) => s.isGuest);
-  const enabled = isAuthenticated && !isGuest;
 
-  const { data: friends } = useFriends(enabled);
-  usePendingGasps(enabled);
+  const { data: friends } = useFriends(isAuthenticated);
+  usePendingGasps(isAuthenticated);
 
   // Sync React Query friends data into inboxStore for online status tracking + UI
   useEffect(() => {

@@ -100,7 +100,6 @@ describe('authStore', () => {
     useAuthStore.setState({
       user: null,
       token: null,
-      isGuest: false,
       isAuthenticated: false,
       isLoading: false,
       isInitialized: false,
@@ -139,7 +138,6 @@ describe('authStore', () => {
       expect(state.user).toEqual(mockUser);
       expect(state.token).toBe(VALID_TOKEN);
       expect(state.isAuthenticated).toBe(true);
-      expect(state.isGuest).toBe(false);
       expect(state.isInitialized).toBe(true);
     });
 
@@ -230,7 +228,6 @@ describe('authStore', () => {
         user: getMockUser(),
         token: VALID_TOKEN,
         isAuthenticated: true,
-        isGuest: false,
         isInitialized: true,
         isLoading: false,
       });
@@ -243,7 +240,6 @@ describe('authStore', () => {
       expect(state.user).toBeNull();
       expect(state.token).toBeNull();
       expect(state.isAuthenticated).toBe(false);
-      expect(state.isGuest).toBe(false);
     });
 
     it('calls disconnectSocket', async () => {
@@ -340,7 +336,6 @@ describe('authStore', () => {
       expect(state.token).toBe(VALID_TOKEN);
       expect(state.isAuthenticated).toBe(true);
       expect(state.isInitialized).toBe(true);
-      expect(state.isGuest).toBe(false);
     });
 
     it('calls setApiToken with the saved token before /users/me', async () => {

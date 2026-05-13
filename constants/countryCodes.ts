@@ -1,3 +1,5 @@
+import { getLocales } from 'expo-localization';
+
 export interface Country {
   iso: string;
   name: string;
@@ -38,4 +40,10 @@ export const countries: Country[] = [
   { iso: 'AE', name: 'United Arab Emirates', code: '+971', flag: '\u{1F1E6}\u{1F1EA}' },
 ];
 
-export const DEFAULT_COUNTRY = countries[0]; // Brazil
+const FALLBACK_COUNTRY = countries[0]; // Brazil
+
+export function getDeviceDefaultCountry(): Country {
+  const regionCode = getLocales()[0]?.regionCode?.toUpperCase();
+  if (!regionCode) return FALLBACK_COUNTRY;
+  return countries.find((c) => c.iso === regionCode) ?? FALLBACK_COUNTRY;
+}

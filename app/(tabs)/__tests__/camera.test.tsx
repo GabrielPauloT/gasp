@@ -219,7 +219,7 @@ describe('CameraScreen', () => {
       });
 
       await act(async () => {
-        jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(600);
       });
 
       expect(mockStartRecording).toHaveBeenCalledTimes(1);
@@ -234,7 +234,7 @@ describe('CameraScreen', () => {
       });
 
       await act(async () => {
-        jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(600);
       });
 
       expect(mockOpenCameraPreview).toHaveBeenCalledWith({
@@ -252,7 +252,7 @@ describe('CameraScreen', () => {
       });
 
       await act(async () => {
-        jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(600);
       });
 
       expect(lastCameraMode).toBe('picture');
@@ -267,7 +267,7 @@ describe('CameraScreen', () => {
       });
 
       await act(async () => {
-        jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(600);
       });
 
       expect(mockOpenCameraPreview).not.toHaveBeenCalled();
@@ -282,7 +282,7 @@ describe('CameraScreen', () => {
       });
 
       await act(async () => {
-        jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(600);
       });
 
       expect(lastCameraMode).toBe('picture');
@@ -304,7 +304,7 @@ describe('CameraScreen', () => {
       });
 
       act(() => {
-        jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(600);
       });
 
       expect(mockStartRecording).not.toHaveBeenCalled();
@@ -324,7 +324,7 @@ describe('CameraScreen', () => {
       });
 
       act(() => {
-        jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(600);
       });
 
       expect(lastCameraMode).toBe('picture');
@@ -369,7 +369,7 @@ describe('CameraScreen', () => {
 
       // Advance past both potential timeouts
       await act(async () => {
-        jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(600);
       });
 
       // Only the second press's timeout fires (first was cleared)

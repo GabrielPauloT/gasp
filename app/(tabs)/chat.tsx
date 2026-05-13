@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,6 @@ import { SendGaspToAllButton } from '@/components/inbox/SendGaspToAllButton';
 import { ConversationListSkeleton } from '@/components/chat/ConversationListSkeleton';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useInboxStore, useFilteredFriends } from '@/stores/inboxStore';
-import { useAuthStore } from '@/stores/authStore';
 import { useFriends } from '@/hooks/queries/useFriends';
 import { useGetOrCreateConversation } from '@/hooks/queries/useChat';
 import type { InboxFriend } from '@/stores/inboxStore';
@@ -19,14 +18,17 @@ import { colors } from '@/constants/colors';
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const isGuest = useAuthStore((s) => s.isGuest);
   const searchQuery = useInboxStore((s) => s.searchQuery);
   const setSearchQuery = useInboxStore((s) => s.setSearchQuery);
   const friendCount = useInboxStore((s) => s.friendCount);
   const newGaspCount = useInboxStore((s) => s.newGaspCount);
   const onlineCount = useInboxStore((s) => s.onlineCount);
   const filteredFriends = useFilteredFriends();
-  const { isLoading: isFriendsLoading } = useFriends(!isGuest);
+  const { isLoading: isFriendsLoading } = useFriends();
+
+  useEffect(() => {
+    return () => useInboxStore.getState().setSearchQuery('');
+  }, []);
 
   const getOrCreateConversation = useGetOrCreateConversation();
 

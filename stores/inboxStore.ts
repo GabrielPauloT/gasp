@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import type { Friend } from '@/services/api/schemas/user.schema';
 
@@ -86,14 +87,19 @@ export const useInboxStore = create<InboxState>((set) => ({
     })),
 }));
 
-// Selector for filtered friends
-export const useFilteredFriends = () =>
-  useInboxStore((state) => {
-    const query = state.searchQuery.toLowerCase().trim();
-    if (!query) return state.friends;
-    return state.friends.filter(
+// Computed via useMemo — a Zustand selector that returns `.filter(...)` produces a
+// new array on every getSnapshot call, which loops useSyncExternalStore until React's
+// nested update cap throws "Maximum update depth exceeded".
+export function useFilteredFriends() {
+  const friends = useInboxStore((s) => s.friends);
+  const searchQuery = useInboxStore((s) => s.searchQuery);
+  return useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return friends;
+    return friends.filter(
       (f) =>
-        f.name.toLowerCase().includes(query) ||
-        f.username.toLowerCase().includes(query)
+        f.name.toLowerCase().includes(q) ||
+        f.username.toLowerCase().includes(q),
     );
-  });
+  }, [friends, searchQuery]);
+}

@@ -18,7 +18,7 @@ import { PhoneInput } from '@/components/auth/PhoneInput';
 import { colors } from '@/constants/colors';
 import {
   countries,
-  DEFAULT_COUNTRY,
+  getDeviceDefaultCountry,
   type Country,
 } from '@/constants/countryCodes';
 
@@ -26,7 +26,7 @@ export default function PhoneLoginScreen() {
   const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [country, setCountry] = useState(DEFAULT_COUNTRY);
+  const [country, setCountry] = useState<Country>(getDeviceDefaultCountry);
   const [showPicker, setShowPicker] = useState(false);
   const [search, setSearch] = useState('');
   const confirmationRef = useRef<FirebaseAuthTypes.ConfirmationResult | null>(null);
