@@ -8,6 +8,7 @@ interface SendGaspInput {
   mediaType?: 'image' | 'video';
   blurhash?: string;
   textOverlay?: string;
+  replayable?: boolean;
 }
 
 interface BatchGaspInput {
@@ -16,6 +17,7 @@ interface BatchGaspInput {
   mediaType?: 'image' | 'video';
   blurhash?: string;
   textOverlay?: string;
+  replayable?: boolean;
 }
 
 export async function sendGasp(data: SendGaspInput): Promise<Gasp> {
@@ -38,6 +40,26 @@ export async function getSentGasps(): Promise<Gasp[]> {
   return res.data.map(normalizeGasp);
 }
 
+/**
+ * Abre o gasp — inicia a janela de reação no backend.
+ * Substitui o antigo markViewed.
+ */
+export async function openGasp(gaspId: string): Promise<Gasp> {
+  const res = await api.patch<ApiGasp>(`/gasps/${gaspId}/open`);
+  return normalizeGasp(res.data);
+}
+
+/**
+ * Fecha a janela de reação sem reação enviada. Marca como viewed.
+ */
+export async function closeViewGasp(gaspId: string): Promise<Gasp> {
+  const res = await api.patch<ApiGasp>(`/gasps/${gaspId}/close-view`);
+  return normalizeGasp(res.data);
+}
+
+/**
+ * @deprecated Use openGasp + closeViewGasp.
+ */
 export async function markViewed(gaspId: string): Promise<void> {
   await api.patch(`/gasps/${gaspId}/view`);
 }

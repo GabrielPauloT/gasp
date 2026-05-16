@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { X, Send, Check } from 'lucide-react-native';
+import { X, Send, Check, Repeat } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useInboxStore } from '@/stores/inboxStore';
@@ -31,6 +31,7 @@ export default function SendGaspScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [replayable, setReplayable] = useState(false);
 
   const filteredFriends = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -92,6 +93,7 @@ export default function SendGaspScreen() {
         imageUrl: result.downloadUrl,
         ...(isVideoMode && { mediaType: 'video' as const }),
         ...(textOverlay && { textOverlay }),
+        replayable,
       });
 
       // 4. Fire-and-forget socket chat messages so they visually populate the conversation stream
@@ -237,6 +239,34 @@ export default function SendGaspScreen() {
               {selectedIds.size.toString()}{' selected'}
             </Text>
           )}
+        </Pressable>
+      </Animated.View>
+
+      {/* Replayable toggle */}
+      <Animated.View entering={FadeInDown.duration(300).delay(175)}>
+        <Pressable
+          onPress={() => setReplayable((v) => !v)}
+          accessibilityRole="switch"
+          accessibilityLabel="Allow recipient to replay this gasp"
+          accessibilityState={{ checked: replayable }}
+          style={styles.replayableRow}
+        >
+          <View style={styles.replayableLeft}>
+            <Repeat size={18} color={replayable ? colors.primary : colors.textSecondary} />
+            <View style={styles.replayableTextWrap}>
+              <Text variant="label" style={styles.replayableTitle}>
+                {replayable ? 'Replayable' : 'Play once'}
+              </Text>
+              <Text variant="caption" style={styles.replayableSubtitle}>
+                {replayable
+                  ? 'Recipient can replay until it expires'
+                  : 'Single view, disappears after viewing'}
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.toggle, replayable && styles.toggleOn]}>
+            <View style={[styles.toggleKnob, replayable && styles.toggleKnobOn]} />
+          </View>
         </Pressable>
       </Animated.View>
 
@@ -452,5 +482,53 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: colors.primary,
     borderRadius: 2,
+  },
+  replayableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  replayableLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  replayableTextWrap: {
+    flex: 1,
+  },
+  replayableTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  replayableSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  toggle: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.surfaceElevated,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleOn: {
+    backgroundColor: colors.primary,
+  },
+  toggleKnob: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+  },
+  toggleKnobOn: {
+    alignSelf: 'flex-end',
   },
 });

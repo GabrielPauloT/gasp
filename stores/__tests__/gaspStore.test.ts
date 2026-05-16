@@ -14,6 +14,7 @@ function makeGasp(overrides: Partial<Gasp> = {}): Gasp {
     imageUri: 'https://example.com/gasp.jpg',
     mediaType: 'image',
     blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
+    replayable: false,
     status: 'pending',
     createdAt: '2026-01-01T00:00:00.000Z',
     expiresAt: '2026-01-02T00:00:00.000Z',

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const GaspStatusSchema = z.enum(['pending', 'viewed', 'expired']);
+export const GaspStatusSchema = z.enum(['pending', 'opened', 'viewed', 'reacted', 'expired']);
 export type GaspStatus = z.infer<typeof GaspStatusSchema>;
 
 export const GaspMediaTypeSchema = z.enum(['image', 'video']);
@@ -14,9 +14,11 @@ export const ApiGaspSchema = z.object({
   mediaType: GaspMediaTypeSchema.nullable().optional(),
   blurhash: z.string().nullable(),
   textOverlay: z.string().nullable().optional(),
+  replayable: z.boolean().optional().default(false),
   status: GaspStatusSchema,
   createdAt: z.string(),
   expiresAt: z.string(),
+  openedAt: z.string().nullable().optional(),
   viewedAt: z.string().nullable().optional(),
 });
 
@@ -29,9 +31,11 @@ export const GaspSchema = z.object({
   mediaType: GaspMediaTypeSchema,
   blurhash: z.string(),
   textOverlay: z.string().optional(),
+  replayable: z.boolean(),
   status: GaspStatusSchema,
   createdAt: z.string(),
   expiresAt: z.string(),
+  openedAt: z.string().optional(),
   viewedAt: z.string().optional(),
 });
 
@@ -60,9 +64,11 @@ export function normalizePendingGasp(item: ApiPendingGasp): Gasp {
     mediaType: item.gasp.mediaType ?? 'image',
     blurhash: item.gasp.blurhash ?? '',
     textOverlay: item.gasp.textOverlay ?? undefined,
+    replayable: item.gasp.replayable ?? false,
     status: item.gasp.status,
     createdAt: item.gasp.createdAt,
     expiresAt: item.gasp.expiresAt,
+    openedAt: item.gasp.openedAt ?? undefined,
     viewedAt: item.gasp.viewedAt ?? undefined,
   };
 }
@@ -77,9 +83,11 @@ export function normalizeGasp(raw: z.infer<typeof ApiGaspSchema>): Gasp {
     mediaType: raw.mediaType ?? 'image',
     blurhash: raw.blurhash ?? '',
     textOverlay: raw.textOverlay ?? undefined,
+    replayable: raw.replayable ?? false,
     status: raw.status,
     createdAt: raw.createdAt,
     expiresAt: raw.expiresAt,
+    openedAt: raw.openedAt ?? undefined,
     viewedAt: raw.viewedAt ?? undefined,
   };
 }

@@ -1,9 +1,10 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { StyleSheet, View, Pressable, Alert } from 'react-native';
+import { StyleSheet, View, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { GestureDetector } from 'react-native-gesture-handler';
+import * as Sentry from '@sentry/react-native';
 import { X, Camera } from 'lucide-react-native';
 import { HoldToView } from '@/components/gasp/HoldToView';
 import { ReactionCapture } from '@/components/gasp/ReactionCapture';
@@ -12,11 +13,15 @@ import { useHoldGesture } from '@/hooks/useHoldGesture';
 import { useGaspStore } from '@/stores/gaspStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
-import { useViewGasp, useCreateReaction, usePendingGasps } from '@/hooks/queries/useGasps';
+import {
+  useOpenGasp,
+  useCloseViewGasp,
+  useCreateReaction,
+  usePendingGasps,
+} from '@/hooks/queries/useGasps';
 import { uploadReaction } from '@/services/storage';
 import { colors } from '@/constants/colors';
 
-// ── Component ───────────────────────────────────────────────────────
 export default function ViewGaspScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
@@ -34,16 +39,17 @@ export default function ViewGaspScreen() {
   const reactionCameraRef = useRef<CameraView>(null);
   const user = useAuthStore((s) => s.user);
   const { data: pendingGasps = [] } = usePendingGasps();
-  const viewGaspMutation = useViewGasp();
+  const openGaspMutation = useOpenGasp();
+  const closeViewMutation = useCloseViewGasp();
   const createReactionMutation = useCreateReaction();
   const { sendMessage } = useChatStore();
 
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const releasedRef = useRef(false);
+  const openedRef = useRef(false);
+  const reactionSucceededRef = useRef(false);
+  const gaspIdRef = useRef<string | null>(null);
 
-  // ── Unified data resolution ──────────────────────────────────────
-  // All callers now use openGaspViewer() which passes chatImageUri etc.
-  // Legacy inbox path with gaspId still supported as fallback.
   const gasp = params.gaspId
     ? pendingGasps.find((g) => g.id === params.gaspId) ?? pendingGasps[0]
     : null;
@@ -54,7 +60,6 @@ export default function ViewGaspScreen() {
   const blurhash = params.chatBlurhash || gasp?.blurhash;
   const conversationId = params.chatConversationId || '';
   const messageId = params.chatMessageId || '';
-  const isFromChat = !!conversationId;
 
   const IMAGE_VIEW_DURATION = 30_000;
   const [holdDuration, setHoldDuration] = useState(
@@ -65,19 +70,38 @@ export default function ViewGaspScreen() {
     setHoldDuration(durationMs);
   }, []);
 
+  // Mark chat gasp viewed locally (UI only)
+  useEffect(() => {
+    if (messageId && imageUri) {
+      useGaspStore.getState().markChatGaspViewed(messageId, imageUri);
+    }
+  }, [messageId, imageUri]);
+
+  // Open gasp on mount (inbox-mode only)
+  useEffect(() => {
+    if (gasp && !openedRef.current) {
+      openedRef.current = true;
+      gaspIdRef.current = gasp.id;
+      openGaspMutation.mutate(gasp.id);
+    }
+  }, [gasp, openGaspMutation]);
+
+  // On unmount: if opened but no reaction sent, close-view to mark as `viewed`
+  useEffect(() => {
+    return () => {
+      const id = gaspIdRef.current;
+      if (id && openedRef.current && !reactionSucceededRef.current) {
+        closeViewMutation.mutate(id);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!imageUri) {
     router.back();
     return null;
   }
 
-  // Mark chat gasp as viewed when modal mounts
-  useEffect(() => {
-    if (messageId) {
-      useGaspStore.getState().markChatGaspViewed(messageId, imageUri);
-    }
-  }, [messageId, imageUri]);
-
-  // ── Começa a gravar quando o hold inicia ─────────────────────────
   const handleHoldStart = useCallback(() => {
     releasedRef.current = false;
     if (!reactionCameraRef.current) return;
@@ -90,7 +114,6 @@ export default function ViewGaspScreen() {
     }
   }, [holdDuration]);
 
-  // ── Quando solta o dedo — para gravação, faz upload e envia ─────
   const handleRelease = useCallback(async () => {
     if (releasedRef.current) return;
     releasedRef.current = true;
@@ -98,7 +121,6 @@ export default function ViewGaspScreen() {
     const userId = user?.id ?? 'guest';
     let videoUri: string | null = null;
 
-    // Stop recording and get the video URI
     try {
       if (reactionCameraRef.current) {
         reactionCameraRef.current.stopRecording();
@@ -107,7 +129,8 @@ export default function ViewGaspScreen() {
         const result = await recordingPromiseRef.current;
         videoUri = result?.uri ?? null;
       }
-    } catch {
+    } catch (e) {
+      Sentry.captureException(e);
       videoUri = null;
     } finally {
       recordingPromiseRef.current = null;
@@ -115,9 +138,8 @@ export default function ViewGaspScreen() {
 
     if (videoUri) {
       uploadReaction(videoUri, userId)
-        .then((result) => {
+        .then(async (result) => {
           if (conversationId) {
-            // From chat: send reaction as a chat message with replyToId
             sendMessage(
               conversationId,
               '[Reaction]',
@@ -125,36 +147,29 @@ export default function ViewGaspScreen() {
               result.downloadUrl,
               messageId || undefined,
             );
+            reactionSucceededRef.current = true;
           } else if (gasp) {
-            // From inbox: use the gasps/reactions API
-            return createReactionMutation.mutateAsync({
+            await createReactionMutation.mutateAsync({
               gaspId: gasp.id,
               videoUrl: result.downloadUrl,
             });
+            reactionSucceededRef.current = true;
           }
         })
-        .catch(() => {
-          Alert.alert(
-            'Reaction not sent',
-            'Your reaction video could not be uploaded. Please try again.',
-            [{ text: 'OK' }]
-          );
+        .catch((e) => {
+          // Reaction não enviada — UX não trava o usuário; backend marca como `viewed`
+          // no unmount via closeViewMutation. Gasp replayable continua acessível.
+          Sentry.captureException(e);
         });
     }
 
-    // Mark gasp as viewed on backend (inbox mode only)
-    if (gasp) {
-      viewGaspMutation.mutate(gasp.id);
-    }
     router.back();
-  }, [gasp, user, viewGaspMutation, createReactionMutation, conversationId, messageId, sendMessage]);
+  }, [gasp, user, createReactionMutation, conversationId, messageId, sendMessage]);
 
-  // ── Quando timer completa — auto-release ────────────────────────
   const handleHoldComplete = useCallback(() => {
     handleRelease();
   }, [handleRelease]);
 
-  // ── Gesture hook ───────────────────────────────────────────────────
   const { gesture, isHolding, holdProgress } = useHoldGesture({
     onHoldStart: handleHoldStart,
     onHoldComplete: handleHoldComplete,
@@ -171,11 +186,9 @@ export default function ViewGaspScreen() {
     await requestMicPermission();
   };
 
-  // ── Permissão de câmera/mic não concedida ──────────────────────────
   if (!cameraPermission?.granted || !micPermission?.granted) {
     return (
       <View style={styles.container}>
-        {/* Mostra gasp borrado como background */}
         <HoldToView
           imageUri={imageUri}
           mediaType={mediaType}
@@ -184,8 +197,6 @@ export default function ViewGaspScreen() {
           isHolding={isHolding}
           holdProgress={holdProgress}
         />
-
-        {/* Overlay de permissão */}
         <View style={styles.permissionOverlay}>
           <View style={styles.permissionCard}>
             <Camera size={40} color={colors.primary} />
@@ -197,6 +208,8 @@ export default function ViewGaspScreen() {
             </Text>
             <Pressable
               onPress={handleGrantReactionAccess}
+              accessibilityRole="button"
+              accessibilityLabel="Grant camera and microphone access"
               style={styles.permissionButton}
             >
               <Text variant="body" style={styles.permissionButtonText}>
@@ -205,10 +218,10 @@ export default function ViewGaspScreen() {
             </Pressable>
           </View>
         </View>
-
-        {/* Close button */}
         <Pressable
           onPress={handleClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close gasp viewer"
           style={[styles.closeButton, { top: insets.top + 12 }]}
         >
           <X size={24} color="#FFFFFF" />
@@ -217,12 +230,10 @@ export default function ViewGaspScreen() {
     );
   }
 
-  // ── Tela principal com gesture ───────────────────────────────────
   return (
     <View style={styles.container}>
       <GestureDetector gesture={gesture}>
         <View style={styles.gestureArea}>
-          {/* Mídia com blur/reveal */}
           <HoldToView
             imageUri={imageUri}
             mediaType={mediaType}
@@ -236,15 +247,12 @@ export default function ViewGaspScreen() {
         </View>
       </GestureDetector>
 
-      {/* Câmera frontal PiP (aparece durante hold — grava vídeo) */}
-      <ReactionCapture
-        isActive={isHolding}
-        cameraRef={reactionCameraRef}
-      />
+      <ReactionCapture isActive={isHolding} cameraRef={reactionCameraRef} />
 
-      {/* Close button */}
       <Pressable
         onPress={handleClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close gasp viewer"
         style={[styles.closeButton, { top: insets.top + 12 }]}
       >
         <X size={24} color="#FFFFFF" />

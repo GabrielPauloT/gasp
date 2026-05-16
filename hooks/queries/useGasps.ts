@@ -6,6 +6,11 @@ import * as reactionsApi from '@/services/api/reactions';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 import { GaspSchema } from '@/services/api/schemas/gasp.schema';
 import { validateResponse } from '@/services/api/schemas/common.schema';
+import {
+  updateGaspInList,
+  removeFromList,
+  shouldKeepInPendingAfterClose,
+} from './useGasps.helpers';
 
 export function usePendingGasps(enabled = true) {
   return useQuery({
@@ -38,6 +43,7 @@ export function useSendBatchGasp() {
       mediaType?: 'image' | 'video';
       blurhash?: string;
       textOverlay?: string;
+      replayable?: boolean;
     }) => gaspsApi.sendBatchGasp(data),
     onSuccess: (newGasps) => {
       queryClient.setQueryData<Gasp[]>(queryKeys.gasps.sent, (old) =>
@@ -47,6 +53,44 @@ export function useSendBatchGasp() {
   });
 }
 
+/**
+ * Marca gasp como `opened` no backend (janela de reação iniciada).
+ * Mantém o gasp no cache pendente (vai sair apenas quando close-view ou reacted).
+ */
+export function useOpenGasp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gaspId: string) => gaspsApi.openGasp(gaspId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Gasp[]>(queryKeys.gasps.pending, (old) =>
+        updateGaspInList(old, updated),
+      );
+    },
+  });
+}
+
+/**
+ * Fecha a janela de reação. Backend marca como `viewed`.
+ * Remove do cache pendente — exceto se replayable e não expirado.
+ */
+export function useCloseViewGasp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (gaspId: string) => gaspsApi.closeViewGasp(gaspId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Gasp[]>(queryKeys.gasps.pending, (old) => {
+        if (shouldKeepInPendingAfterClose(updated, new Date())) {
+          return updateGaspInList(old, updated);
+        }
+        return removeFromList(old, updated.id);
+      });
+    },
+  });
+}
+
+/**
+ * @deprecated Use useOpenGasp + useCloseViewGasp.
+ */
 export function useViewGasp() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -55,7 +99,7 @@ export function useViewGasp() {
       await queryClient.cancelQueries({ queryKey: queryKeys.gasps.pending });
       const previous = queryClient.getQueryData<Gasp[]>(queryKeys.gasps.pending);
       queryClient.setQueryData<Gasp[]>(queryKeys.gasps.pending, (old) =>
-        old?.filter((g) => g.id !== gaspId) ?? [],
+        removeFromList(old, gaspId),
       );
       return { previous };
     },
@@ -68,8 +112,15 @@ export function useViewGasp() {
 }
 
 export function useCreateReaction() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: { gaspId: string; videoUrl: string }) =>
       reactionsApi.createReaction(data),
+    onSuccess: (_data, variables) => {
+      // Backend marcou gasp como `reacted`. Remove do cache pending.
+      queryClient.setQueryData<Gasp[]>(queryKeys.gasps.pending, (old) =>
+        removeFromList(old, variables.gaspId),
+      );
+    },
   });
 }
