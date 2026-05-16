@@ -77,17 +77,28 @@ jest.mock('react-native-reanimated', () => {
 // ── Mock react-native-gesture-handler ────────────────────────────────
 jest.mock('react-native-gesture-handler', () => {
   const View = require('react-native').View;
+  // Generic chainable builder — any method returns the same builder so consumers
+  // can call `.onBegin().onUpdate().onEnd()` etc without TypeError.
+  const makeChainable = () => {
+    const builder = {};
+    const noop = () => builder;
+    const methods = [
+      'minDuration', 'maxDuration', 'numberOfTaps', 'maxDistance',
+      'enabled', 'shouldCancelWhenOutside', 'simultaneousWithExternalGesture',
+      'onStart', 'onBegin', 'onUpdate', 'onEnd', 'onFinalize',
+      'onChange', 'onTouchesDown', 'onTouchesUp', 'onTouchesMove',
+    ];
+    methods.forEach((m) => { builder[m] = noop; });
+    return builder;
+  };
   return {
     GestureHandlerRootView: View,
     GestureDetector: View,
     Gesture: {
-      LongPress: () => ({
-        minDuration: () => ({
-          onStart: () => ({
-            onEnd: () => ({}),
-          }),
-        }),
-      }),
+      LongPress: makeChainable,
+      Pinch: makeChainable,
+      Pan: makeChainable,
+      Tap: makeChainable,
     },
   };
 });

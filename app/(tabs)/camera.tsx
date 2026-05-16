@@ -3,12 +3,15 @@ import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useIsFocused } from '@react-navigation/native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { Text } from '@/components/ui/Text';
 import { CameraOverlay } from '@/components/camera/CameraOverlay';
 import { GridOverlay } from '@/components/camera/GridOverlay';
 import { TimerCountdown } from '@/components/camera/TimerCountdown';
 import { useCamera } from '@/hooks/useCamera';
 import { useCameraStore } from '@/stores/cameraStore';
+import { calculateZoomFromPinch } from '@/hooks/cameraZoom';
 import { colors } from '@/constants/colors';
 import { CameraOff } from 'lucide-react-native';
 import { openCameraPreview } from '@/services/navigation';
@@ -30,12 +33,28 @@ export default function CameraScreen() {
     cameraRef,
     facing,
     flashMode,
+    zoom,
+    setZoom,
     toggleFacing,
     cycleFlash,
     takePicture,
     startRecording,
     stopRecording,
   } = useCamera();
+
+  // Pinch-to-zoom gesture (zoom is React state for CameraView prop; baseZoom on SharedValue for worklets)
+  const baseZoomSV = useSharedValue(0);
+  const applyZoom = useCallback((value: number) => setZoom(value), [setZoom]);
+  const pinchGesture = Gesture.Pinch()
+    .onBegin(() => {
+      'worklet';
+      baseZoomSV.value = zoom;
+    })
+    .onUpdate((e) => {
+      'worklet';
+      const next = calculateZoomFromPinch(baseZoomSV.value, e.scale);
+      runOnJS(applyZoom)(next);
+    });
 
   useEffect(() => {
     return () => {
@@ -156,14 +175,17 @@ export default function CameraScreen() {
     <View style={styles.container}>
       {/* Only render camera when tab is focused */}
       {isFocused ? (
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing={facing}
-          flash={flashMode}
-          enableTorch={flashMode === 'on'}
-          mode={cameraMode}
-        />
+        <GestureDetector gesture={pinchGesture}>
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing={facing}
+            flash={flashMode}
+            enableTorch={flashMode === 'on'}
+            mode={cameraMode}
+            zoom={zoom}
+          />
+        </GestureDetector>
       ) : (
         <View style={styles.cameraPlaceholder} />
       )}

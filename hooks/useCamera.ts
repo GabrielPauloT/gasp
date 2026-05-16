@@ -1,11 +1,11 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { CameraView, useMicrophonePermissions } from 'expo-camera';
 import { useTranslation } from 'react-i18next';
 import * as Sentry from '@sentry/react-native';
 import { useCameraStore } from '@/stores/cameraStore';
 
-const RECORD_RETRY_DELAY_MS = 500;
+const RECORD_RETRY_DELAY_MS = 1000;
 
 interface StartRecordingOptions {
   /** Called before the retry attempt — return false to abort if the user has already released. */
@@ -16,8 +16,15 @@ export function useCamera() {
   const { t } = useTranslation();
   const cameraRef = useRef<CameraView>(null);
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
-  const { facing, flashMode, toggleFacing, cycleFlash, setCapturedUri, setRecording } =
+  const { facing, flashMode, toggleFacing: storeToggleFacing, cycleFlash, setCapturedUri, setRecording } =
     useCameraStore();
+  const [zoom, setZoom] = useState(0);
+
+  // Reset zoom when switching cameras (front/back have different ranges)
+  const toggleFacing = useCallback(() => {
+    setZoom(0);
+    storeToggleFacing();
+  }, [storeToggleFacing]);
 
   const takePicture = useCallback(async () => {
     if (!cameraRef.current) return null;
@@ -109,6 +116,8 @@ export function useCamera() {
     cameraRef,
     facing,
     flashMode,
+    zoom,
+    setZoom,
     toggleFacing,
     cycleFlash,
     takePicture,

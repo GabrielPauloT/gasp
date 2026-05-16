@@ -51,6 +51,7 @@ export function HoldToView({
   // Pass a dummy silent URI for non-video to avoid "shared object released" crash
   const videoPlayer = useVideoPlayer(isVideo ? resolvedUri : 'about:blank', (p) => {
     p.loop = false;
+    p.playbackRate = 1.0;
     // Don't auto-play — controlled by hold gesture
   });
 

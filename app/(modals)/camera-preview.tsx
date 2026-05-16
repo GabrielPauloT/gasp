@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Image, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Image, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import * as MediaLibrary from 'expo-media-library';
+import * as Sentry from '@sentry/react-native';
 import { X } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { DraggableText } from '@/components/camera/DraggableText';
@@ -44,6 +46,7 @@ export default function CameraPreviewScreen() {
 
   const videoPlayer = useVideoPlayer(isVideoMode ? imageUri : null, (p) => {
     p.loop = true;
+    p.playbackRate = 1.0;
     p.play();
   });
 
@@ -58,6 +61,25 @@ export default function CameraPreviewScreen() {
     });
     return () => sub.remove();
   }, [isVideoMode, videoPlayer]);
+
+  const handleSave = useCallback(async () => {
+    try {
+      const perm = await MediaLibrary.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permission needed',
+          'Allow access to your photo library to save this media.',
+          [{ text: 'OK' }],
+        );
+        return;
+      }
+      await MediaLibrary.saveToLibraryAsync(imageUri);
+      Alert.alert('Saved', 'Saved to your camera roll.', [{ text: 'OK' }]);
+    } catch (e) {
+      Sentry.captureException(e);
+      Alert.alert('Save failed', 'Could not save this media.', [{ text: 'OK' }]);
+    }
+  }, [imageUri]);
 
   const handleSend = useCallback(async () => {
     if (isSending) return;
@@ -150,6 +172,7 @@ export default function CameraPreviewScreen() {
         <PreviewBottomBar
           onRetake={() => router.back()}
           onSend={handleSend}
+          onSave={handleSave}
           onOpenText={handleOpenTextEditor}
           isSending={isSending}
           bottomInset={insets.bottom}
