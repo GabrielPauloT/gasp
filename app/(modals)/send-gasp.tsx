@@ -1,10 +1,13 @@
-import { useState, useCallback, useMemo } from 'react';
-import { StyleSheet, View, Pressable, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { useState, useCallback, useMemo, useRef } from 'react';
+import { StyleSheet, View, Pressable, FlatList, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { X, Send, Check, Repeat } from 'lucide-react-native';
+import { X, Send, Check, Repeat, RefreshCw, AlertCircle, WifiOff, Clock } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
+import * as Sentry from '@sentry/react-native';
+import axios from 'axios';
 import { Text } from '@/components/ui/Text';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useInboxStore } from '@/stores/inboxStore';
@@ -16,13 +19,87 @@ import { useGetOrCreateConversation } from '@/hooks/queries/useChat';
 import { uploadWithRetry } from '@/services/uploadQueue';
 import { compressImage } from '@/services/imageCompression';
 import { compressVideo } from '@/services/videoCompression';
-import { getApiErrorMessage } from '@/services/api';
 import { colors } from '@/constants/colors';
+
+type SendErrorKind = 'server' | 'network' | 'rateLimit' | 'upload' | 'generic';
+
+interface SendErrorState {
+  kind: SendErrorKind;
+  canRetry: boolean;
+}
+
+function classifySendError(error: unknown, hasUploadedMedia: boolean): SendErrorState {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    if (status === undefined) {
+      return { kind: 'network', canRetry: true };
+    }
+    if (status >= 500) {
+      return { kind: 'server', canRetry: true };
+    }
+    if (status === 429) {
+      return { kind: 'rateLimit', canRetry: true };
+    }
+    return { kind: 'generic', canRetry: false };
+  }
+  if (!hasUploadedMedia) {
+    return { kind: 'upload', canRetry: true };
+  }
+  return { kind: 'generic', canRetry: false };
+}
+
+const ERROR_COPY: Record<
+  SendErrorKind,
+  {
+    titleKey: string;
+    messageKey: string;
+    iconColor: string;
+    iconBg: string;
+    Icon: typeof RefreshCw;
+  }
+> = {
+  server: {
+    titleKey: 'sendGasp.errorServerTitle',
+    messageKey: 'sendGasp.errorServerMessage',
+    iconColor: colors.warning,
+    iconBg: 'rgba(245, 158, 11, 0.15)',
+    Icon: RefreshCw,
+  },
+  network: {
+    titleKey: 'sendGasp.errorNetworkTitle',
+    messageKey: 'sendGasp.errorNetworkMessage',
+    iconColor: colors.warning,
+    iconBg: 'rgba(245, 158, 11, 0.15)',
+    Icon: WifiOff,
+  },
+  rateLimit: {
+    titleKey: 'sendGasp.errorRateLimitTitle',
+    messageKey: 'sendGasp.errorRateLimitMessage',
+    iconColor: colors.warning,
+    iconBg: 'rgba(245, 158, 11, 0.15)',
+    Icon: Clock,
+  },
+  upload: {
+    titleKey: 'sendGasp.errorUploadTitle',
+    messageKey: 'sendGasp.errorUploadMessage',
+    iconColor: colors.error,
+    iconBg: 'rgba(239, 68, 68, 0.15)',
+    Icon: AlertCircle,
+  },
+  generic: {
+    titleKey: 'sendGasp.errorGenericTitle',
+    messageKey: 'sendGasp.errorGenericMessage',
+    iconColor: colors.error,
+    iconBg: 'rgba(239, 68, 68, 0.15)',
+    Icon: AlertCircle,
+  },
+};
 
 export default function SendGaspScreen() {
   const { imageUri, isVideo, textOverlay } = useLocalSearchParams<{ imageUri: string; isVideo?: string; textOverlay?: string }>();
   const isVideoMode = isVideo === 'true';
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const friends = useInboxStore((s) => s.friends);
   const user = useAuthStore((s) => s.user);
   const sendBatchMutation = useSendBatchGasp();
@@ -32,6 +109,9 @@ export default function SendGaspScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [replayable, setReplayable] = useState(false);
+  const [errorState, setErrorState] = useState<SendErrorState | null>(null);
+  // Preserva a mídia já uploadada para reaproveitar no retry — evita refazer compress + upload.
+  const uploadedMediaRef = useRef<{ downloadUrl: string } | null>(null);
 
   const filteredFriends = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -63,70 +143,104 @@ export default function SendGaspScreen() {
     }
   }, [friends, selectedIds.size]);
 
-  const handleSend = async () => {
-    if (!imageUri || isUploading) return;
-
-    const userId = user?.id ?? 'guest';
-    const { sendMessage } = useChatStore.getState();
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      // 1. Compress media before upload
-      setUploadProgress(0.05);
-      const compressedUri = isVideoMode
-        ? await compressVideo(imageUri)
-        : await compressImage(imageUri);
-
-      // 2. Upload to Firebase Storage
-      const result = await uploadWithRetry(compressedUri, 'gasps', userId, ({ progress }) => {
-        setUploadProgress(0.1 + progress * 0.7); // 10-80% for upload
-      });
-
-      // 3. Save gasp metadata to backend
-      setUploadProgress(0.9);
-
+  const submitMetadata = useCallback(
+    async (downloadUrl: string) => {
       const recipientArray = Array.from(selectedIds);
+      const { sendMessage } = useChatStore.getState();
+
       await sendBatchMutation.mutateAsync({
         recipientIds: recipientArray,
-        imageUrl: result.downloadUrl,
+        imageUrl: downloadUrl,
         ...(isVideoMode && { mediaType: 'video' as const }),
         ...(textOverlay && { textOverlay }),
         replayable,
       });
 
-      // 4. Fire-and-forget socket chat messages so they visually populate the conversation stream
+      // Fire-and-forget socket chat messages so they visually populate the conversation stream
       for (const friendId of recipientArray) {
         try {
           const conv = await getOrCreateMutation.mutateAsync(friendId);
           let content: string;
           if (textOverlay) {
-            // Text overlay JSON already contains font/color/etc, add mediaType
             const parsed = JSON.parse(textOverlay);
             parsed.mediaType = isVideoMode ? 'video' : 'image';
             content = JSON.stringify(parsed);
           } else {
             content = isVideoMode ? '[VideoGasp]' : '[Gasp]';
           }
-          sendMessage(conv.id, content, 'gasp', result.downloadUrl);
-        } catch {}
+          sendMessage(conv.id, content, 'gasp', downloadUrl);
+        } catch (e) {
+          Sentry.captureException(e, { extra: { context: 'send-gasp.fanOutChatMessage', friendId } });
+        }
+      }
+    },
+    [selectedIds, isVideoMode, textOverlay, replayable, sendBatchMutation, getOrCreateMutation],
+  );
+
+  const handleSend = useCallback(async () => {
+    if (!imageUri || isUploading) return;
+
+    const userId = user?.id ?? 'guest';
+    setErrorState(null);
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      let downloadUrl = uploadedMediaRef.current?.downloadUrl;
+
+      if (!downloadUrl) {
+        // 1. Compress media before upload
+        setUploadProgress(0.05);
+        const compressedUri = isVideoMode
+          ? await compressVideo(imageUri)
+          : await compressImage(imageUri);
+
+        // 2. Upload to Firebase Storage
+        const result = await uploadWithRetry(compressedUri, 'gasps', userId, ({ progress }) => {
+          setUploadProgress(0.1 + progress * 0.7); // 10-80% for upload
+        });
+        downloadUrl = result.downloadUrl;
+        uploadedMediaRef.current = { downloadUrl };
+      } else {
+        // Já uploadou em uma tentativa anterior — pula direto pro metadata save
+        setUploadProgress(0.85);
       }
 
+      // 3. Save gasp metadata to backend
+      setUploadProgress(0.9);
+      await submitMetadata(downloadUrl);
+
       setUploadProgress(1);
+      uploadedMediaRef.current = null;
       router.dismissAll();
       router.replace('/(tabs)/camera');
     } catch (error) {
-      Alert.alert(
-        'Send failed',
-        getApiErrorMessage(error),
-        [{ text: 'OK' }]
-      );
+      const hasUploadedMedia = uploadedMediaRef.current !== null;
+      const classified = classifySendError(error, hasUploadedMedia);
+      Sentry.captureException(error, {
+        extra: {
+          context: 'send-gasp.handleSend',
+          recipientCount: selectedIds.size,
+          mediaType: isVideoMode ? 'video' : 'image',
+          hasUploadedMedia,
+          errorKind: classified.kind,
+        },
+      });
+      setErrorState(classified);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
     }
-  };
+  }, [imageUri, isUploading, user?.id, isVideoMode, selectedIds.size, submitMetadata]);
+
+  const handleRetry = useCallback(() => {
+    setErrorState(null);
+    handleSend();
+  }, [handleSend]);
+
+  const handleDismissError = useCallback(() => {
+    setErrorState(null);
+  }, []);
 
   const handleClose = () => {
     router.back();
@@ -317,6 +431,59 @@ export default function SendGaspScreen() {
           )}
         </Animated.View>
       )}
+
+      {/* Error modal */}
+      {errorState && (() => {
+        const copy = ERROR_COPY[errorState.kind];
+        const IconComponent = copy.Icon;
+        return (
+          <Animated.View
+            entering={FadeIn.duration(180)}
+            style={styles.errorModalBackdrop}
+            accessibilityViewIsModal
+          >
+            <Animated.View
+              entering={FadeInDown.duration(220)}
+              style={styles.errorModalCard}
+            >
+              <View style={[styles.errorModalIcon, { backgroundColor: copy.iconBg }]}>
+                <IconComponent size={28} color={copy.iconColor} />
+              </View>
+              <Text variant="subtitle" style={styles.errorModalTitle}>
+                {t(copy.titleKey)}
+              </Text>
+              <Text variant="body" style={styles.errorModalMessage}>
+                {t(copy.messageKey)}
+              </Text>
+              <View style={styles.errorModalButtons}>
+                <Pressable
+                  onPress={handleDismissError}
+                  style={styles.errorModalSecondaryButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={errorState.canRetry ? t('common.cancel') : t('common.ok')}
+                >
+                  <Text variant="body" style={styles.errorModalSecondaryText}>
+                    {errorState.canRetry ? t('common.cancel') : t('common.ok')}
+                  </Text>
+                </Pressable>
+                {errorState.canRetry && (
+                  <Pressable
+                    onPress={handleRetry}
+                    style={styles.errorModalPrimaryButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.tryAgain')}
+                  >
+                    <RefreshCw size={16} color="#FFFFFF" />
+                    <Text variant="body" style={styles.errorModalPrimaryText}>
+                      {t('common.tryAgain')}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            </Animated.View>
+          </Animated.View>
+        );
+      })()}
     </View>
   );
 }
@@ -530,5 +697,85 @@ const styles = StyleSheet.create({
   },
   toggleKnobOn: {
     alignSelf: 'flex-end',
+  },
+  errorModalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    zIndex: 1000,
+  },
+  errorModalCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    borderCurve: 'continuous',
+    padding: 24,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  errorModalIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  errorModalTitle: {
+    textAlign: 'center',
+    color: colors.textPrimary,
+    fontSize: 19,
+  },
+  errorModalMessage: {
+    textAlign: 'center',
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: 4,
+  },
+  errorModalButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+    width: '100%',
+  },
+  errorModalSecondaryButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorModalSecondaryText: {
+    fontWeight: '600',
+    color: colors.textPrimary,
+    fontSize: 15,
+  },
+  errorModalPrimaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 48,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  errorModalPrimaryText: {
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontSize: 15,
   },
 });

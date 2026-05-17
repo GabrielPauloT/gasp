@@ -11,6 +11,7 @@ import {
   removeFromList,
   shouldKeepInPendingAfterClose,
 } from './useGasps.helpers';
+import { isTransientError } from './queryHelpers';
 
 export function usePendingGasps(enabled = true) {
   return useQuery({
@@ -45,6 +46,8 @@ export function useSendBatchGasp() {
       textOverlay?: string;
       replayable?: boolean;
     }) => gaspsApi.sendBatchGasp(data),
+    retry: (failureCount, error) => failureCount < 1 && isTransientError(error),
+    retryDelay: 1500,
     onSuccess: (newGasps) => {
       queryClient.setQueryData<Gasp[]>(queryKeys.gasps.sent, (old) =>
         [...newGasps, ...(old ?? [])],
@@ -116,6 +119,8 @@ export function useCreateReaction() {
   return useMutation({
     mutationFn: (data: { gaspId: string; videoUrl: string }) =>
       reactionsApi.createReaction(data),
+    retry: (failureCount, error) => failureCount < 1 && isTransientError(error),
+    retryDelay: 1500,
     onSuccess: (_data, variables) => {
       // Backend marcou gasp como `reacted`. Remove do cache pending.
       queryClient.setQueryData<Gasp[]>(queryKeys.gasps.pending, (old) =>

@@ -174,11 +174,18 @@ export const useAuthStore = create<AuthState>((set) => ({
           isInitialized: true,
         });
         return true;
-      } catch {
+      } catch (initError) {
         // Token invalid → clear session
+        Sentry.captureException(initError, {
+          extra: { context: 'authStore.initializeAuth.tokenValidation' },
+        });
         try {
           await firebaseSignOut(getAuth());
-        } catch {}
+        } catch (signOutError) {
+          Sentry.captureException(signOutError, {
+            extra: { context: 'authStore.initializeAuth.firebaseSignOut' },
+          });
+        }
         await removeAuthToken();
         await removeUserData();
         set({

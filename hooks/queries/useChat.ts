@@ -4,6 +4,7 @@ import * as conversationsApi from '@/services/api/conversations';
 import * as messagesApi from '@/services/api/messages';
 import type { Message, Conversation } from '@/services/api/schemas/chat.schema';
 import type { PaginatedResponse } from '@/services/api/schemas/common.schema';
+import { isTransientError } from './queryHelpers';
 
 export function useConversations() {
   return useQuery({
@@ -65,6 +66,8 @@ export function useGetOrCreateConversation() {
   return useMutation({
     mutationFn: (participantId: string) =>
       conversationsApi.getOrCreateConversation(participantId),
+    retry: (failureCount, error) => failureCount < 1 && isTransientError(error),
+    retryDelay: 1500,
     onSuccess: (conversation) => {
       queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) => {
         if (!old) return [conversation];

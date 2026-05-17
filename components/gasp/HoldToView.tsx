@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import * as Sentry from '@sentry/react-native';
 import { Text } from '@/components/ui/Text';
 import { parseTextOverlay, TextOverlayRenderer } from './TextOverlayRenderer';
 import { GaspTimer } from './GaspTimer';
@@ -75,14 +76,18 @@ export function HoldToView({
     try {
       videoPlayer.currentTime = 0;
       videoPlayer.play();
-    } catch {}
+    } catch (e) {
+      Sentry.captureException(e, { extra: { context: 'HoldToView.startVideo' } });
+    }
   }, [videoPlayer, isVideo]);
 
   const pauseVideo = useCallback(() => {
     if (!isVideo) return;
     try {
       videoPlayer.pause();
-    } catch {}
+    } catch (e) {
+      Sentry.captureException(e, { extra: { context: 'HoldToView.pauseVideo' } });
+    }
   }, [videoPlayer, isVideo]);
 
   useAnimatedReaction(

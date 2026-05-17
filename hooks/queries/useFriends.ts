@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { FriendSchema } from '@/services/api/schemas/user.schema';
 import { validateResponse } from '@/services/api/schemas/common.schema';
 import { FriendRequestSchema } from '@/services/api/schemas/friendRequest.schema';
+import { isTransientError } from './queryHelpers';
 
 export function useFriends(enabled = true) {
   return useQuery({
@@ -32,6 +33,8 @@ export function useSendFriendRequest() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (addresseeId: string) => friendsApi.sendRequest(addresseeId),
+    retry: (failureCount, error) => failureCount < 1 && isTransientError(error),
+    retryDelay: 1500,
     onSuccess: (_, addresseeId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.profile(addresseeId) });
@@ -43,6 +46,8 @@ export function useAcceptFriendRequest() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (friendshipId: string) => friendsApi.acceptRequest(friendshipId),
+    retry: (failureCount, error) => failureCount < 1 && isTransientError(error),
+    retryDelay: 1500,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests });

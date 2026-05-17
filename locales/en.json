@@ -74,7 +74,17 @@
     "sendToFriends": "Send to {{count}} friends",
     "compressing": "Compressing...",
     "uploading": "Uploading...",
-    "sendFailed": "Send failed"
+    "sendFailed": "Send failed",
+    "errorServerTitle": "Servers are wobbling",
+    "errorServerMessage": "Something hiccuped on our side. Want to try again?",
+    "errorNetworkTitle": "No connection",
+    "errorNetworkMessage": "Check your internet and try again.",
+    "errorRateLimitTitle": "Slow down",
+    "errorRateLimitMessage": "Too many sends in a row. Wait a few seconds before trying again.",
+    "errorUploadTitle": "Couldn't upload media",
+    "errorUploadMessage": "Your photo or video didn't make it. Try again from the camera.",
+    "errorGenericTitle": "Couldn't send",
+    "errorGenericMessage": "Please try again or pick another friend."
   },
   "viewGasp": {
     "cameraMicRequired": "Camera & Microphone Required",

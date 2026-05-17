@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import * as Sentry from '@sentry/react-native';
 import { useCameraStore } from '@/stores/cameraStore';
 
-const RECORD_RETRY_DELAY_MS = 1000;
+const RECORD_RETRY_DELAY_MS = 2000;
 
 interface StartRecordingOptions {
   /** Called before the retry attempt — return false to abort if the user has already released. */
