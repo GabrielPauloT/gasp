@@ -22,7 +22,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="inbox"
-        options={{ title: 'Inbox' }}
+        options={{ title: 'Gasps' }}
       />
       <Tabs.Screen
         name="chat"

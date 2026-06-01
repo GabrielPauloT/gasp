@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "tryAgain": "Try Again",
     "goHome": "Go Home",
@@ -32,6 +32,15 @@
     "recordingFailedBody": "Could not start video recording. Please try again."
   },
   "inbox": {
+    "noGasps": "No gasps yet. Send one to a friend!",
+    "openCamera": "Open Camera",
+    "noActivity": "No activity yet",
+    "sendGaspToFriend": "Send a gasp to a friend!",
+    "friendRequests": "FRIEND REQUESTS",
+    "newGasps": "NEW GASPS",
+    "reactions": "REACTIONS"
+  },
+  "gasps": {
     "noGasps": "No gasps yet. Send one to a friend!",
     "openCamera": "Open Camera",
     "noActivity": "No activity yet",
