@@ -13,6 +13,12 @@ export function useConversations() {
       const result = await conversationsApi.listConversations();
       return result.data;
     },
+    select: (conversations) =>
+      [...conversations].sort((a, b) => {
+        const aTime = a.lastMessageAt ?? a.updatedAt;
+        const bTime = b.lastMessageAt ?? b.updatedAt;
+        return bTime.localeCompare(aTime);
+      }),
   });
 }
 
