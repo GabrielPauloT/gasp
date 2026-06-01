@@ -5,14 +5,16 @@ import { cacheMedia } from './mediaCache';
 interface CameraPreviewParams {
   imageUri: string;
   isVideo?: boolean;
+  fromGallery?: boolean;
 }
 
-export function openCameraPreview({ imageUri, isVideo }: CameraPreviewParams) {
+export function openCameraPreview({ imageUri, isVideo, fromGallery }: CameraPreviewParams) {
   router.push({
     pathname: '/(modals)/camera-preview',
     params: {
       imageUri,
       ...(isVideo && { isVideo: 'true' }),
+      ...(fromGallery && { fromGallery: 'true' }),
     },
   });
 }
