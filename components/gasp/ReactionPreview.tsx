@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
-import { Send, RotateCcw } from 'lucide-react-native';
+import { Send, RotateCcw, Download } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -14,7 +14,10 @@ interface ReactionPreviewProps {
   reactionVideoUri: string;
   senderName: string;
   onSend?: () => void;
+  onReRecord?: () => void;
+  onDiscard?: () => void;
   onRetake?: () => void;
+  onSave?: () => void;
 }
 
 export function ReactionPreview({
@@ -22,7 +25,10 @@ export function ReactionPreview({
   reactionVideoUri,
   senderName,
   onSend,
+  onReRecord,
+  onDiscard,
   onRetake,
+  onSave,
 }: ReactionPreviewProps) {
   const player = useVideoPlayer(reactionVideoUri, (p) => {
     p.loop = true;
@@ -64,10 +70,10 @@ export function ReactionPreview({
         </View>
 
         <View style={styles.actions}>
-          <Pressable onPress={onRetake} style={styles.retakeButton}>
+          <Pressable onPress={onReRecord ?? onRetake} style={styles.retakeButton}>
             <RotateCcw size={20} color={colors.textPrimary} />
             <Text variant="body" style={styles.retakeText}>
-              {'Retake'}
+              {'Re-record'}
             </Text>
           </Pressable>
           <Pressable onPress={onSend} style={styles.sendButton}>
@@ -77,6 +83,21 @@ export function ReactionPreview({
             </Text>
           </Pressable>
         </View>
+
+        {onSave ? (
+          <Pressable onPress={onSave} style={styles.saveButton}>
+            <Download size={18} color={colors.textSecondary} />
+            <Text variant="body" style={styles.saveText}>
+              {'Save to Camera Roll'}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        <Pressable onPress={onDiscard} style={styles.discardButton}>
+          <Text variant="body" style={styles.discardText}>
+            {'Discard'}
+          </Text>
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -160,5 +181,27 @@ const styles = StyleSheet.create({
   sendText: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  discardButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  discardText: {
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  saveText: {
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
 });
