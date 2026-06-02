@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+﻿import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, View, ScrollView, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -93,7 +93,7 @@ export default function InboxScreen() {
             />
           }
         >
-          {/* Section 1: Friend Requests — only if requests exist */}
+          {/* Section 1: Friend Requests â€” only if requests exist */}
           {friendRequests.length > 0 && (
             <FriendRequestSection
               requests={friendRequests}
@@ -103,10 +103,10 @@ export default function InboxScreen() {
             />
           )}
 
-          {/* Section 2: Gasps — SectionHeader + FeedCards mapped directly */}
+          {/* Section 2: Gasps â€” SectionHeader + FeedCards mapped directly */}
           {pendingGasps.length > 0 && (
             <>
-              <SectionHeader icon={<Flame size={16} color="#EC4899" />} title={t('inbox.newGasps')} count={pendingGasps.length} badgeColor="#EC4899" />
+              <SectionHeader icon={<Flame size={16} color="#EC4899" />} title={t('gasps.newGasps')} count={pendingGasps.length} badgeColor="#EC4899" />
               {pendingGasps.map((gasp) => (
                 <Pressable
                   key={gasp.id}
@@ -130,12 +130,12 @@ export default function InboxScreen() {
             </>
           )}
 
-          {/* Section 3: Reactions — only if reactions exist */}
+          {/* Section 3: Reactions â€” only if reactions exist */}
           {reactions.length > 0 && (
             <ReactionSection reactions={reactions} />
           )}
 
-          {/* Global empty state — only when ALL sections are empty */}
+          {/* Global empty state â€” only when ALL sections are empty */}
           {friendRequests.length === 0 && pendingGasps.length === 0 && reactions.length === 0 && !isLoadingGasps && !isLoadingRequests && (
             <QueryState
               data={[]}
@@ -143,10 +143,10 @@ export default function InboxScreen() {
               isError={false}
               refetch={() => {}}
               skeleton={null}
-              emptyTitle={t('inbox.noActivity')}
-              emptySubtitle={t('inbox.sendGaspToFriend')}
+              emptyTitle={t('gasps.noActivity')}
+              emptySubtitle={t('gasps.sendGaspToFriend')}
               emptyIcon={<Camera size={40} color={colors.textTertiary} />}
-              emptyCta={{ label: t('inbox.openCamera'), onPress: () => router.push('/(tabs)/camera') }}
+              emptyCta={{ label: t('gasps.openCamera'), onPress: () => router.push('/(tabs)/camera') }}
             >
               {() => null}
             </QueryState>
@@ -171,3 +171,4 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
 });
+

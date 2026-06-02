@@ -1,6 +1,7 @@
 import { StyleSheet, View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Text } from '@/components/ui/Text';
+import { UnreadDot } from '@/components/ui/UnreadDot';
 import { Eye } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import type { FriendAction } from '@/stores/inboxStore';
@@ -16,6 +17,7 @@ interface FriendListItemProps {
   actionType: FriendAction;
   badgeCount: number;
   thumbnailUrl: string | null;
+  unreadCount?: number;
   onPress?: (id: string) => void;
 }
 
@@ -30,6 +32,7 @@ export function FriendListItem({
   actionType,
   badgeCount,
   thumbnailUrl,
+  unreadCount,
   onPress,
 }: FriendListItemProps) {
   const handlePress = () => {
@@ -37,7 +40,7 @@ export function FriendListItem({
   };
 
   return (
-    <Pressable onPress={handlePress} style={styles.container} accessibilityLabel={`Chat with ${name}`} accessibilityRole="button">
+    <Pressable onPress={handlePress} style={styles.container} accessibilityLabel={`Chat with `} accessibilityRole="button">
       {/* Avatar */}
       <View style={styles.avatarContainer}>
         {avatarUrl ? (
@@ -57,12 +60,17 @@ export function FriendListItem({
         {onlineStatus === 'online' ? (
           <View style={styles.onlineDot} />
         ) : null}
+        {unreadCount !== undefined && unreadCount > 0 ? (
+          <View style={styles.unreadBadge}>
+            <UnreadDot count={unreadCount} size="sm" />
+          </View>
+        ) : null}
       </View>
 
       {/* Content */}
       <View style={styles.content}>
         <View style={styles.nameRow}>
-          <Text variant="body" style={styles.name}>
+          <Text variant="body" style={[styles.name, unreadCount !== undefined && unreadCount > 0 ? styles.nameUnread : null]}>
             {name}
           </Text>
           <Text variant="caption" style={styles.timestamp}>
@@ -70,7 +78,7 @@ export function FriendListItem({
           </Text>
         </View>
         <Text variant="caption" style={styles.status} numberOfLines={1}>
-          {statusEmoji ? `${statusEmoji} ` : ''}
+          {statusEmoji ? ` ` : ''}
           {statusText}
         </Text>
       </View>
@@ -140,6 +148,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.background,
   },
+  unreadBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+  },
   content: {
     flex: 1,
     gap: 3,
@@ -153,6 +166,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.textPrimary,
+  },
+  nameUnread: {
+    color: colors.textPrimary,
+    fontWeight: '800',
   },
   timestamp: {
     fontSize: 12,

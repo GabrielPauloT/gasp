@@ -139,7 +139,7 @@ export default function CameraScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        openCameraPreview({ imageUri: asset.uri, isVideo: asset.type === 'video' });
+        openCameraPreview({ imageUri: asset.uri, isVideo: asset.type === 'video', fromGallery: true });
       }
     } finally {
       setIsLoadingGallery(false);

@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet } from 'react-native';
+﻿import { ScrollView, StyleSheet } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 import { UserPlus } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +20,7 @@ export function FriendRequestSection({ requests, onAccept, onReject, processingI
     <>
       <SectionHeader
         icon={<UserPlus size={16} color="#F59E0B" />}
-        title={t('inbox.friendRequests')}
+        title={t('gasps.friendRequests')}
         count={requests.length}
         badgeColor="#F59E0B"
       />
@@ -54,3 +54,4 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 });
+

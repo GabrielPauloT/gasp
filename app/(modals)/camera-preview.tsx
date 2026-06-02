@@ -18,9 +18,10 @@ import { useTextOverlay } from '@/hooks/useTextOverlay';
 import { openSendGasp } from '@/services/navigation';
 
 export default function CameraPreviewScreen() {
-  const { imageUri, isVideo } = useLocalSearchParams<{ imageUri: string; isVideo?: string }>();
+  const { imageUri, isVideo, fromGallery } = useLocalSearchParams<{ imageUri: string; isVideo?: string; fromGallery?: string }>();
   const insets = useSafeAreaInsets();
   const isVideoMode = isVideo === 'true';
+  const isFromGallery = fromGallery === 'true';
   const [videoReady, setVideoReady] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const captureViewRef = useRef<View>(null);
@@ -117,13 +118,13 @@ export default function CameraPreviewScreen() {
               <VideoView
                 player={videoPlayer}
                 style={StyleSheet.absoluteFill}
-                contentFit="cover"
+                contentFit={isFromGallery ? 'contain' : 'cover'}
                 nativeControls={false}
               />
               {!videoReady && <ActivityIndicator size="large" color="#FFFFFF" />}
             </View>
           ) : (
-            <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="cover" />
+            <Image source={{ uri: imageUri }} style={styles.preview} resizeMode={isFromGallery ? 'contain' : 'cover'} />
           )
         ) : (
           <View style={styles.preview}>

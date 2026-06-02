@@ -132,7 +132,7 @@ export function useSocketListeners() {
         queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
           old?.map((c) =>
             c.id === conversationId
-              ? { ...c, lastMessage, updatedAt: lastMessage.createdAt }
+              ? { ...c, lastMessage, updatedAt: lastMessage.createdAt, lastMessageAt: lastMessage.createdAt }
               : c,
           ) ?? [],
         );

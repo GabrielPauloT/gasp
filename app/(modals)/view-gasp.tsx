@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+﻿import { useRef, useState, useCallback, useEffect } from 'react';
 import { StyleSheet, View, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,8 @@ import * as Sentry from '@sentry/react-native';
 import { X, Camera } from 'lucide-react-native';
 import { HoldToView } from '@/components/gasp/HoldToView';
 import { ReactionCapture } from '@/components/gasp/ReactionCapture';
+import { ReactionPreview } from '@/components/gasp/ReactionPreview';
+import { RecordingCountdown } from '@/components/gasp/RecordingCountdown';
 import { Text } from '@/components/ui/Text';
 import { useHoldGesture } from '@/hooks/useHoldGesture';
 import { useGaspStore } from '@/stores/gaspStore';
@@ -21,6 +23,8 @@ import {
 } from '@/hooks/queries/useGasps';
 import { uploadReaction } from '@/services/storage';
 import { colors } from '@/constants/colors';
+
+const MAX_REACTION_DURATION_S = 30;
 
 export default function ViewGaspScreen() {
   const insets = useSafeAreaInsets();
@@ -49,6 +53,11 @@ export default function ViewGaspScreen() {
   const openedRef = useRef(false);
   const reactionSucceededRef = useRef(false);
   const gaspIdRef = useRef<string | null>(null);
+  const isRecordingRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const [isCountingDown, setIsCountingDown] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
 
   const gasp = params.gaspId
     ? pendingGasps.find((g) => g.id === params.gaspId) ?? pendingGasps[0]
@@ -89,6 +98,8 @@ export default function ViewGaspScreen() {
   // On unmount: if opened but no reaction sent, close-view to mark as `viewed`
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
+      recordingPromiseRef.current = null;
       const id = gaspIdRef.current;
       if (id && openedRef.current && !reactionSucceededRef.current) {
         closeViewMutation.mutate(id);
@@ -97,48 +108,32 @@ export default function ViewGaspScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!imageUri) {
-    router.back();
-    return null;
-  }
-
   const handleHoldStart = useCallback(() => {
     releasedRef.current = false;
+    setIsCountingDown(true);
+  }, []);
+
+  const handleCountdownComplete = useCallback(() => {
     if (!reactionCameraRef.current) return;
     try {
+      isRecordingRef.current = true;
+      setIsRecording(true);
       recordingPromiseRef.current = reactionCameraRef.current.recordAsync({
-        maxDuration: Math.ceil(holdDuration / 1000),
+        maxDuration: MAX_REACTION_DURATION_S,
       });
     } catch {
+      isRecordingRef.current = false;
+      setIsRecording(false);
       recordingPromiseRef.current = null;
     }
-  }, [holdDuration]);
+  }, []);
 
-  const handleRelease = useCallback(async () => {
-    if (releasedRef.current) return;
-    releasedRef.current = true;
-
-    const userId = user?.id ?? 'guest';
-    let videoUri: string | null = null;
-
-    try {
-      if (reactionCameraRef.current) {
-        reactionCameraRef.current.stopRecording();
-      }
-      if (recordingPromiseRef.current) {
-        const result = await recordingPromiseRef.current;
-        videoUri = result?.uri ?? null;
-      }
-    } catch (e) {
-      Sentry.captureException(e);
-      videoUri = null;
-    } finally {
-      recordingPromiseRef.current = null;
-    }
-
-    if (videoUri) {
-      uploadReaction(videoUri, userId)
+  const handleSendReaction = useCallback(
+    async (uri: string) => {
+      const userId = user?.id ?? 'guest';
+      uploadReaction(uri, userId)
         .then(async (result) => {
+          if (!isMountedRef.current) return;
           if (conversationId) {
             sendMessage(
               conversationId,
@@ -157,14 +152,70 @@ export default function ViewGaspScreen() {
           }
         })
         .catch((e) => {
-          // Reaction não enviada — UX não trava o usuário; backend marca como `viewed`
-          // no unmount via closeViewMutation. Gasp replayable continua acessível.
+          // Reaction not sent — UX does not block the user; backend marks as `viewed`
+          // on unmount via closeViewMutation. Replayable gasp remains accessible.
           Sentry.captureException(e);
         });
+    },
+    [gasp, user, createReactionMutation, conversationId, messageId, sendMessage],
+  );
+
+  const handleRelease = useCallback(async () => {
+    if (releasedRef.current) return;
+    releasedRef.current = true;
+
+    // Cancel countdown if it hasn't completed yet
+    setIsCountingDown(false);
+
+    let videoUri: string | null = null;
+
+    try {
+      if (reactionCameraRef.current && isRecordingRef.current) {
+        reactionCameraRef.current.stopRecording();
+        isRecordingRef.current = false;
+        setIsRecording(false);
+      }
+      if (recordingPromiseRef.current) {
+        const result = await recordingPromiseRef.current;
+        videoUri = result?.uri ?? null;
+      }
+    } catch (e) {
+      Sentry.captureException(e);
+      videoUri = null;
+    } finally {
+      recordingPromiseRef.current = null;
     }
 
+    if (!isMountedRef.current) return;
+
+    if (videoUri) {
+      setPreviewUri(videoUri);
+    } else {
+      router.back();
+    }
+  }, []);
+
+  const handleSend = useCallback(() => {
+    if (!previewUri) return;
+    const uri = previewUri;
+    setPreviewUri(null);
+    handleSendReaction(uri);
     router.back();
-  }, [gasp, user, createReactionMutation, conversationId, messageId, sendMessage]);
+  }, [previewUri, handleSendReaction]);
+
+  const handleReRecord = useCallback(() => {
+    setPreviewUri(null);
+    releasedRef.current = false;
+  }, []);
+
+  const handleDiscard = useCallback(() => {
+    setPreviewUri(null);
+    const id = gaspIdRef.current;
+    if (id) {
+      closeViewMutation.mutate(id);
+    }
+    router.back();
+  }, [closeViewMutation]);
 
   const handleHoldComplete = useCallback(() => {
     handleRelease();
@@ -177,14 +228,20 @@ export default function ViewGaspScreen() {
     duration: holdDuration,
   });
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     router.back();
-  };
+  }, []);
 
-  const handleGrantReactionAccess = async () => {
+  const handleGrantReactionAccess = useCallback(async () => {
     await requestCameraPermission();
     await requestMicPermission();
-  };
+  }, [requestCameraPermission, requestMicPermission]);
+
+  // All hooks are defined above — safe to early-return after this point
+  if (!imageUri) {
+    router.back();
+    return null;
+  }
 
   if (!cameraPermission?.granted || !micPermission?.granted) {
     return (
@@ -247,7 +304,18 @@ export default function ViewGaspScreen() {
         </View>
       </GestureDetector>
 
-      <ReactionCapture isActive={isHolding} cameraRef={reactionCameraRef} />
+      <ReactionCapture
+        isActive={isHolding}
+        isVisible={!!(cameraPermission?.granted && micPermission?.granted)}
+        isRecording={isRecording}
+        maxDurationS={MAX_REACTION_DURATION_S}
+        cameraRef={reactionCameraRef}
+      />
+
+      <RecordingCountdown
+        isActive={isCountingDown}
+        onCountdownComplete={handleCountdownComplete}
+      />
 
       <Pressable
         onPress={handleClose}
@@ -257,6 +325,19 @@ export default function ViewGaspScreen() {
       >
         <X size={24} color="#FFFFFF" />
       </Pressable>
+
+      {previewUri !== null && (
+        <View style={styles.previewOverlay}>
+          <ReactionPreview
+            originalImageUri={imageUri}
+            reactionVideoUri={previewUri}
+            senderName={senderName}
+            onSend={handleSend}
+            onReRecord={handleReRecord}
+            onDiscard={handleDiscard}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -279,6 +360,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+  },
+  previewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
   },
   permissionOverlay: {
     ...StyleSheet.absoluteFillObject,

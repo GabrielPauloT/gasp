@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+﻿import { View } from 'react-native';
 import { Play } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { SectionHeader } from './SectionHeader';
@@ -25,7 +25,7 @@ export function ReactionSection({ reactions }: ReactionSectionProps) {
     <View>
       <SectionHeader
         icon={<Play size={16} color="#A855F7" />}
-        title={t('inbox.reactions')}
+        title={t('gasps.reactions')}
         count={reactions.length}
         badgeColor="#A855F7"
       />
@@ -39,3 +39,4 @@ export function ReactionSection({ reactions }: ReactionSectionProps) {
     </View>
   );
 }
+

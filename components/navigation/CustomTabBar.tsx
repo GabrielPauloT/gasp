@@ -1,4 +1,4 @@
-import { View, StyleSheet } from 'react-native';
+﻿import { View, StyleSheet } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,9 @@ import {
 import type { LucideIcon } from 'lucide-react-native';
 
 import { TabBarIcon } from './TabBarIcon';
+import { UnreadDot } from '@/components/ui/UnreadDot';
+import { useConversations } from '@/hooks/queries/useChat';
+import { usePendingGasps } from '@/hooks/queries/useGasps';
 
 const TAB_ICONS: Record<string, LucideIcon> = {
   discover: Compass,
@@ -24,13 +27,19 @@ const TAB_ICONS: Record<string, LucideIcon> = {
 const TAB_LABELS: Record<string, string> = {
   discover: 'Discover',
   camera: 'Camera',
-  inbox: 'Inbox',
+  inbox: 'Gasps',
   chat: 'Chat',
   profile: 'Profile',
 };
 
 export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+
+  const { data: conversations } = useConversations();
+  const { data: pendingGasps } = usePendingGasps();
+
+  const hasUnreadChats = conversations?.some((c) => c.unreadCount > 0) ?? false;
+  const hasUnreadGasps = (pendingGasps?.length ?? 0) > 0;
 
   return (
     <View
@@ -74,15 +83,25 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
           const Icon = TAB_ICONS[route.name] ?? Compass;
           const label = TAB_LABELS[route.name] ?? options.title ?? route.name;
 
+          const showUnread =
+            (route.name === 'chat' && hasUnreadChats) ||
+            (route.name === 'inbox' && hasUnreadGasps);
+
           return (
-            <TabBarIcon
-              key={route.key}
-              icon={Icon}
-              label={label}
-              focused={isFocused}
-              onPress={onPress}
-              onLongPress={onLongPress}
-            />
+            <View key={route.key} style={styles.tabWrapper}>
+              {showUnread ? (
+                <View style={styles.unreadDotContainer}>
+                  <UnreadDot size="sm" />
+                </View>
+              ) : null}
+              <TabBarIcon
+                icon={Icon}
+                label={label}
+                focused={isFocused}
+                onPress={onPress}
+                onLongPress={onLongPress}
+              />
+            </View>
           );
         })}
       </View>
@@ -107,5 +126,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 60,
     alignItems: 'center',
+  },
+  tabWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  unreadDotContainer: {
+    position: 'absolute',
+    top: 6,
+    right: '50%',
+    marginRight: -18,
+    zIndex: 10,
   },
 });
