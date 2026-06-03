@@ -14,12 +14,16 @@ describe('useHoldGesture', () => {
   // ── Return value shape ────────────────────────────────────────────────────────
 
   describe('return values', () => {
-    it('returns gesture, isHolding, and holdProgress', () => {
+    it('returns gesture, isHolding, holdProgress, startProgressAnimation, and resetProgress', () => {
       const { result } = renderHook(() => useHoldGesture());
 
       expect(result.current.gesture).toBeDefined();
       expect(result.current.isHolding).toBeDefined();
       expect(result.current.holdProgress).toBeDefined();
+      expect(result.current.startProgressAnimation).toBeDefined();
+      expect(typeof result.current.startProgressAnimation).toBe('function');
+      expect(result.current.resetProgress).toBeDefined();
+      expect(typeof result.current.resetProgress).toBe('function');
     });
 
     it('isHolding is a shared value initialized to 0', () => {
@@ -31,6 +35,13 @@ describe('useHoldGesture', () => {
     it('holdProgress is a shared value initialized to 0', () => {
       const { result } = renderHook(() => useHoldGesture());
 
+      expect(result.current.holdProgress.value).toBe(0);
+    });
+
+    it('holdProgress stays at 0 after hook initializes (no auto-animation)', () => {
+      const { result } = renderHook(() => useHoldGesture());
+
+      // Ring should not animate on its own — only after startProgressAnimation()
       expect(result.current.holdProgress.value).toBe(0);
     });
 

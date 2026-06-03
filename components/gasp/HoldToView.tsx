@@ -28,11 +28,17 @@ interface HoldToViewProps {
   textOverlayJson?: string;
   /** When true, media was imported from gallery — use contain fit to preserve aspect ratio */
   fromGallery?: boolean;
-  /** Shared value controlado pelo pai (0 = não segurando, 1 = segurando) */
+  /** Shared value (0 = not holding, 1 = holding) — controls instruction overlay visibility */
   isHolding: SharedValue<number>;
-  /** Shared value controlado pelo pai (0 a 1, progresso do hold) */
+  /** Shared value (0–1) — ring progress, starts after countdown completes */
   holdProgress: SharedValue<number>;
-  /** Callback com duração do vídeo em ms (chamado quando o player carrega) */
+  /**
+   * Shared value (0 = hidden, 1 = revealed) — controls media visibility.
+   * Set to 1 after countdown completes, stays 1 until screen closes or re-record.
+   * Decoupled from isHolding so media stays visible when finger lifts mid-recording.
+   */
+  isRevealed: SharedValue<number>;
+  /** Callback with video duration in ms (called when player loads) */
   onVideoLoad?: (durationMs: number) => void;
 }
 
@@ -45,6 +51,7 @@ export function HoldToView({
   fromGallery = false,
   isHolding,
   holdProgress,
+  isRevealed,
   onVideoLoad,
 }: HoldToViewProps) {
   const isVideo = mediaType === 'video';
@@ -94,7 +101,7 @@ export function HoldToView({
   }, [videoPlayer, isVideo]);
 
   useAnimatedReaction(
-    () => isHolding.get(),
+    () => isRevealed.get(),
     (current, previous) => {
       if (current === 1 && previous !== 1) {
         runOnJS(startVideo)();
@@ -104,10 +111,13 @@ export function HoldToView({
     },
   );
 
+  // Media opacity: fade in when isRevealed transitions to 1
   const imageStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(isHolding.get(), [0, 1], [0, 1]),
+    opacity: interpolate(isRevealed.get(), [0, 1], [0, 1]),
   }));
 
+  // Instruction overlay: hide as soon as user starts holding (isHolding),
+  // so the countdown is visible without the "HOLD TO VIEW" text in the way
   const instructionStyle = useAnimatedStyle(() => ({
     opacity: interpolate(isHolding.get(), [0, 1], [1, 0]),
     transform: [
@@ -115,8 +125,9 @@ export function HoldToView({
     ],
   }));
 
+  // Ring timer: visible once revealed (recording in progress)
   const timerStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(isHolding.get(), [0, 1], [0, 1]),
+    opacity: interpolate(isRevealed.get(), [0, 1], [0, 1]),
   }));
 
   return (

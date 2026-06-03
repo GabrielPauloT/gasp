@@ -23,6 +23,8 @@ export function useHoldGesture({
   duration = HOLD_DURATION_MS,
 }: UseHoldGestureProps = {}) {
   const isHolding = useSharedValue(0);
+  // holdProgress is driven externally via startProgressAnimation() after the
+  // countdown completes — NOT auto-animated on hold start.
   const holdProgress = useSharedValue(0);
   const holdCompleteRef = useRef(false);
   const durationSV = useSharedValue(duration);
@@ -49,23 +51,35 @@ export function useHoldGesture({
     }
   }, [onHoldComplete]);
 
+  // Called by the parent after countdown completes to start the ring animation.
+  // Duration reflects gasp media duration, independent of the countdown.
+  const startProgressAnimation = useCallback(() => {
+    holdCompleteRef.current = false;
+    holdProgress.value = 0;
+    holdProgress.value = withTiming(1, { duration: durationSV.value }, (finished) => {
+      if (finished) {
+        runOnJS(handleHoldComplete)();
+      }
+    });
+  }, [holdProgress, durationSV, handleHoldComplete]);
+
+  const resetProgress = useCallback(() => {
+    cancelAnimation(holdProgress);
+    holdProgress.value = withTiming(0, { duration: 200 });
+    holdCompleteRef.current = false;
+  }, [holdProgress]);
+
   const gesture = Gesture.LongPress()
     .minDuration(0)
     .onStart(() => {
       isHolding.set(1);
-      holdProgress.set(
-        withTiming(1, { duration: durationSV.value }, (finished) => {
-          if (finished) {
-            runOnJS(handleHoldComplete)();
-          }
-        })
-      );
+      // Ring starts only after countdown via startProgressAnimation().
       runOnJS(handleHoldStart)();
     })
     .onEnd(() => {
       isHolding.set(0);
       cancelAnimation(holdProgress);
-      holdProgress.set(withTiming(0, { duration: 200 }));
+      holdProgress.value = withTiming(0, { duration: 200 });
       runOnJS(handleHoldEnd)();
     });
 
@@ -73,5 +87,7 @@ export function useHoldGesture({
     gesture,
     isHolding,
     holdProgress,
+    startProgressAnimation,
+    resetProgress,
   };
 }
