@@ -1,10 +1,10 @@
-﻿import { useRef, useState, useCallback, useEffect } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { useSharedValue } from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
-import * as Sentry from '@sentry/react-native';
 import { X, Camera } from 'lucide-react-native';
 import { HoldToView } from '@/components/gasp/HoldToView';
 import { ReactionCapture } from '@/components/gasp/ReactionCapture';
@@ -12,19 +12,10 @@ import { ReactionPreview } from '@/components/gasp/ReactionPreview';
 import { RecordingCountdown } from '@/components/gasp/RecordingCountdown';
 import { Text } from '@/components/ui/Text';
 import { useHoldGesture } from '@/hooks/useHoldGesture';
+import { useViewGasp } from '@/hooks/useViewGasp';
 import { useGaspStore } from '@/stores/gaspStore';
-import { useChatStore } from '@/stores/chatStore';
-import { useAuthStore } from '@/stores/authStore';
-import {
-  useOpenGasp,
-  useCloseViewGasp,
-  useCreateReaction,
-  usePendingGasps,
-} from '@/hooks/queries/useGasps';
-import { uploadReaction } from '@/services/storage';
+import { useOpenGasp, usePendingGasps } from '@/hooks/queries/useGasps';
 import { colors } from '@/constants/colors';
-
-const MAX_REACTION_DURATION_S = 30;
 
 export default function ViewGaspScreen() {
   const insets = useSafeAreaInsets();
@@ -38,26 +29,11 @@ export default function ViewGaspScreen() {
     chatMessageId?: string;
     chatTextOverlay?: string;
   }>();
+
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
-  const reactionCameraRef = useRef<CameraView>(null);
-  const user = useAuthStore((s) => s.user);
   const { data: pendingGasps = [] } = usePendingGasps();
   const openGaspMutation = useOpenGasp();
-  const closeViewMutation = useCloseViewGasp();
-  const createReactionMutation = useCreateReaction();
-  const { sendMessage } = useChatStore();
-
-  const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
-  const releasedRef = useRef(false);
-  const openedRef = useRef(false);
-  const reactionSucceededRef = useRef(false);
-  const gaspIdRef = useRef<string | null>(null);
-  const isRecordingRef = useRef(false);
-  const isMountedRef = useRef(true);
-  const [isCountingDown, setIsCountingDown] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
 
   const gasp = params.gaspId
     ? pendingGasps.find((g) => g.id === params.gaspId) ?? pendingGasps[0]
@@ -74,10 +50,57 @@ export default function ViewGaspScreen() {
   const [holdDuration, setHoldDuration] = useState(
     mediaType === 'video' ? 10_000 : IMAGE_VIEW_DURATION,
   );
-
   const handleVideoLoad = useCallback((durationMs: number) => {
     setHoldDuration(durationMs);
   }, []);
+
+  // Owned here so it can be passed to both useViewGasp and HoldToView.
+  // 0 = hidden (blurred), 1 = revealed. Set to 1 after countdown, reset on re-record.
+  const isRevealed = useSharedValue(0);
+
+  // Stable refs so useViewGasp can call startProgressAnimation/resetProgress
+  // that are only defined after useHoldGesture runs below.
+  const startProgressRef = useRef<() => void>(() => {});
+  const resetProgressRef = useRef<() => void>(() => {});
+  const stableStartProgress = useCallback(() => startProgressRef.current(), []);
+  const stableResetProgress = useCallback(() => resetProgressRef.current(), []);
+
+  const {
+    reactionCameraRef,
+    gaspIdRef,
+    openedRef,
+    isCountingDown,
+    isRecording,
+    previewUri,
+    handleHoldStart,
+    handleCountdownComplete,
+    handleRelease,
+    handleSend,
+    handleReRecord,
+    handleDiscard,
+    MAX_REACTION_DURATION_S,
+  } = useViewGasp({
+    gasp,
+    conversationId,
+    messageId,
+    isRevealed,
+    startProgressAnimation: stableStartProgress,
+    resetProgress: stableResetProgress,
+  });
+
+  const { gesture, isHolding, holdProgress, startProgressAnimation, resetProgress } =
+    useHoldGesture({
+      onHoldStart: handleHoldStart,
+      onHoldComplete: handleRelease,
+      onHoldEnd: handleRelease,
+      duration: holdDuration,
+    });
+
+  // Keep stable refs pointing at the live implementations.
+  useEffect(() => {
+    startProgressRef.current = startProgressAnimation;
+    resetProgressRef.current = resetProgress;
+  }, [startProgressAnimation, resetProgress]);
 
   // Mark chat gasp viewed locally (UI only)
   useEffect(() => {
@@ -93,194 +116,36 @@ export default function ViewGaspScreen() {
       gaspIdRef.current = gasp.id;
       openGaspMutation.mutate(gasp.id);
     }
-  }, [gasp, openGaspMutation]);
+  }, [gasp, openGaspMutation, openedRef, gaspIdRef]);
 
-  // On unmount: if opened but no reaction sent, close-view to mark as `viewed`
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      recordingPromiseRef.current = null;
-      const id = gaspIdRef.current;
-      if (id && openedRef.current && !reactionSucceededRef.current) {
-        closeViewMutation.mutate(id);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleHoldStart = useCallback(() => {
-    releasedRef.current = false;
-    setIsCountingDown(true);
-  }, []);
-
-  const handleCountdownComplete = useCallback(() => {
-    if (!reactionCameraRef.current) return;
-    try {
-      isRecordingRef.current = true;
-      setIsRecording(true);
-      recordingPromiseRef.current = reactionCameraRef.current.recordAsync({
-        maxDuration: MAX_REACTION_DURATION_S,
-      });
-    } catch {
-      isRecordingRef.current = false;
-      setIsRecording(false);
-      recordingPromiseRef.current = null;
-    }
-  }, []);
-
-  const handleSendReaction = useCallback(
-    async (uri: string) => {
-      const userId = user?.id ?? 'guest';
-      uploadReaction(uri, userId)
-        .then(async (result) => {
-          if (!isMountedRef.current) return;
-          if (conversationId) {
-            sendMessage(
-              conversationId,
-              '[Reaction]',
-              'reaction',
-              result.downloadUrl,
-              messageId || undefined,
-            );
-            reactionSucceededRef.current = true;
-          } else if (gasp) {
-            await createReactionMutation.mutateAsync({
-              gaspId: gasp.id,
-              videoUrl: result.downloadUrl,
-            });
-            reactionSucceededRef.current = true;
-          }
-        })
-        .catch((e) => {
-          // Reaction not sent — UX does not block the user; backend marks as `viewed`
-          // on unmount via closeViewMutation. Replayable gasp remains accessible.
-          Sentry.captureException(e);
-        });
-    },
-    [gasp, user, createReactionMutation, conversationId, messageId, sendMessage],
-  );
-
-  const handleRelease = useCallback(async () => {
-    if (releasedRef.current) return;
-    releasedRef.current = true;
-
-    // Cancel countdown if it hasn't completed yet
-    setIsCountingDown(false);
-
-    let videoUri: string | null = null;
-
-    try {
-      if (reactionCameraRef.current && isRecordingRef.current) {
-        reactionCameraRef.current.stopRecording();
-        isRecordingRef.current = false;
-        setIsRecording(false);
-      }
-      if (recordingPromiseRef.current) {
-        const result = await recordingPromiseRef.current;
-        videoUri = result?.uri ?? null;
-      }
-    } catch (e) {
-      Sentry.captureException(e);
-      videoUri = null;
-    } finally {
-      recordingPromiseRef.current = null;
-    }
-
-    if (!isMountedRef.current) return;
-
-    if (videoUri) {
-      setPreviewUri(videoUri);
-    } else {
-      router.back();
-    }
-  }, []);
-
-  const handleSend = useCallback(() => {
-    if (!previewUri) return;
-    const uri = previewUri;
-    setPreviewUri(null);
-    handleSendReaction(uri);
-    router.back();
-  }, [previewUri, handleSendReaction]);
-
-  const handleReRecord = useCallback(() => {
-    setPreviewUri(null);
-    releasedRef.current = false;
-  }, []);
-
-  const handleDiscard = useCallback(() => {
-    setPreviewUri(null);
-    const id = gaspIdRef.current;
-    if (id) {
-      closeViewMutation.mutate(id);
-    }
-    router.back();
-  }, [closeViewMutation]);
-
-  const handleHoldComplete = useCallback(() => {
-    handleRelease();
-  }, [handleRelease]);
-
-  const { gesture, isHolding, holdProgress } = useHoldGesture({
-    onHoldStart: handleHoldStart,
-    onHoldComplete: handleHoldComplete,
-    onHoldEnd: handleRelease,
-    duration: holdDuration,
-  });
-
-  const handleClose = useCallback(() => {
-    router.back();
-  }, []);
+  const handleClose = useCallback(() => { router.back(); }, []);
 
   const handleGrantReactionAccess = useCallback(async () => {
     await requestCameraPermission();
     await requestMicPermission();
   }, [requestCameraPermission, requestMicPermission]);
 
-  // All hooks are defined above — safe to early-return after this point
-  if (!imageUri) {
-    router.back();
-    return null;
-  }
+  if (!imageUri) { router.back(); return null; }
 
   if (!cameraPermission?.granted || !micPermission?.granted) {
     return (
       <View style={styles.container}>
-        <HoldToView
-          imageUri={imageUri}
-          mediaType={mediaType}
-          blurhash={blurhash}
-          senderName={senderName}
-          isHolding={isHolding}
-          holdProgress={holdProgress}
-        />
+        <HoldToView imageUri={imageUri} mediaType={mediaType} blurhash={blurhash}
+          senderName={senderName} isHolding={isHolding} holdProgress={holdProgress}
+          isRevealed={isRevealed} />
         <View style={styles.permissionOverlay}>
           <View style={styles.permissionCard}>
             <Camera size={40} color={colors.primary} />
-            <Text variant="subtitle" style={styles.permissionTitle}>
-              {'Camera & Microphone Required'}
-            </Text>
-            <Text variant="body" style={styles.permissionText}>
-              {'GASP needs your front camera and microphone to capture your reaction while viewing'}
-            </Text>
-            <Pressable
-              onPress={handleGrantReactionAccess}
-              accessibilityRole="button"
-              accessibilityLabel="Grant camera and microphone access"
-              style={styles.permissionButton}
-            >
-              <Text variant="body" style={styles.permissionButtonText}>
-                {'Grant Access'}
-              </Text>
+            <Text variant="subtitle" style={styles.permissionTitle}>{'Camera & Microphone Required'}</Text>
+            <Text variant="body" style={styles.permissionText}>{'GASP needs your front camera and microphone to capture your reaction while viewing'}</Text>
+            <Pressable onPress={handleGrantReactionAccess} accessibilityRole="button"
+              accessibilityLabel="Grant camera and microphone access" style={styles.permissionButton}>
+              <Text variant="body" style={styles.permissionButtonText}>{'Grant Access'}</Text>
             </Pressable>
           </View>
         </View>
-        <Pressable
-          onPress={handleClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close gasp viewer"
-          style={[styles.closeButton, { top: insets.top + 12 }]}
-        >
+        <Pressable onPress={handleClose} accessibilityRole="button"
+          accessibilityLabel="Close gasp viewer" style={[styles.closeButton, { top: insets.top + 12 }]}>
           <X size={24} color="#FFFFFF" />
         </Pressable>
       </View>
@@ -291,51 +156,26 @@ export default function ViewGaspScreen() {
     <View style={styles.container}>
       <GestureDetector gesture={gesture}>
         <View style={styles.gestureArea}>
-          <HoldToView
-            imageUri={imageUri}
-            mediaType={mediaType}
-            blurhash={blurhash}
-            senderName={senderName}
-            textOverlayJson={params.chatTextOverlay}
-            isHolding={isHolding}
-            holdProgress={holdProgress}
-            onVideoLoad={handleVideoLoad}
-          />
+          <HoldToView imageUri={imageUri} mediaType={mediaType} blurhash={blurhash}
+            senderName={senderName} textOverlayJson={params.chatTextOverlay}
+            isHolding={isHolding} holdProgress={holdProgress} isRevealed={isRevealed}
+            onVideoLoad={handleVideoLoad} />
         </View>
       </GestureDetector>
-
-      <ReactionCapture
-        isActive={isHolding}
+      <ReactionCapture isActive={isHolding}
         isVisible={!!(cameraPermission?.granted && micPermission?.granted)}
-        isRecording={isRecording}
-        maxDurationS={MAX_REACTION_DURATION_S}
-        cameraRef={reactionCameraRef}
-      />
-
-      <RecordingCountdown
-        isActive={isCountingDown}
-        onCountdownComplete={handleCountdownComplete}
-      />
-
-      <Pressable
-        onPress={handleClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close gasp viewer"
-        style={[styles.closeButton, { top: insets.top + 12 }]}
-      >
+        isRecording={isRecording} maxDurationS={MAX_REACTION_DURATION_S}
+        cameraRef={reactionCameraRef} />
+      <RecordingCountdown isActive={isCountingDown} onCountdownComplete={handleCountdownComplete} />
+      <Pressable onPress={handleClose} accessibilityRole="button"
+        accessibilityLabel="Close gasp viewer" style={[styles.closeButton, { top: insets.top + 12 }]}>
         <X size={24} color="#FFFFFF" />
       </Pressable>
-
       {previewUri !== null && (
         <View style={styles.previewOverlay}>
-          <ReactionPreview
-            originalImageUri={imageUri}
-            reactionVideoUri={previewUri}
-            senderName={senderName}
-            onSend={handleSend}
-            onReRecord={handleReRecord}
-            onDiscard={handleDiscard}
-          />
+          <ReactionPreview originalImageUri={imageUri} reactionVideoUri={previewUri}
+            senderName={senderName} onSend={handleSend} onReRecord={handleReRecord}
+            onDiscard={handleDiscard} />
         </View>
       )}
     </View>
@@ -343,70 +183,26 @@ export default function ViewGaspScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  gestureArea: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  gestureArea: { flex: 1 },
   closeButton: {
-    position: 'absolute',
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
+    position: 'absolute', right: 20, width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 10,
   },
-  previewOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 20,
-  },
+  previewOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 20 },
   permissionOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    zIndex: 5,
+    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, zIndex: 5,
   },
   permissionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    borderCurve: 'continuous',
-    padding: 32,
-    alignItems: 'center',
-    gap: 12,
-    width: '100%',
+    backgroundColor: colors.surface, borderRadius: 24, borderCurve: 'continuous',
+    padding: 32, alignItems: 'center', gap: 12, width: '100%',
   },
-  permissionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginTop: 4,
-  },
-  permissionText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+  permissionTitle: { fontSize: 20, fontWeight: '700', color: colors.textPrimary, marginTop: 4 },
+  permissionText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   permissionButton: {
-    marginTop: 8,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 28,
-    borderCurve: 'continuous',
-    backgroundColor: colors.primary,
-    width: '100%',
-    alignItems: 'center',
+    marginTop: 8, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 28,
+    borderCurve: 'continuous', backgroundColor: colors.primary, width: '100%', alignItems: 'center',
   },
-  permissionButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 16,
-  },
+  permissionButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
 });
