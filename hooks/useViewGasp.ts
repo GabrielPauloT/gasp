@@ -6,7 +6,7 @@ import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useCloseViewGasp, useCreateReaction } from '@/hooks/queries/useGasps';
-import { uploadReaction } from '@/services/storage';
+import { uploadWithRetry } from '@/services/uploadQueue';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 
 const MAX_REACTION_DURATION_S = 30;
@@ -96,7 +96,7 @@ export function useViewGasp({
 
   const handleSendReaction = useCallback(async (uri: string) => {
     const userId = user?.id ?? 'guest';
-    uploadReaction(uri, userId)
+    uploadWithRetry(uri, 'reactions', userId)
       .then(async (result) => {
         if (!isMountedRef.current) return;
         if (!result.downloadUrl) {
