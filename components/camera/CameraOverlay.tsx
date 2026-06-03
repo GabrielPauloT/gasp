@@ -1,11 +1,15 @@
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { useSharedValue, withTiming, useAnimatedStyle, Easing } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraControls } from './CameraControls';
 import { CaptureButton } from './CaptureButton';
 import { RecentThumbnail } from './RecentThumbnail';
 import { EffectsButton } from './EffectsButton';
 import { EffectsPanel } from './EffectsPanel';
+
+const MAX_RECORD_DURATION_S = 10;
 
 interface CameraOverlayProps {
   flashMode: 'off' | 'on' | 'auto';
@@ -44,8 +48,51 @@ export function CameraOverlay({
 }: CameraOverlayProps) {
   const insets = useSafeAreaInsets();
 
+  // Animated progress bar — fills from 0 to 1 over MAX_RECORD_DURATION_S while recording
+  const progress = useSharedValue(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [remainingS, setRemainingS] = useState(MAX_RECORD_DURATION_S);
+
+  useEffect(() => {
+    if (isRecording) {
+      setRemainingS(MAX_RECORD_DURATION_S);
+      progress.value = 0;
+      progress.value = withTiming(1, {
+        duration: MAX_RECORD_DURATION_S * 1000,
+        easing: Easing.linear,
+      });
+      intervalRef.current = setInterval(() => {
+        setRemainingS((prev) => {
+          if (prev <= 1) {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      progress.value = withTiming(0, { duration: 200 });
+      setRemainingS(MAX_RECORD_DURATION_S);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRecording, progress]);
+
+  const progressBarStyle = useAnimatedStyle(() => ({
+    width: `${progress.value * 100}%`,
+  }));
+
   return (
     <View style={styles.container}>
+      {/* Recording progress bar — shown at top during recording */}
+      {isRecording && (
+        <View style={[styles.progressTrack, { top: insets.top + 8 }]}>
+          <Animated.View style={[styles.progressFill, progressBarStyle]} />
+        </View>
+      )}
+
       {/* Top gradient fade — hidden while recording */}
       {!isRecording && (
         <LinearGradient
@@ -115,5 +162,19 @@ const styles = StyleSheet.create({
   },
   bottomControlsRecording: {
     justifyContent: 'center',
+  },
+  progressTrack: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#EF4444',
+    borderRadius: 2,
   },
 });
