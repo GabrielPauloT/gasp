@@ -6,7 +6,7 @@ import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useCloseViewGasp, useCreateReaction } from '@/hooks/queries/useGasps';
-import { uploadReaction } from '@/services/storage';
+import { uploadWithRetry } from '@/services/uploadQueue';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 
 const MAX_REACTION_DURATION_S = 30;
@@ -15,6 +15,8 @@ interface UseViewGaspProps {
   gasp: Gasp | null;
   conversationId: string;
   messageId: string;
+  /** Actual gasp media duration in seconds — used for recordAsync maxDuration and PiP timer */
+  holdDurationS: number;
   /** Shared value owned by the screen — set to 1 when recording starts, 0 on reset */
   isRevealed: SharedValue<number>;
   startProgressAnimation: () => void;
@@ -29,6 +31,7 @@ export function useViewGasp({
   gasp,
   conversationId,
   messageId,
+  holdDurationS,
   isRevealed,
   startProgressAnimation,
   resetProgress,
@@ -72,29 +75,34 @@ export function useViewGasp({
   // Called when the 3-2-1 countdown finishes:
   // 1. Reveal the media (isRevealed → 1)
   // 2. Start the progress ring animation (gasp media duration)
-  // 3. Start recording
+  // 3. Start recording for exactly the gasp media duration (capped at MAX_REACTION_DURATION_S)
   const handleCountdownComplete = useCallback(() => {
     isRevealed.value = withTiming(1, { duration: 300 });
     startProgressAnimation();
     if (!reactionCameraRef.current) return;
+    const reactionDurationS = Math.min(holdDurationS, MAX_REACTION_DURATION_S);
     try {
       isRecordingRef.current = true;
       setIsRecording(true);
       recordingPromiseRef.current = reactionCameraRef.current.recordAsync({
-        maxDuration: MAX_REACTION_DURATION_S,
+        maxDuration: reactionDurationS,
       });
     } catch {
       isRecordingRef.current = false;
       setIsRecording(false);
       recordingPromiseRef.current = null;
     }
-  }, [isRevealed, startProgressAnimation]);
+  }, [isRevealed, startProgressAnimation, holdDurationS]);
 
   const handleSendReaction = useCallback(async (uri: string) => {
     const userId = user?.id ?? 'guest';
-    uploadReaction(uri, userId)
+    uploadWithRetry(uri, 'reactions', userId)
       .then(async (result) => {
         if (!isMountedRef.current) return;
+        if (!result.downloadUrl) {
+          Sentry.captureException(new Error('uploadReaction returned empty downloadUrl'));
+          return;
+        }
         if (conversationId) {
           sendMessage(
             conversationId,
@@ -180,6 +188,8 @@ export function useViewGasp({
     isCountingDown,
     isRecording,
     previewUri,
+    /** Actual reaction recording duration in seconds (= gasp duration capped at 30s) */
+    reactionDurationS: Math.min(holdDurationS, MAX_REACTION_DURATION_S),
     handleHoldStart,
     handleCountdownComplete,
     handleRelease,

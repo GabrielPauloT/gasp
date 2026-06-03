@@ -46,7 +46,9 @@ export default function ViewGaspScreen() {
   const conversationId = params.chatConversationId || '';
   const messageId = params.chatMessageId || '';
 
-  const IMAGE_VIEW_DURATION = 30_000;
+  // Image gasps: 10s fixed. Video gasps: actual video duration (set by onVideoLoad).
+  // Both capped at MAX_REACTION_DURATION_S (30s) inside useViewGasp.
+  const IMAGE_VIEW_DURATION = 10_000;
   const [holdDuration, setHoldDuration] = useState(
     mediaType === 'video' ? 10_000 : IMAGE_VIEW_DURATION,
   );
@@ -72,17 +74,18 @@ export default function ViewGaspScreen() {
     isCountingDown,
     isRecording,
     previewUri,
+    reactionDurationS,
     handleHoldStart,
     handleCountdownComplete,
     handleRelease,
     handleSend,
     handleReRecord,
     handleDiscard,
-    MAX_REACTION_DURATION_S,
   } = useViewGasp({
     gasp,
     conversationId,
     messageId,
+    holdDurationS: Math.ceil(holdDuration / 1000),
     isRevealed,
     startProgressAnimation: stableStartProgress,
     resetProgress: stableResetProgress,
@@ -164,7 +167,7 @@ export default function ViewGaspScreen() {
       </GestureDetector>
       <ReactionCapture isActive={isHolding}
         isVisible={!!(cameraPermission?.granted && micPermission?.granted)}
-        isRecording={isRecording} maxDurationS={MAX_REACTION_DURATION_S}
+        isRecording={isRecording} maxDurationS={reactionDurationS}
         cameraRef={reactionCameraRef} />
       <RecordingCountdown isActive={isCountingDown} onCountdownComplete={handleCountdownComplete} />
       <Pressable onPress={handleClose} accessibilityRole="button"

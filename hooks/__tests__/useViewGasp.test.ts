@@ -17,9 +17,9 @@ jest.mock('expo-router', () => ({
 // Mock navigation
 const mockRouter = require('expo-router').router;
 
-// Mock services/storage
-jest.mock('@/services/storage', () => ({
-  uploadReaction: jest.fn(() => Promise.resolve({ downloadUrl: 'https://cdn.test/reaction.mp4' })),
+// Mock services/uploadQueue
+jest.mock('@/services/uploadQueue', () => ({
+  uploadWithRetry: jest.fn(() => Promise.resolve({ downloadUrl: 'https://cdn.test/reaction.mp4' })),
 }));
 
 // Mock queries/useGasps
