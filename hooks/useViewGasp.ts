@@ -96,33 +96,34 @@ export function useViewGasp({
 
   const handleSendReaction = useCallback(async (uri: string) => {
     const userId = user?.id ?? 'guest';
-    uploadWithRetry(uri, 'reactions', userId)
-      .then(async (result) => {
-        if (!isMountedRef.current) return;
-        if (!result.downloadUrl) {
-          Sentry.captureException(new Error('uploadReaction returned empty downloadUrl'));
-          return;
-        }
-        if (conversationId) {
-          sendMessage(
-            conversationId,
-            '[Reaction]',
-            'reaction',
-            result.downloadUrl,
-            messageId || undefined,
-          );
-          reactionSucceededRef.current = true;
-        } else if (gasp) {
-          await createReactionMutation.mutateAsync({
-            gaspId: gasp.id,
-            videoUrl: result.downloadUrl,
-          });
-          reactionSucceededRef.current = true;
-        }
-      })
-      .catch((e) => {
-        Sentry.captureException(e);
-      });
+    // Navigate back immediately so the user doesn't wait for upload.
+    // isMountedRef guard is removed here because we NEED to send even after navigation.
+    router.back();
+    try {
+      const result = await uploadWithRetry(uri, 'reactions', userId);
+      if (!result.downloadUrl) {
+        Sentry.captureException(new Error('uploadWithRetry returned empty downloadUrl'));
+        return;
+      }
+      if (conversationId) {
+        sendMessage(
+          conversationId,
+          '[Reaction]',
+          'reaction',
+          result.downloadUrl,
+          messageId || undefined,
+        );
+        reactionSucceededRef.current = true;
+      } else if (gasp) {
+        await createReactionMutation.mutateAsync({
+          gaspId: gasp.id,
+          videoUrl: result.downloadUrl,
+        });
+        reactionSucceededRef.current = true;
+      }
+    } catch (e) {
+      Sentry.captureException(e);
+    }
   }, [gasp, user, createReactionMutation, conversationId, messageId, sendMessage]);
 
   const handleRelease = useCallback(async () => {
@@ -163,7 +164,8 @@ export function useViewGasp({
     const uri = previewUri;
     setPreviewUri(null);
     handleSendReaction(uri);
-    router.back();
+    // router.back() is called inside handleSendReaction before the async upload
+    // so the user gets immediate navigation without waiting for the upload.
   }, [previewUri, handleSendReaction]);
 
   // Option A: full reset — user goes back through 3-2-1 for an authentic reaction
