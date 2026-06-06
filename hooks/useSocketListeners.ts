@@ -95,19 +95,27 @@ export function useSocketListeners() {
     cleanups.push(
       onChatNewMessage(({ conversationId, message }) => {
         addMessageToCache(queryClient, conversationId, message);
+
         const activeId = useChatStore.getState().activeConversationId;
-        queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) =>
-          old?.map((c) =>
-            c.id === conversationId
-              ? {
-                  ...c,
-                  lastMessage: message,
-                  updatedAt: message.createdAt,
-                  unreadCount: c.id === activeId ? c.unreadCount : c.unreadCount + 1,
-                }
-              : c,
-          ) ?? [],
-        );
+        const currentUserId = useAuthStore.getState().user?.id;
+
+        // Only increment unreadCount for the recipient — never for the sender
+        const isOwnMessage = currentUserId != null && message.senderId === currentUserId;
+
+        queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) => {
+          if (!old) return [];
+          return old.map((c) => {
+            if (c.id !== conversationId) return c;
+            const shouldIncrement = !isOwnMessage && c.id !== activeId;
+            return {
+              ...c,
+              lastMessage: message,
+              updatedAt: message.createdAt,
+              lastMessageAt: message.createdAt,
+              unreadCount: shouldIncrement ? c.unreadCount + 1 : c.unreadCount,
+            };
+          });
+        });
       }),
     );
 
