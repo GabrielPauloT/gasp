@@ -12,7 +12,7 @@ import {
 import type { LucideIcon } from 'lucide-react-native';
 
 import { TabBarIcon } from './TabBarIcon';
-import { UnreadDot } from '@/components/ui/UnreadDot';
+import { ContentTypeIndicator } from '@/components/ui/ContentTypeIndicator';
 import { useConversations } from '@/hooks/queries/useChat';
 import { usePendingGasps } from '@/hooks/queries/useGasps';
 
@@ -83,15 +83,19 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
           const Icon = TAB_ICONS[route.name] ?? Compass;
           const label = TAB_LABELS[route.name] ?? options.title ?? route.name;
 
-          const showUnread =
-            (route.name === 'chat' && hasUnreadChats) ||
-            (route.name === 'inbox' && hasUnreadGasps);
+          const showUnreadChat = route.name === 'chat' && hasUnreadChats;
+          const showUnreadGasps = route.name === 'inbox' && hasUnreadGasps;
 
           return (
             <View key={route.key} style={styles.tabWrapper}>
-              {showUnread ? (
+              {showUnreadChat ? (
                 <View style={styles.unreadDotContainer}>
-                  <UnreadDot size="sm" />
+                  <ContentTypeIndicator type="chat" size="sm" />
+                </View>
+              ) : null}
+              {showUnreadGasps ? (
+                <View style={styles.unreadDotContainer}>
+                  <ContentTypeIndicator type="gasp" pulsing size="sm" />
                 </View>
               ) : null}
               <TabBarIcon
