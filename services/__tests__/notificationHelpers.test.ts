@@ -1,9 +1,12 @@
 import {
-  resolveIndicatorColor,
-  computeElapsedFraction,
-  resolveRingColor,
-  deriveInboxPulseState,
+    computeElapsedFraction,
+    deriveInboxPulseState,
+    formatDeliveryStatus,
+    formatReminderMessage,
+    resolveIndicatorColor,
+    resolveRingColor,
 } from '@/services/notificationHelpers';
+import fc from 'fast-check';
 
 describe('resolveIndicatorColor', () => {
   it('returns purple for chat', () => {
@@ -80,5 +83,94 @@ describe('deriveInboxPulseState', () => {
 
   it('returns true for non-empty array', () => {
     expect(deriveInboxPulseState([{ id: '1' }])).toBe(true);
+  });
+});
+
+
+// ── Property-Based Tests ──────────────────────────────────────────────────────
+
+describe('Property-Based Tests', () => {
+  // Feature: gasp-notifications, Property 3: Content type indicator color mapping
+  it('Property 3: resolveIndicatorColor returns the correct hex color for any content type', () => {
+    const expectedColors: Record<'chat' | 'gasp' | 'reaction', string> = {
+      chat: '#7C3AED',
+      gasp: '#EF4444',
+      reaction: '#06B6D4',
+    };
+
+    fc.assert(
+      fc.property(
+        fc.constantFrom('chat' as const, 'gasp' as const, 'reaction' as const),
+        (type) => {
+          const result = resolveIndicatorColor(type);
+          expect(result).toBe(expectedColors[type]);
+        }
+      )
+    );
+  });
+
+  // Feature: gasp-notifications, Property 5: Countdown ring elapsed fraction computation
+  it('Property 5: computeElapsedFraction equals Math.min(1.0, (now - Date.parse(createdAt)) / 86_400_000) and is in [0, 1]', () => {
+    fc.assert(
+      fc.property(
+        fc.date({ min: new Date('2020-01-01'), max: new Date('2030-01-01') }).filter((d) => !isNaN(d.getTime())),
+        fc.integer({ min: 0, max: 172_800_000 }), // offset up to 48 hours
+        (date, offset) => {
+          const createdAt = date.toISOString();
+          const now = date.getTime() + offset;
+
+          const result = computeElapsedFraction(createdAt, now);
+          const expected = Math.min(1.0, (now - Date.parse(createdAt)) / 86_400_000);
+
+          expect(result).toBeCloseTo(expected, 10);
+          expect(result).toBeGreaterThanOrEqual(0);
+          expect(result).toBeLessThanOrEqual(1);
+        }
+      )
+    );
+  });
+
+  // Feature: gasp-notifications, Property 6: Countdown ring stroke color threshold
+  it('Property 6: resolveRingColor returns #7C3AED when fraction < 23/24 and #EF4444 when fraction >= 23/24', () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: 0, max: 1, noNaN: true }),
+        (fraction) => {
+          const result = resolveRingColor(fraction);
+          if (fraction < 23 / 24) {
+            expect(result).toBe('#7C3AED');
+          } else {
+            expect(result).toBe('#EF4444');
+          }
+        }
+      )
+    );
+  });
+
+  // Feature: gasp-notifications, Property 9: Reminder notification message format
+  it('Property 9: formatReminderMessage returns exactly "${senderName} is waiting for your reaction"', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 1, maxLength: 100 }),
+        (senderName) => {
+          const result = formatReminderMessage(senderName);
+          expect(result).toBe(`${senderName} is waiting for your reaction`);
+        }
+      )
+    );
+  });
+
+  // Feature: gasp-notifications, Property 10: Delivery status label is total and non-empty
+  it('Property 10: formatDeliveryStatus returns a non-empty string and never throws for any valid status', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom('sent' as const, 'delivered' as const, 'opened' as const, undefined),
+        (status) => {
+          const result = formatDeliveryStatus(status);
+          expect(typeof result).toBe('string');
+          expect(result.length).toBeGreaterThan(0);
+        }
+      )
+    );
   });
 });

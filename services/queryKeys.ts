@@ -26,4 +26,7 @@ export const queryKeys = {
     profile: (id: string) => ['users', 'profile', id] as const,
     stats: (id: string) => ['users', 'stats', id] as const,
   },
+  notifications: {
+    deviceToken: ['notifications', 'deviceToken'] as const,
+  },
 } as const;
