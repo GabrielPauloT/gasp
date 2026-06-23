@@ -1,9 +1,9 @@
-import {
-  updateGaspInList,
-  removeFromList,
-  shouldKeepInPendingAfterClose,
-} from './useGasps.helpers';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
+import {
+    removeFromList,
+    shouldKeepInPendingAfterClose,
+    updateGaspInList,
+} from './useGasps.helpers';
 
 const NOW = new Date('2026-05-16T12:00:00Z');
 const FUTURE = '2026-12-01T00:00:00Z';
@@ -20,6 +20,7 @@ function makeGasp(overrides: Partial<Gasp> = {}): Gasp {
     blurhash: '',
     replayable: false,
     status: 'pending',
+    deliveryStatus: 'sent',
     createdAt: '2026-05-16T11:00:00Z',
     expiresAt: FUTURE,
     ...overrides,

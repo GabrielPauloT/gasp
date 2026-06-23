@@ -38,7 +38,8 @@
     "sendGaspToFriend": "Envie um gasp para um amigo!",
     "friendRequests": "PEDIDOS DE AMIZADE",
     "newGasps": "NOVOS GASPS",
-    "reactions": "REAÇÕES"
+    "reactions": "REAÇÕES",
+    "sentGasps": "ENVIADOS"
   },
   "friendRequest": {
     "accept": "Aceitar",

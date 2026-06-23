@@ -47,7 +47,8 @@
     "sendGaspToFriend": "Send a gasp to a friend!",
     "friendRequests": "FRIEND REQUESTS",
     "newGasps": "NEW GASPS",
-    "reactions": "REACTIONS"
+    "reactions": "REACTIONS",
+    "sentGasps": "SENT"
   },
   "friendRequest": {
     "accept": "Accept",
