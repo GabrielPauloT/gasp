@@ -1,5 +1,5 @@
-import { useGaspStore } from '@/stores/gaspStore';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
+import { useGaspStore } from '@/stores/gaspStore';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,7 @@ function makeGasp(overrides: Partial<Gasp> = {}): Gasp {
     blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
     replayable: false,
     status: 'pending',
+    deliveryStatus: 'sent',
     createdAt: '2026-01-01T00:00:00.000Z',
     expiresAt: '2026-01-02T00:00:00.000Z',
     ...overrides,

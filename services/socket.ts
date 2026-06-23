@@ -1,7 +1,7 @@
-import { io, Socket } from 'socket.io-client';
+import { refreshToken } from '@/services/api/auth';
 import type { Message } from '@/services/api/schemas/chat.schema';
 import type { Gasp, Reaction } from '@/services/api/schemas/gasp.schema';
-import { refreshToken } from '@/services/api/auth';
+import { io, Socket } from 'socket.io-client';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -181,6 +181,11 @@ export interface GaspExpired {
   gaspId: string;
 }
 
+export interface GaspStatusUpdated {
+  gaspId: string;
+  deliveryStatus: 'sent' | 'delivered' | 'opened';
+}
+
 // ── Generic listener helpers ───────────────────────────────────────
 
 type EventHandler<T> = (data: T) => void;
@@ -238,4 +243,9 @@ export function onGaspReactionReceived(handler: EventHandler<GaspReactionReceive
 export function onGaspExpired(handler: EventHandler<GaspExpired>) {
   socket?.on('gasp:expired', handler);
   return () => { socket?.off('gasp:expired', handler); };
+}
+
+export function onGaspStatusUpdated(handler: EventHandler<GaspStatusUpdated>) {
+  socket?.on('gasp:status_updated', handler);
+  return () => { socket?.off('gasp:status_updated', handler); };
 }

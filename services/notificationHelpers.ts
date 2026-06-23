@@ -33,6 +33,26 @@ export function resolveRingColor(fraction: number): string {
   return fraction >= 23 / 24 ? '#EF4444' : '#7C3AED';
 }
 
+/** Formats the reminder push notification message for a gasp sender. */
+export function formatReminderMessage(senderName: string): string {
+  return `${senderName} is waiting for your reaction`;
+}
+
+/** Returns a human-readable delivery status label. Never returns empty string or throws. */
+export function formatDeliveryStatus(
+  status: 'sent' | 'delivered' | 'opened' | undefined
+): string {
+  switch (status) {
+    case 'delivered':
+      return 'Delivered';
+    case 'opened':
+      return 'Opened';
+    case 'sent':
+    default:
+      return 'Sent';
+  }
+}
+
 /** Returns true when there are pending gasps — used to drive pulse state. */
 export function deriveInboxPulseState(pendingGasps: unknown[]): boolean {
   return pendingGasps.length > 0;

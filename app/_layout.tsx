@@ -1,37 +1,36 @@
-import '@/global.css';
-import '@/lib/i18n';
-import 'react-native-reanimated';
+import "@/global.css";
+import "@/lib/i18n";
+import "react-native-reanimated";
 
 if (__DEV__) {
-  require('../reactotron.config');
+  require("../reactotron.config");
 }
 
-import { ConnectionBanner } from '@/components/ui/ConnectionBanner';
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { useAutoDownload } from '@/hooks/useAutoDownload';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { useSocketListeners } from '@/hooks/useSocketListeners';
-import { queryClient } from '@/lib/queryClient';
-import { initCache } from '@/services/mediaCache';
-import { processQueue } from '@/services/uploadQueue';
-import { useAuthStore } from '@/stores/authStore';
-import { useMediaCacheStore } from '@/stores/mediaCacheStore';
-import * as Sentry from '@sentry/react-native';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack, router } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { LogBox } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ToastBanner } from "@/components/notifications/ToastBanner";
+import { ConnectionBanner } from "@/components/ui/ConnectionBanner";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { useAutoDownload } from "@/hooks/useAutoDownload";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useSocketListeners } from "@/hooks/useSocketListeners";
+import { queryClient } from "@/lib/queryClient";
+import { initCache } from "@/services/mediaCache";
+import { processQueue } from "@/services/uploadQueue";
+import { useAuthStore } from "@/stores/authStore";
+import { useMediaCacheStore } from "@/stores/mediaCacheStore";
+import * as Sentry from "@sentry/react-native";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Stack, router } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import { LogBox } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // Suppress warnings from third-party dependencies we don't control
-LogBox.ignoreLogs([
-  'SafeAreaView has been deprecated',
-]);
+LogBox.ignoreLogs(["SafeAreaView has been deprecated"]);
 
 Sentry.init({
-  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",
   enabled: true, //!__DEV__,
   tracesSampleRate: 0.2,
   attachScreenshot: true,
@@ -42,9 +41,9 @@ Sentry.init({
   integrations: [
     Sentry.reactNativeTracingIntegration({
       tracePropagationTargets: [
-        'gasp-backend-production.up.railway.app',
+        "gasp-backend-production.up.railway.app",
         /^https:\/\/gasp-backend-production\.up\.railway\.app/,
-        'localhost',
+        "localhost",
       ],
     }),
   ],
@@ -54,7 +53,7 @@ Sentry.init({
 SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
-  initialRouteName: '(tabs)',
+  initialRouteName: "(tabs)",
 };
 
 /**
@@ -98,41 +97,27 @@ function RootContent() {
   if (!isInitialized) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0A0A0F' }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A0A0F" }}>
+      <ToastBanner />
       <ConnectionBanner />
       <Stack
         screenOptions={{
-          contentStyle: { backgroundColor: '#0A0A0F' },
-          animation: 'fade',
+          contentStyle: { backgroundColor: "#0A0A0F" },
+          animation: "fade",
         }}
       >
-        <Stack.Screen
-          name="(auth)"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="(tabs)"
-          options={{ headerShown: false }}
-        />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="(modals)"
           options={{
             headerShown: false,
-            presentation: 'modal',
+            presentation: "modal",
           }}
         />
-        <Stack.Screen
-          name="index"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="chat/[id]"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="+not-found"
-          options={{ headerShown: false }}
-        />
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="+not-found" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="light" />
     </GestureHandlerRootView>
@@ -144,7 +129,7 @@ function RootContent() {
  */
 export default function RootLayout() {
   return (
-    <ErrorBoundary onGoHome={() => router.replace('/(tabs)/camera')}>
+    <ErrorBoundary onGoHome={() => router.replace("/(tabs)/camera")}>
       <QueryClientProvider client={queryClient}>
         <RootContent />
       </QueryClientProvider>

@@ -1,19 +1,19 @@
-import { create } from 'zustand';
-import type { User } from '@/services/api/schemas/user.schema';
-import { jwtDecode } from 'jwt-decode';
-import { getAuth, signOut as firebaseSignOut } from '@react-native-firebase/auth';
-import {
-  setAuthToken,
-  removeAuthToken,
-  getAuthToken,
-  setUserData,
-  removeUserData,
-} from '@/utils/storage';
 import { registerAuthCallbacks, setApiToken } from '@/services/api';
 import * as authApi from '@/services/api/auth';
+import type { User } from '@/services/api/schemas/user.schema';
 import * as usersApi from '@/services/api/users';
 import { connectSocket, disconnectSocket } from '@/services/socket';
+import {
+    getAuthToken,
+    removeAuthToken,
+    removeUserData,
+    setAuthToken,
+    setUserData,
+} from '@/utils/storage';
+import { signOut as firebaseSignOut, getAuth } from '@react-native-firebase/auth';
 import * as Sentry from '@sentry/react-native';
+import { jwtDecode } from 'jwt-decode';
+import { create } from 'zustand';
 
 interface AuthState {
   user: User | null;
@@ -103,6 +103,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       setApiToken(token);
       await setUserData(JSON.stringify(user));
       connectSocket(token);
+      import('@/services/pushService').then(({ registerIfNeeded }) => registerIfNeeded().catch(() => {}));
       set({
         user,
         token,
@@ -123,6 +124,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       setApiToken(token);
       await setUserData(JSON.stringify(user));
       connectSocket(token);
+      import('@/services/pushService').then(({ registerIfNeeded }) => registerIfNeeded().catch(() => {}));
       set({
         user,
         token,
@@ -168,6 +170,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         const user = await usersApi.getMe();
         await setUserData(JSON.stringify(user));
         connectSocket(savedToken);
+        import('@/services/pushService').then(({ registerIfNeeded }) => registerIfNeeded().catch(() => {}));
         set({
           user,
           isAuthenticated: true,
