@@ -1,20 +1,31 @@
-﻿import { View, StyleSheet } from 'react-native';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { BlurView } from 'expo-blur';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+﻿import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { BlurView } from "expo-blur";
+import type { LucideIcon } from "lucide-react-native";
 import {
-  Compass,
-  Camera,
-  Inbox,
-  MessageCircle,
-  User,
-} from 'lucide-react-native';
-import type { LucideIcon } from 'lucide-react-native';
+    Camera,
+    Compass,
+    Inbox,
+    MessageCircle,
+    User,
+} from "lucide-react-native";
+import { useEffect } from "react";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+    cancelAnimation,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withSequence,
+    withTiming,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { TabBarIcon } from './TabBarIcon';
-import { ContentTypeIndicator } from '@/components/ui/ContentTypeIndicator';
-import { useConversations } from '@/hooks/queries/useChat';
-import { usePendingGasps } from '@/hooks/queries/useGasps';
+import { ContentTypeIndicator } from "@/components/ui/ContentTypeIndicator";
+import { useConversations } from "@/hooks/queries/useChat";
+import { usePendingGasps } from "@/hooks/queries/useGasps";
+import { useNotificationStore } from "@/stores/notificationStore";
+import { TabBarIcon } from "./TabBarIcon";
 
 const TAB_ICONS: Record<string, LucideIcon> = {
   discover: Compass,
@@ -25,34 +36,65 @@ const TAB_ICONS: Record<string, LucideIcon> = {
 };
 
 const TAB_LABELS: Record<string, string> = {
-  discover: 'Discover',
-  camera: 'Camera',
-  inbox: 'Gasps',
-  chat: 'Chat',
-  profile: 'Profile',
+  discover: "Discover",
+  camera: "Camera",
+  inbox: "Gasps",
+  chat: "Chat",
+  profile: "Profile",
 };
 
-export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function CustomTabBar({
+  state,
+  descriptors,
+  navigation,
+}: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   const { data: conversations } = useConversations();
   const { data: pendingGasps } = usePendingGasps();
+  const inboxUnreadType = useNotificationStore((s) => s.inboxUnreadType);
+  const tabPulseTrigger = useNotificationStore((s) => s.tabPulseTrigger);
+  const resetTabPulse = useNotificationStore((s) => s.resetTabPulse);
 
   const hasUnreadChats = conversations?.some((c) => c.unreadCount > 0) ?? false;
   const hasUnreadGasps = (pendingGasps?.length ?? 0) > 0;
 
+  const pulseScaleSv = useSharedValue(1);
+
+  const inboxTabIndex = state.routes.findIndex((r) => r.name === "inbox");
+  const isInboxFocused = state.index === inboxTabIndex;
+
+  useEffect(() => {
+    if (tabPulseTrigger > 0 && !isInboxFocused) {
+      pulseScaleSv.value = withSequence(
+        withRepeat(
+          withSequence(
+            withTiming(1.4, { duration: 250 }),
+            withTiming(1.0, { duration: 250 }),
+          ),
+          3,
+          false,
+        ),
+        withTiming(1.0, { duration: 0 }, () => {
+          runOnJS(resetTabPulse)();
+        }),
+      );
+    }
+
+    return () => {
+      cancelAnimation(pulseScaleSv);
+    };
+  }, [tabPulseTrigger, isInboxFocused]);
+
+  const pulseAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScaleSv.value }],
+  }));
+
   return (
     <View
-      style={[
-        styles.container,
-        { paddingBottom: Math.max(insets.bottom, 8) },
-      ]}
+      style={[styles.container, { paddingBottom: Math.max(insets.bottom, 8) }]}
     >
-      <BlurView
-        intensity={80}
-        tint="dark"
-        style={StyleSheet.absoluteFill}
-      />
+      <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
 
       <View style={styles.overlay} />
 
@@ -63,7 +105,7 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
 
           const onPress = () => {
             const event = navigation.emit({
-              type: 'tabPress',
+              type: "tabPress",
               target: route.key,
               canPreventDefault: true,
             });
@@ -75,7 +117,7 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
 
           const onLongPress = () => {
             navigation.emit({
-              type: 'tabLongPress',
+              type: "tabLongPress",
               target: route.key,
             });
           };
@@ -83,8 +125,8 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
           const Icon = TAB_ICONS[route.name] ?? Compass;
           const label = TAB_LABELS[route.name] ?? options.title ?? route.name;
 
-          const showUnreadChat = route.name === 'chat' && hasUnreadChats;
-          const showUnreadGasps = route.name === 'inbox' && hasUnreadGasps;
+          const showUnreadChat = route.name === "chat" && hasUnreadChats;
+          const showUnreadGasps = route.name === "inbox" && hasUnreadGasps;
 
           return (
             <View key={route.key} style={styles.tabWrapper}>
@@ -94,9 +136,15 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
                 </View>
               ) : null}
               {showUnreadGasps ? (
-                <View style={styles.unreadDotContainer}>
-                  <ContentTypeIndicator type="gasp" pulsing size="sm" />
-                </View>
+                <Animated.View
+                  style={[styles.unreadDotContainer, pulseAnimatedStyle]}
+                >
+                  <ContentTypeIndicator
+                    type={inboxUnreadType ?? "gasp"}
+                    pulsing={inboxUnreadType === "gasp"}
+                    size="sm"
+                  />
+                </Animated.View>
               ) : null}
               <TabBarIcon
                 icon={Icon}
@@ -115,30 +163,30 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    overflow: 'hidden',
-    borderCurve: 'continuous',
+    overflow: "hidden",
+    borderCurve: "continuous",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10, 10, 15, 0.95)',
+    backgroundColor: "rgba(10, 10, 15, 0.95)",
   },
   tabsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     height: 60,
-    alignItems: 'center',
+    alignItems: "center",
   },
   tabWrapper: {
     flex: 1,
-    position: 'relative',
+    position: "relative",
   },
   unreadDotContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 6,
-    right: '50%',
+    right: "50%",
     marginRight: -18,
     zIndex: 10,
   },

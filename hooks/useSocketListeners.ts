@@ -1,27 +1,29 @@
-import { useEffect } from 'react';
+import { addMessageToCache } from '@/hooks/queries/useChat';
 import { queryClient } from '@/lib/queryClient';
+import type { Conversation } from '@/services/api/schemas/chat.schema';
+import type { Gasp } from '@/services/api/schemas/gasp.schema';
+import { queryKeys } from '@/services/queryKeys';
+import {
+    getSocket,
+    onChatConversationUpdated,
+    onChatMessageRead,
+    onChatNewMessage,
+    onChatTyping,
+    onGaspExpired,
+    onGaspReactionReceived,
+    onGaspReceived,
+    onGaspStatusUpdated,
+    onGaspViewed,
+    onPresenceBulkStatus,
+    onPresenceUserOffline,
+    onPresenceUserOnline,
+} from '@/services/socket';
 import { useAuthStore } from '@/stores/authStore';
+import { useChatStore } from '@/stores/chatStore';
 import { useGaspStore } from '@/stores/gaspStore';
 import { useInboxStore } from '@/stores/inboxStore';
-import { useChatStore } from '@/stores/chatStore';
-import { queryKeys } from '@/services/queryKeys';
-import { addMessageToCache } from '@/hooks/queries/useChat';
-import type { Gasp } from '@/services/api/schemas/gasp.schema';
-import type { Conversation } from '@/services/api/schemas/chat.schema';
-import {
-  onGaspReceived,
-  onGaspViewed,
-  onGaspReactionReceived,
-  onGaspExpired,
-  onPresenceUserOnline,
-  onPresenceUserOffline,
-  onPresenceBulkStatus,
-  onChatNewMessage,
-  onChatTyping,
-  onChatMessageRead,
-  onChatConversationUpdated,
-  getSocket,
-} from '@/services/socket';
+import { useNotificationStore } from '@/stores/notificationStore';
+import { useEffect } from 'react';
 
 /**
  * Registers all Socket.IO listeners for real-time updates.
@@ -43,6 +45,14 @@ export function useSocketListeners() {
         queryClient.setQueryData<Gasp[]>(queryKeys.gasps.pending, (old) =>
           [gasp, ...(old ?? [])],
         );
+        useNotificationStore.getState().enqueueToast({
+          id: gasp.id,
+          gaspId: gasp.id,
+          senderName: gasp.senderName,
+          imageUri: gasp.imageUri,
+          blurhash: gasp.blurhash,
+        });
+        useNotificationStore.getState().triggerTabPulse();
       }),
     );
 
@@ -67,6 +77,14 @@ export function useSocketListeners() {
       onGaspExpired(({ gaspId }) => {
         queryClient.setQueryData<Gasp[]>(queryKeys.gasps.pending, (old) =>
           old?.filter((g) => g.id !== gaspId) ?? [],
+        );
+      }),
+    );
+
+    cleanups.push(
+      onGaspStatusUpdated(({ gaspId, deliveryStatus }) => {
+        queryClient.setQueryData<Gasp[]>(queryKeys.gasps.sent, (old) =>
+          old?.map((g) => g.id === gaspId ? { ...g, deliveryStatus } : g) ?? [],
         );
       }),
     );
