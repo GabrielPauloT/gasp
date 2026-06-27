@@ -7,6 +7,7 @@ import Animated, {
   useSharedValue,
   interpolate,
   runOnJS,
+  useAnimatedReaction,
   type SharedValue,
 } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -50,6 +51,10 @@ export function ReactionCapture({ isActive, isVisible = false, isRecording = fal
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
 
+  // B2: track JS-side active state to conditionally mount/unmount CameraView,
+  // which releases the AVCapture session when not in use and prevents freeze.
+  const [isCameraActive, setIsCameraActive] = useState(false);
+
   // Countdown timer state: counts down from maxDurationS to 0 while recording
   const [remainingS, setRemainingS] = useState(maxDurationS);
 
@@ -77,6 +82,15 @@ export function ReactionCapture({ isActive, isVisible = false, isRecording = fal
       translateY.value = pos.y;
     });
   }, [translateX, translateY]);
+
+  // B2: sync JS-side camera mount state from the Reanimated shared value.
+  // Mount camera when user starts holding (isActive → 1), unmount on release.
+  useAnimatedReaction(
+    () => isActive.get(),
+    (current) => {
+      runOnJS(setIsCameraActive)(current === 1);
+    },
+  );
 
   const persist = (x: number, y: number) => {
     savePosition({ x, y });
@@ -123,12 +137,14 @@ export function ReactionCapture({ isActive, isVisible = false, isRecording = fal
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[styles.container, animatedStyle]}>
         <View style={styles.cameraWrapper}>
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing="front"
-            mode="video"
-          />
+          {isCameraActive && (
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              facing="front"
+              mode="video"
+            />
+          )}
           <View style={styles.recordingDot} />
           {isRecording && (
             <View style={styles.timerOverlay}>

@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Pressable, ActivityIndicator, Linking } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useIsFocused } from '@react-navigation/native';
+import { useNavigationState } from '@react-navigation/native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { Text } from '@/components/ui/Text';
@@ -20,6 +21,10 @@ const CAMERA_MODE_SWITCH_DELAY = 600;
 
 export default function CameraScreen() {
   const isFocused = useIsFocused();
+  // Deactivate camera when a modal (view-gasp, camera-preview, etc.) is open on top.
+  // Modals don't unfocus the tab, so isFocused alone isn't enough.
+  const routeCount = useNavigationState((state) => state?.routes?.length ?? 1);
+  const isCameraActive = isFocused && routeCount <= 1;
   const [isLoadingGallery, setIsLoadingGallery] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
@@ -147,6 +152,10 @@ export default function CameraScreen() {
   };
 
   const handleGrantAccess = async () => {
+    if (permission?.canAskAgain === false) {
+      Linking.openSettings();
+      return;
+    }
     await requestPermission();
     await requestMicPermission();
   };
@@ -164,7 +173,7 @@ export default function CameraScreen() {
         </Text>
         <Pressable onPress={handleGrantAccess} style={styles.permissionButton}>
           <Text variant="body" style={styles.permissionButtonText}>
-            {'Grant Access'}
+            {permission?.canAskAgain === false ? 'Open Settings' : 'Grant Access'}
           </Text>
         </Pressable>
       </View>
@@ -173,8 +182,8 @@ export default function CameraScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Only render camera when tab is focused */}
-      {isFocused ? (
+      {/* Only render camera when tab is focused and no modal is open */}
+      {isCameraActive ? (
         <GestureDetector gesture={pinchGesture}>
           <CameraView
             ref={cameraRef}

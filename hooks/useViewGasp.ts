@@ -10,6 +10,9 @@ import { uploadWithRetry } from '@/services/uploadQueue';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 
 const MAX_REACTION_DURATION_S = 30;
+// B3: AVCapture needs time to reconfigure after CameraView mounts in video mode.
+// 500ms is enough for the session to settle on all tested devices.
+const AVCAPTURE_SETTLE_MS = 500;
 
 interface UseViewGaspProps {
   gasp: Gasp | null;
@@ -81,17 +84,22 @@ export function useViewGasp({
     startProgressAnimation();
     if (!reactionCameraRef.current) return;
     const reactionDurationS = Math.min(holdDurationS, MAX_REACTION_DURATION_S);
-    try {
-      isRecordingRef.current = true;
-      setIsRecording(true);
-      recordingPromiseRef.current = reactionCameraRef.current.recordAsync({
-        maxDuration: reactionDurationS,
-      });
-    } catch {
-      isRecordingRef.current = false;
-      setIsRecording(false);
-      recordingPromiseRef.current = null;
-    }
+    // B3: wait for AVCapture session to finish reconfiguring (picture→video mode)
+    // before calling recordAsync, otherwise recording starts and stops immediately.
+    setTimeout(() => {
+      if (!reactionCameraRef.current || releasedRef.current) return;
+      try {
+        isRecordingRef.current = true;
+        setIsRecording(true);
+        recordingPromiseRef.current = reactionCameraRef.current.recordAsync({
+          maxDuration: reactionDurationS,
+        });
+      } catch {
+        isRecordingRef.current = false;
+        setIsRecording(false);
+        recordingPromiseRef.current = null;
+      }
+    }, AVCAPTURE_SETTLE_MS);
   }, [isRevealed, startProgressAnimation, holdDurationS]);
 
   const handleSendReaction = useCallback(async (uri: string) => {

@@ -66,7 +66,7 @@ export function FeedCard({
               <Avatar
                 uri={senderAvatarUrl ?? null}
                 size={33}
-                initials={senderName.slice(0, 1)}
+                initials={senderName?.slice(0, 1) ?? '?'}
               />
             </CountdownRing>
             <View style={styles.senderTextContainer}>

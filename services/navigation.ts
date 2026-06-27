@@ -52,6 +52,8 @@ interface GaspViewerParams {
 export async function openGaspViewer(params: GaspViewerParams): Promise<void> {
   const { imageUri, senderName, mediaType, blurhash, gaspId, conversationId, messageId, textOverlay } = params;
 
+  if (!imageUri) return;
+
   let localUri = imageUri;
   try {
     const expiry = new Date();

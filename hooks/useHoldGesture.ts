@@ -71,6 +71,7 @@ export function useHoldGesture({
 
   const gesture = Gesture.LongPress()
     .minDuration(0)
+    .maxDistance(60)
     .onStart(() => {
       isHolding.set(1);
       // Ring starts only after countdown via startProgressAnimation().

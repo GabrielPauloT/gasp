@@ -104,6 +104,7 @@ export async function initCache(): Promise<void> {
  * @returns         Local `file://` URI pointing to the cached file.
  */
 export async function cacheMedia(url: string, expiresAt: string): Promise<string> {
+  if (!url) return url;
   try {
     const key = hashUrl(url);
     const existing = index[key];

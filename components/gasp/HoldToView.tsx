@@ -26,8 +26,6 @@ interface HoldToViewProps {
   senderName: string;
   /** JSON text overlay data from message content */
   textOverlayJson?: string;
-  /** When true, media was imported from gallery — use contain fit to preserve aspect ratio */
-  fromGallery?: boolean;
   /** Shared value (0 = not holding, 1 = holding) — controls instruction overlay visibility */
   isHolding: SharedValue<number>;
   /** Shared value (0–1) — ring progress, starts after countdown completes */
@@ -48,7 +46,6 @@ export function HoldToView({
   blurhash,
   senderName,
   textOverlayJson,
-  fromGallery = false,
   isHolding,
   holdProgress,
   isRevealed,
@@ -156,14 +153,14 @@ export function HoldToView({
           <VideoView
             player={videoPlayer}
             style={styles.revealedImage}
-            contentFit={fromGallery ? 'contain' : 'cover'}
+            contentFit="contain"
             nativeControls={false}
           />
         ) : (
           <Image
             source={{ uri: resolvedUri }}
             style={styles.revealedImage}
-            contentFit={fromGallery ? 'contain' : 'cover'}
+            contentFit="contain"
             cachePolicy="memory-disk"
             transition={200}
           />
