@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useSharedValue } from 'react-native-reanimated';
-import { GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { X, Camera } from 'lucide-react-native';
 import { HoldToView } from '@/components/gasp/HoldToView';
 import { ReactionCapture } from '@/components/gasp/ReactionCapture';
@@ -50,11 +50,18 @@ export default function ViewGaspScreen() {
   // Both capped at MAX_REACTION_DURATION_S (30s) inside useViewGasp.
   const IMAGE_VIEW_DURATION = 10_000;
   const [holdDuration, setHoldDuration] = useState(
-    mediaType === 'video' ? 10_000 : IMAGE_VIEW_DURATION,
+    mediaType === 'video' ? null : IMAGE_VIEW_DURATION,
   );
+  // B1: block the hold gesture until video duration is confirmed — prevents the
+  // race where iPhone 16/17 reports duration late and we default to 10s.
+  const isDurationReady = mediaType !== 'video' || holdDuration !== null;
   const handleVideoLoad = useCallback((durationMs: number) => {
-    setHoldDuration(durationMs);
+    if (durationMs > 0) setHoldDuration(durationMs);
   }, []);
+
+  // isCameraNeeded: 1 from the moment user starts holding until recording finishes.
+  // Keeps CameraView mounted through hold → countdown → recording → release.
+  const isCameraNeeded = useSharedValue(0);
 
   // Owned here so it can be passed to both useViewGasp and HoldToView.
   // 0 = hidden (blurred), 1 = revealed. Set to 1 after countdown, reset on re-record.
@@ -85,7 +92,7 @@ export default function ViewGaspScreen() {
     gasp,
     conversationId,
     messageId,
-    holdDurationS: Math.ceil(holdDuration / 1000),
+    holdDurationS: Math.ceil((holdDuration ?? 10_000) / 1000),
     isRevealed,
     startProgressAnimation: stableStartProgress,
     resetProgress: stableResetProgress,
@@ -93,10 +100,19 @@ export default function ViewGaspScreen() {
 
   const { gesture, isHolding, holdProgress, startProgressAnimation, resetProgress } =
     useHoldGesture({
-      onHoldStart: handleHoldStart,
-      onHoldComplete: handleRelease,
-      onHoldEnd: handleRelease,
-      duration: holdDuration,
+      onHoldStart: useCallback(() => {
+        isCameraNeeded.value = 1;
+        handleHoldStart();
+      }, [isCameraNeeded, handleHoldStart]),
+      onHoldComplete: useCallback(async () => {
+        await handleRelease();
+        isCameraNeeded.value = 0;
+      }, [isCameraNeeded, handleRelease]),
+      onHoldEnd: useCallback(async () => {
+        await handleRelease();
+        isCameraNeeded.value = 0;
+      }, [isCameraNeeded, handleRelease]),
+      duration: holdDuration ?? 10_000,
     });
 
   // Keep stable refs pointing at the live implementations.
@@ -128,7 +144,11 @@ export default function ViewGaspScreen() {
     await requestMicPermission();
   }, [requestCameraPermission, requestMicPermission]);
 
-  if (!imageUri) { router.back(); return null; }
+  useEffect(() => {
+    if (!imageUri) router.back();
+  }, [imageUri]);
+
+  if (!imageUri) return null;
 
   if (!cameraPermission?.granted || !micPermission?.granted) {
     return (
@@ -157,7 +177,7 @@ export default function ViewGaspScreen() {
 
   return (
     <View style={styles.container}>
-      <GestureDetector gesture={gesture}>
+      <GestureDetector gesture={isDurationReady ? gesture : Gesture.Manual()}>
         <View style={styles.gestureArea}>
           <HoldToView imageUri={imageUri} mediaType={mediaType} blurhash={blurhash}
             senderName={senderName} textOverlayJson={params.chatTextOverlay}
@@ -165,7 +185,7 @@ export default function ViewGaspScreen() {
             onVideoLoad={handleVideoLoad} />
         </View>
       </GestureDetector>
-      <ReactionCapture isActive={isHolding}
+      <ReactionCapture isActive={isCameraNeeded}
         isVisible={!!(cameraPermission?.granted && micPermission?.granted)}
         isRecording={isRecording} maxDurationS={reactionDurationS}
         cameraRef={reactionCameraRef} />

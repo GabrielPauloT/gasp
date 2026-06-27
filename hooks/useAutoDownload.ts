@@ -25,7 +25,7 @@ export function useAutoDownload(): void {
 
       for (const gasp of newGasps) {
         const mediaType = gasp.mediaType ?? 'image';
-        if (shouldAutoDownload(mediaType, connectionType)) {
+        if (shouldAutoDownload(mediaType, connectionType) && gasp.imageUri) {
           // Fire and forget — cacheMedia handles errors internally
           cacheMedia(gasp.imageUri, gasp.expiresAt).catch(() => {});
         }

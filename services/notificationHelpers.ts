@@ -20,6 +20,7 @@ export function resolveIndicatorColor(type: 'chat' | 'gasp' | 'reaction'): strin
  * Returns a value in [0, 1] where 1.0 means fully expired.
  */
 export function computeElapsedFraction(createdAt: string, now: number): number {
+  'worklet';
   const TTL_MS = 86_400_000; // 24 hours
   const elapsed = now - Date.parse(createdAt);
   return Math.min(1.0, Math.max(0, elapsed / TTL_MS));
@@ -30,6 +31,7 @@ export function computeElapsedFraction(createdAt: string, now: number): number {
  * Turns red when less than 1 hour (1/24) remains — i.e. fraction >= 23/24.
  */
 export function resolveRingColor(fraction: number): string {
+  'worklet';
   return fraction >= 23 / 24 ? '#EF4444' : '#7C3AED';
 }
 

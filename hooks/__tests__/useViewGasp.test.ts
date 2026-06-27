@@ -108,6 +108,7 @@ describe('useViewGasp', () => {
     });
 
     it('sets isRecording to true (when cameraRef is available)', () => {
+      jest.useFakeTimers();
       const { result } = renderHook(() => useViewGasp(defaultProps as any));
 
       // Simulate camera ref being available
@@ -120,7 +121,13 @@ describe('useViewGasp', () => {
         result.current.handleCountdownComplete();
       });
 
+      // B3 fix: recordAsync is called after AVCAPTURE_SETTLE_MS (500ms) delay
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+
       expect(result.current.isRecording).toBe(true);
+      jest.useRealTimers();
     });
   });
 

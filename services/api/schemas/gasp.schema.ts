@@ -60,9 +60,9 @@ export function normalizePendingGasp(item: ApiPendingGasp): Gasp {
   return {
     id: item.gasp.id,
     senderId: item.gasp.senderId,
-    senderName: item.sender.displayName,
-    senderAvatarUrl: item.sender.avatarUrl,
-    imageUri: item.gasp.imageUrl,
+    senderName: item.sender?.displayName ?? item.sender?.username ?? 'Unknown',
+    senderAvatarUrl: item.sender?.avatarUrl ?? null,
+    imageUri: item.gasp.imageUrl ?? '',
     mediaType: item.gasp.mediaType ?? 'image',
     blurhash: item.gasp.blurhash ?? '',
     textOverlay: item.gasp.textOverlay ?? undefined,

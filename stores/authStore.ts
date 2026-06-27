@@ -178,7 +178,35 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
         return true;
       } catch (initError) {
-        // Token invalid → clear session
+        // B5: before forcing full re-auth, try to silently refresh using the
+        // existing Firebase native session (persistent on device). This covers
+        // the case where the backend JWT expired but the user's Firebase auth
+        // session is still valid — avoids prompting for phone number again.
+        try {
+          const firebaseUser = getAuth().currentUser;
+          if (firebaseUser) {
+            const freshFirebaseToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
+            const { user: refreshedUser, token: newToken } = await authApi.login(freshFirebaseToken);
+            await setAuthToken(newToken);
+            setApiToken(newToken);
+            await setUserData(JSON.stringify(refreshedUser));
+            connectSocket(newToken);
+            import('@/services/pushService').then(({ registerIfNeeded }) => registerIfNeeded().catch(() => {}));
+            set({
+              user: refreshedUser,
+              token: newToken,
+              isAuthenticated: true,
+              isInitialized: true,
+            });
+            return true;
+          }
+        } catch (silentRefreshError) {
+          Sentry.captureException(silentRefreshError, {
+            extra: { context: 'authStore.initializeAuth.silentRefresh' },
+          });
+        }
+
+        // Silent refresh failed → full re-auth required, clear session
         Sentry.captureException(initError, {
           extra: { context: 'authStore.initializeAuth.tokenValidation' },
         });
