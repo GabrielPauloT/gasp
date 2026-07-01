@@ -27,7 +27,10 @@ import { LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // Suppress warnings from third-party dependencies we don't control
-LogBox.ignoreLogs(["SafeAreaView has been deprecated"]);
+LogBox.ignoreLogs([
+  "SafeAreaView has been deprecated",
+  "Snapshotting a view",
+]);
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",

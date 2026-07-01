@@ -49,7 +49,7 @@ export function FeedCard({
             placeholder={blurhash ? { blurhash } : undefined}
             style={styles.blurredImage}
             contentFit="cover"
-            blurRadius={40}
+            blurRadius={80}
           />
 
           {/* Dark overlay for readability */}
@@ -85,7 +85,7 @@ export function FeedCard({
               <Eye size={22} color="#FFFFFF" />
             </View>
             <Text variant="caption" weight="600" style={styles.holdLabel}>
-              HOLD
+              TAP
             </Text>
           </View>
         </View>

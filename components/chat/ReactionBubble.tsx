@@ -1,15 +1,16 @@
 import { useState, useCallback } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, Modal } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { InlineVideo } from '@/components/ui/InlineVideo';
-import { Play, CornerDownRight } from 'lucide-react-native';
+import { Play, CornerDownRight, X } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { getCachedUri } from '@/services/mediaCache';
 import { colors } from '@/constants/colors';
 import type { Message } from '@/services/api/schemas/chat.schema';
 import { MediaBadge } from './MediaBadge';
 import { chatMediaStyles } from './chatMediaStyles';
+import { ReactionComposite } from '@/components/gasp/ReactionComposite';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ReactionBubbleProps {
   message: Message;
@@ -27,17 +28,24 @@ export function ReactionBubble({
   const rawMediaUri = message.mediaUrl || message.content;
   const resolvedMediaUri = rawMediaUri ? (getCachedUri(rawMediaUri) ?? rawMediaUri) : rawMediaUri;
 
-  const [hasActivated, setHasActivated] = useState(false);
-  const [isPaused, setIsPaused] = useState(true);
+  // Original gasp URI comes from the replied-to message
+  const originalUri = replyToMessage?.mediaUrl ?? replyToMessage?.content ?? '';
+  const resolvedOriginalUri = originalUri ? (getCachedUri(originalUri) ?? originalUri) : '';
+
+  const [showComposite, setShowComposite] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleReactionPress = useCallback(() => {
-    if (!hasActivated) setHasActivated(true);
-    setIsPaused((prev) => !prev);
-  }, [hasActivated]);
+    setShowComposite(true);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setShowComposite(false);
+  }, []);
 
   return (
     <>
-      {/* ── Reply reference strip (rendered above the bubble) ──── */}
+      {/* ── Reply reference strip ──── */}
       {replyToMessage && (
         <View style={[styles.replyStrip, isOwnMessage ? styles.replyStripOwn : styles.replyStripOther]}>
           <CornerDownRight size={11} color={colors.textTertiary} />
@@ -55,7 +63,8 @@ export function ReactionBubble({
 
       <Pressable
         onPress={handleReactionPress}
-        accessibilityLabel="Reaction video, tap to play"
+        accessibilityRole="button"
+        accessibilityLabel="Reaction video, tap to view composite"
         style={[
           chatMediaStyles.bubble,
           isOwnMessage ? chatMediaStyles.ownBubble : chatMediaStyles.otherBubble,
@@ -63,37 +72,47 @@ export function ReactionBubble({
         ]}
       >
         <View style={chatMediaStyles.mediaContainer}>
-          {hasActivated && (
-            <View style={[StyleSheet.absoluteFill, { zIndex: 1 }]}>
-              <InlineVideo
-                uri={resolvedMediaUri}
-                style={chatMediaStyles.media}
-                paused={isPaused}
-                muted={false}
-              />
+          <View style={[chatMediaStyles.media, styles.reactionPlaceholder]}>
+            <LinearGradient
+              colors={['#1A1A2E', '#2A1A3E', '#1A1A2E']}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.playCircle}>
+              <Play size={24} color="#FFFFFF" fill="#FFFFFF" style={{ marginLeft: 2 }} />
             </View>
-          )}
-          {!hasActivated && (
-            <View style={[chatMediaStyles.media, styles.reactionPlaceholder]}>
-              <LinearGradient
-                colors={['#1A1A2E', '#2A1A3E', '#1A1A2E']}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.playCircle}>
-                <Play size={24} color="#FFFFFF" fill="#FFFFFF" style={{ marginLeft: 2 }} />
-              </View>
-            </View>
-          )}
+          </View>
           <MediaBadge label="REACTION" variant="reaction" />
         </View>
       </Pressable>
+
+      {/* Full-screen composite modal */}
+      <Modal
+        visible={showComposite}
+        animationType="fade"
+        presentationStyle="fullScreen"
+        onRequestClose={handleClose}
+      >
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+          <ReactionComposite
+            originalUri={resolvedOriginalUri}
+            reactionVideoUri={resolvedMediaUri ?? ''}
+          />
+          <Pressable
+            onPress={handleClose}
+            style={[styles.closeButton, { top: insets.top + 12 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Close reaction view"
+          >
+            <X size={24} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </Modal>
     </>
   );
 }
 
 // ── Styles ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  // ── Reaction placeholder ────────────────────────────────────────
   reactionPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -108,8 +127,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(124, 58, 237, 0.8)',
   },
-
-  // ── Reply reference strip ───────────────────────────────────────
   replyStrip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -117,12 +134,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingHorizontal: 4,
   },
-  replyStripOwn: {
-    justifyContent: 'flex-end',
-  },
-  replyStripOther: {
-    justifyContent: 'flex-start',
-  },
+  replyStripOwn: { justifyContent: 'flex-end' },
+  replyStripOther: { justifyContent: 'flex-start' },
   replyThumb: {
     width: 18,
     height: 18,
@@ -130,8 +143,20 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
-  replyText: {
-    fontSize: 11,
-    color: colors.textTertiary,
+  replyText: { fontSize: 11, color: colors.textTertiary },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  closeButton: {
+    position: 'absolute',
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
 });

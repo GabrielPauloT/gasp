@@ -116,11 +116,12 @@ interface ReactionResultParams {
   originalImageUri: string;
   senderName: string;
   gaspId: string;
+  originalMediaType?: 'image' | 'video';
 }
 
-export function openReactionResult({ reactionVideoUri, originalImageUri, senderName, gaspId }: ReactionResultParams) {
+export function openReactionResult({ reactionVideoUri, originalImageUri, senderName, gaspId, originalMediaType }: ReactionResultParams) {
   router.push({
     pathname: '/(modals)/reaction-result',
-    params: { reactionVideoUri, originalImageUri, senderName, gaspId },
+    params: { reactionVideoUri, originalImageUri, senderName, gaspId, originalMediaType: originalMediaType ?? 'image' },
   });
 }

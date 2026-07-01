@@ -3,7 +3,6 @@ import { StyleSheet, View, Pressable, ActivityIndicator, Linking } from 'react-n
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useIsFocused } from '@react-navigation/native';
-import { useNavigationState } from '@react-navigation/native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { Text } from '@/components/ui/Text';
@@ -12,6 +11,7 @@ import { GridOverlay } from '@/components/camera/GridOverlay';
 import { TimerCountdown } from '@/components/camera/TimerCountdown';
 import { useCamera } from '@/hooks/useCamera';
 import { useCameraStore } from '@/stores/cameraStore';
+import { useAppStore } from '@/stores/appStore';
 import { calculateZoomFromPinch } from '@/hooks/cameraZoom';
 import { colors } from '@/constants/colors';
 import { CameraOff } from 'lucide-react-native';
@@ -21,10 +21,8 @@ const CAMERA_MODE_SWITCH_DELAY = 600;
 
 export default function CameraScreen() {
   const isFocused = useIsFocused();
-  // Deactivate camera when a modal (view-gasp, camera-preview, etc.) is open on top.
-  // Modals don't unfocus the tab, so isFocused alone isn't enough.
-  const routeCount = useNavigationState((state) => state?.routes?.length ?? 1);
-  const isCameraActive = isFocused && routeCount <= 1;
+  const isViewingGasp = useAppStore((s) => s.isViewingGasp);
+  const isCameraActive = isFocused && !isViewingGasp;
   const [isLoadingGallery, setIsLoadingGallery] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);

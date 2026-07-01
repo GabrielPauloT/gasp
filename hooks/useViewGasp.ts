@@ -6,24 +6,24 @@ import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useCloseViewGasp, useCreateReaction } from '@/hooks/queries/useGasps';
-import { uploadWithRetry } from '@/services/uploadQueue';
+import { uploadWithRetry, enqueueUpload, removeFromQueue } from '@/services/uploadQueue';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 
 const MAX_REACTION_DURATION_S = 30;
-// B3: AVCapture needs time to reconfigure after CameraView mounts in video mode.
-// 500ms is enough for the session to settle on all tested devices.
-const AVCAPTURE_SETTLE_MS = 500;
+// After stopping expo-video, iOS needs ~2s for AVAudioSession to fully release
+// before expo-camera can acquire it for recording.
+const AVCAPTURE_SETTLE_MS = 2000;
 
 interface UseViewGaspProps {
   gasp: Gasp | null;
   conversationId: string;
   messageId: string;
-  /** Actual gasp media duration in seconds — used for recordAsync maxDuration and PiP timer */
   holdDurationS: number;
-  /** Shared value owned by the screen — set to 1 when recording starts, 0 on reset */
   isRevealed: SharedValue<number>;
   startProgressAnimation: () => void;
   resetProgress: () => void;
+  /** Called to stop the gasp video before recording starts — frees AVCapture session */
+  onStopGaspVideo?: () => void;
 }
 
 /**
@@ -38,6 +38,7 @@ export function useViewGasp({
   isRevealed,
   startProgressAnimation,
   resetProgress,
+  onStopGaspVideo,
 }: UseViewGaspProps) {
   const user = useAuthStore((s) => s.user);
   const { sendMessage } = useChatStore();
@@ -52,6 +53,8 @@ export function useViewGasp({
   const gaspIdRef = useRef<string | null>(null);
   const openedRef = useRef(false);
   const reactionSucceededRef = useRef(false);
+  // Track background upload so we can cancel it on discard
+  const bgUploadQueueIdRef = useRef<string | null>(null);
 
   const [isCountingDown, setIsCountingDown] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -84,23 +87,40 @@ export function useViewGasp({
     startProgressAnimation();
     if (!reactionCameraRef.current) return;
     const reactionDurationS = Math.min(holdDurationS, MAX_REACTION_DURATION_S);
-    // B3: wait for AVCapture session to finish reconfiguring (picture→video mode)
-    // before calling recordAsync, otherwise recording starts and stops immediately.
-    setTimeout(() => {
-      if (!reactionCameraRef.current || releasedRef.current) return;
+
+    // For image gasps: record immediately after settle delay (no AVCapture conflict).
+    // For video gasps: stop video first, then record after a longer settle to
+    // let AVAudioSession fully release before expo-camera takes it.
+    const startRecording = () => {
+      if (!reactionCameraRef.current || releasedRef.current) {
+        isRecordingRef.current = false;
+        setIsRecording(false);
+        return;
+      }
       try {
         isRecordingRef.current = true;
         setIsRecording(true);
         recordingPromiseRef.current = reactionCameraRef.current.recordAsync({
           maxDuration: reactionDurationS,
         });
+        recordingPromiseRef.current?.catch((e) => {
+          Sentry.captureException(e, { tags: { feature: 'reaction-recording' } });
+          isRecordingRef.current = false;
+          setIsRecording(false);
+          recordingPromiseRef.current = null;
+        });
       } catch {
         isRecordingRef.current = false;
         setIsRecording(false);
         recordingPromiseRef.current = null;
       }
-    }, AVCAPTURE_SETTLE_MS);
-  }, [isRevealed, startProgressAnimation, holdDurationS]);
+    };
+
+    // Stop gasp video immediately so VideoView unmounts and releases AVAudioSession.
+    // Use a separate signal — NOT isRecording — to avoid remounting the reaction camera.
+    onStopGaspVideo?.();
+    setTimeout(startRecording, AVCAPTURE_SETTLE_MS);
+  }, [isRevealed, startProgressAnimation, holdDurationS, onStopGaspVideo]);
 
   const handleSendReaction = useCallback(async (uri: string) => {
     const userId = user?.id ?? 'guest';
@@ -161,6 +181,11 @@ export function useViewGasp({
     if (!isMountedRef.current) return;
 
     if (videoUri) {
+      // Start background upload immediately so it's ready when user taps Send
+      const userId = user?.id ?? 'guest';
+      enqueueUpload(videoUri, 'reactions', userId).then((queueId) => {
+        bgUploadQueueIdRef.current = queueId;
+      }).catch(() => {});
       setPreviewUri(videoUri);
     } else {
       router.back();
@@ -186,6 +211,11 @@ export function useViewGasp({
 
   const handleDiscard = useCallback(() => {
     setPreviewUri(null);
+    // Cancel background upload if still in queue
+    if (bgUploadQueueIdRef.current) {
+      removeFromQueue(bgUploadQueueIdRef.current).catch(() => {});
+      bgUploadQueueIdRef.current = null;
+    }
     const id = gaspIdRef.current;
     if (id) closeViewMutation.mutate(id);
     router.back();

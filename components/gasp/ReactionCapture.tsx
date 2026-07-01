@@ -1,28 +1,51 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View, Dimensions, Text } from 'react-native';
+import { StyleSheet, View, Dimensions } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
+  useAnimatedProps,
   useSharedValue,
+  withSpring,
+  withTiming,
   interpolate,
+  interpolateColor,
   runOnJS,
   useAnimatedReaction,
   type SharedValue,
 } from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  clampPipPosition,
-  parsePipPosition,
-  PIP_WIDTH,
-  PIP_HEIGHT,
-  MARGIN,
-} from './pipPosition';
+import { selectionHaptic } from '@/utils/haptics';
+import { PIP_WIDTH, PIP_HEIGHT, MARGIN } from './pipPosition';
 
-const STORAGE_KEY = '@gasp/reaction-pip-position';
+const STORAGE_KEY = '@gasp/reaction-pip-corner';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const DEFAULT_X = 20;
-const DEFAULT_Y = 60;
+const SPRING_CFG = { damping: 15, stiffness: 200, mass: 0.8 };
+const BORDER_WIDTH = 2.5;
+const RADIUS = (Math.min(PIP_WIDTH, PIP_HEIGHT) / 2) - BORDER_WIDTH;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+const CORNERS = [
+  { x: MARGIN, y: MARGIN + 60 },
+  { x: SCREEN_WIDTH - PIP_WIDTH - MARGIN, y: MARGIN + 60 },
+  { x: MARGIN, y: SCREEN_HEIGHT - PIP_HEIGHT - MARGIN - 100 },
+  { x: SCREEN_WIDTH - PIP_WIDTH - MARGIN, y: SCREEN_HEIGHT - PIP_HEIGHT - MARGIN - 100 },
+] as const;
+
+const DEFAULT_CORNER = 1;
+
+async function loadCorner(): Promise<number> {
+  const raw = await AsyncStorage.getItem(STORAGE_KEY).catch(() => null);
+  const idx = raw !== null ? parseInt(raw, 10) : DEFAULT_CORNER;
+  return isNaN(idx) || idx < 0 || idx > 3 ? DEFAULT_CORNER : idx;
+}
+
+function persistCorner(idx: number) {
+  AsyncStorage.setItem(STORAGE_KEY, String(idx)).catch(() => {});
+}
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface ReactionCaptureProps {
   isActive: SharedValue<number>;
@@ -30,61 +53,48 @@ interface ReactionCaptureProps {
   isRecording?: boolean;
   maxDurationS?: number;
   cameraRef?: React.RefObject<CameraView | null>;
+  onCornerChange?: (cornerIndex: number) => void;
 }
 
-async function loadSavedPosition(): Promise<{ x: number; y: number }> {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY).catch(() => null);
-  const parsed = parsePipPosition(raw);
-  if (!parsed) return { x: DEFAULT_X, y: DEFAULT_Y };
-  return clampPipPosition(parsed.x, parsed.y, SCREEN_WIDTH, SCREEN_HEIGHT);
-}
-
-function savePosition(pos: { x: number; y: number }) {
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(pos)).catch(() => {
-    // fire-and-forget
-  });
-}
-
-export function ReactionCapture({ isActive, isVisible = false, isRecording = false, maxDurationS = 30, cameraRef }: ReactionCaptureProps) {
-  const translateX = useSharedValue(DEFAULT_X);
-  const translateY = useSharedValue(DEFAULT_Y);
+export function ReactionCapture({
+  isActive,
+  isVisible = false,
+  isRecording = false,
+  maxDurationS = 30,
+  cameraRef,
+  onCornerChange,
+}: ReactionCaptureProps) {
+  const translateX = useSharedValue(CORNERS[DEFAULT_CORNER].x);
+  const translateY = useSharedValue(CORNERS[DEFAULT_CORNER].y);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
+  const recordingScale = useSharedValue(1);
 
-  // B2: track JS-side active state to conditionally mount/unmount CameraView,
-  // which releases the AVCapture session when not in use and prevents freeze.
+  // Restored from main: mount/unmount based on isActive to manage AVCapture session
   const [isCameraActive, setIsCameraActive] = useState(false);
 
-  // Countdown timer state: counts down from maxDurationS to 0 while recording
-  const [remainingS, setRemainingS] = useState(maxDurationS);
+  const ringProgress = useSharedValue(0);
 
   useEffect(() => {
-    if (!isRecording) {
-      setRemainingS(maxDurationS);
-      return;
-    }
-    setRemainingS(maxDurationS);
-    const interval = setInterval(() => {
-      setRemainingS((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isRecording, maxDurationS]);
-
-  useEffect(() => {
-    loadSavedPosition().then((pos) => {
-      translateX.value = pos.x;
-      translateY.value = pos.y;
+    loadCorner().then((idx) => {
+      translateX.value = CORNERS[idx].x;
+      translateY.value = CORNERS[idx].y;
     });
   }, [translateX, translateY]);
 
-  // B2: sync JS-side camera mount state from the Reanimated shared value.
-  // Mount camera when user starts holding (isActive → 1), unmount on release.
+  // Progress ring + spring entry on recording start
+  useEffect(() => {
+    if (isRecording) {
+      recordingScale.value = 0.85;
+      recordingScale.value = withSpring(1, SPRING_CFG);
+      ringProgress.value = 0;
+      ringProgress.value = withTiming(1, { duration: maxDurationS * 1000 });
+    } else {
+      ringProgress.value = withTiming(0, { duration: 200 });
+    }
+  }, [isRecording, maxDurationS, ringProgress, recordingScale]);
+
+  // Restored from main: mount on isActive=1, unmount on isActive=0
   useAnimatedReaction(
     () => isActive.get(),
     (current) => {
@@ -92,8 +102,19 @@ export function ReactionCapture({ isActive, isVisible = false, isRecording = fal
     },
   );
 
-  const persist = (x: number, y: number) => {
-    savePosition({ x, y });
+  const snapToNearestCorner = (x: number, y: number) => {
+    'worklet';
+    let nearestIdx = 0;
+    let nearestD = Infinity;
+    for (let i = 0; i < CORNERS.length; i++) {
+      const d = Math.hypot(CORNERS[i].x - x, CORNERS[i].y - y);
+      if (d < nearestD) { nearestD = d; nearestIdx = i; }
+    }
+    translateX.value = withSpring(CORNERS[nearestIdx].x, SPRING_CFG);
+    translateY.value = withSpring(CORNERS[nearestIdx].y, SPRING_CFG);
+    runOnJS(selectionHaptic)();
+    runOnJS(persistCorner)(nearestIdx);
+    if (onCornerChange) runOnJS(onCornerChange)(nearestIdx);
   };
 
   const panGesture = Gesture.Pan()
@@ -102,59 +123,64 @@ export function ReactionCapture({ isActive, isVisible = false, isRecording = fal
       startY.value = translateY.value;
     })
     .onUpdate((e) => {
-      const nextX = startX.value + e.translationX;
-      const nextY = startY.value + e.translationY;
-      translateX.value = Math.max(MARGIN, Math.min(SCREEN_WIDTH - PIP_WIDTH - MARGIN, nextX));
-      translateY.value = Math.max(MARGIN, Math.min(SCREEN_HEIGHT - PIP_HEIGHT - MARGIN, nextY));
+      translateX.value = Math.max(MARGIN, Math.min(SCREEN_WIDTH - PIP_WIDTH - MARGIN, startX.value + e.translationX));
+      translateY.value = Math.max(MARGIN, Math.min(SCREEN_HEIGHT - PIP_HEIGHT - MARGIN, startY.value + e.translationY));
     })
     .onEnd(() => {
-      runOnJS(persist)(translateX.value, translateY.value);
+      snapToNearestCorner(translateX.value, translateY.value);
     });
 
-  const isVisibleShared = useSharedValue(isVisible ? 1 : 0);
-
-  useEffect(() => {
-    isVisibleShared.value = isVisible ? 1 : 0;
-  }, [isVisible, isVisibleShared]);
+  const isVisibleSV = useSharedValue(isVisible ? 1 : 0);
+  useEffect(() => { isVisibleSV.value = isVisible ? 1 : 0; }, [isVisible, isVisibleSV]);
 
   const animatedStyle = useAnimatedStyle(() => {
-    // Show PiP when visible (permissions granted), animate opacity/scale with isActive
-    const visible = isVisibleShared.get();
+    const visible = isVisibleSV.get();
     const active = isActive.get();
     const opacity = visible === 0 ? 0 : interpolate(active, [0, 1], [0.85, 1]);
-    const scale = visible === 0 ? 0 : interpolate(active, [0, 1], [0.9, 1]);
+    const scale = (visible === 0 ? 0 : interpolate(active, [0, 1], [0.9, 1])) * recordingScale.get();
     return {
       opacity,
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
+        { translateX: translateX.get() },
+        { translateY: translateY.get() },
         { scale },
       ],
     };
   });
 
+  const borderAnimatedStyle = useAnimatedStyle(() => {
+    const color = interpolateColor(
+      ringProgress.get(),
+      [0, 0.7, 1],
+      ['rgba(255,255,255,0.4)', 'rgba(255,255,255,0.4)', '#EF4444'],
+    );
+    return { borderColor: color };
+  });
+
+  const ringAnimatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: ringProgress.get() * CIRCUMFERENCE,
+  }));
+
+  const cx = PIP_WIDTH / 2;
+  const cy = PIP_HEIGHT / 2;
+
   return (
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[styles.container, animatedStyle]}>
-        <View style={styles.cameraWrapper}>
+        {isRecording && (
+          <Svg width={PIP_WIDTH} height={PIP_HEIGHT} style={StyleSheet.absoluteFill}>
+            <Circle cx={cx} cy={cy} r={RADIUS} stroke="rgba(255,255,255,0.15)" strokeWidth={BORDER_WIDTH} fill="none" />
+            <AnimatedCircle cx={cx} cy={cy} r={RADIUS} stroke="#EF4444" strokeWidth={BORDER_WIDTH} fill="none"
+              strokeLinecap="round" strokeDasharray={CIRCUMFERENCE} animatedProps={ringAnimatedProps}
+              rotation="-90" origin={`${cx}, ${cy}`} />
+          </Svg>
+        )}
+        <Animated.View style={[styles.cameraWrapper, borderAnimatedStyle]}>
           {isCameraActive && (
-            <CameraView
-              ref={cameraRef}
-              style={styles.camera}
-              facing="front"
-              mode="video"
-            />
-          )}
-          <View style={styles.recordingDot} />
-          {isRecording && (
-            <View style={styles.timerOverlay}>
-              <Text style={styles.timerText}>
-                {`0:${String(remainingS).padStart(2, '0')}`}
-              </Text>
-            </View>
+            <CameraView ref={cameraRef} style={styles.camera} facing="front" mode="video" />
           )}
           <View style={styles.dragHandle} />
-        </View>
+        </Animated.View>
       </Animated.View>
     </GestureDetector>
   );
@@ -174,37 +200,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderCurve: 'continuous',
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: BORDER_WIDTH,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
-  camera: {
-    width: '100%',
-    height: '100%',
-  },
-  recordingDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-  },
-  timerOverlay: {
-    position: 'absolute',
-    bottom: 14,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  timerText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
+  camera: { width: '100%', height: '100%' },
   dragHandle: {
     position: 'absolute',
     bottom: 6,
@@ -212,6 +211,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
 });

@@ -14,6 +14,7 @@ import { Text } from '@/components/ui/Text';
 import { useHoldGesture } from '@/hooks/useHoldGesture';
 import { useViewGasp } from '@/hooks/useViewGasp';
 import { useGaspStore } from '@/stores/gaspStore';
+import { useAppStore } from '@/stores/appStore';
 import { useOpenGasp, usePendingGasps } from '@/hooks/queries/useGasps';
 import { colors } from '@/constants/colors';
 
@@ -73,6 +74,8 @@ export default function ViewGaspScreen() {
   const resetProgressRef = useRef<() => void>(() => {});
   const stableStartProgress = useCallback(() => startProgressRef.current(), []);
   const stableResetProgress = useCallback(() => resetProgressRef.current(), []);
+  const stopVideoRef = useRef<(() => void) | null>(null);
+  const stableStopVideo = useCallback(() => stopVideoRef.current?.(), []);
 
   const {
     reactionCameraRef,
@@ -96,6 +99,7 @@ export default function ViewGaspScreen() {
     isRevealed,
     startProgressAnimation: stableStartProgress,
     resetProgress: stableResetProgress,
+    onStopGaspVideo: stableStopVideo,
   });
 
   const { gesture, isHolding, holdProgress, startProgressAnimation, resetProgress } =
@@ -138,6 +142,12 @@ export default function ViewGaspScreen() {
   }, [gasp, openGaspMutation, openedRef, gaspIdRef]);
 
   const handleClose = useCallback(() => { router.back(); }, []);
+
+  // Signal main camera to release AVCapture session while this screen is open
+  useEffect(() => {
+    useAppStore.getState().setViewingGasp(true);
+    return () => useAppStore.getState().setViewingGasp(false);
+  }, []);
 
   const handleGrantReactionAccess = useCallback(async () => {
     await requestCameraPermission();
@@ -182,6 +192,7 @@ export default function ViewGaspScreen() {
           <HoldToView imageUri={imageUri} mediaType={mediaType} blurhash={blurhash}
             senderName={senderName} textOverlayJson={params.chatTextOverlay}
             isHolding={isHolding} holdProgress={holdProgress} isRevealed={isRevealed}
+            isRecording={isRecording} onStopVideoRef={stopVideoRef}
             onVideoLoad={handleVideoLoad} />
         </View>
       </GestureDetector>
@@ -196,7 +207,7 @@ export default function ViewGaspScreen() {
       </Pressable>
       {previewUri !== null && (
         <View style={styles.previewOverlay}>
-          <ReactionPreview originalImageUri={imageUri} reactionVideoUri={previewUri}
+          <ReactionPreview originalImageUri={imageUri} originalMediaType={mediaType} reactionVideoUri={previewUri}
             senderName={senderName} onSend={handleSend} onReRecord={handleReRecord}
             onDiscard={handleDiscard} />
         </View>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { StyleSheet, View, Dimensions } from 'react-native';
+import { StyleSheet, View } from 'react-native';import { useState } from 'react';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Sentry from '@sentry/react-native';
@@ -17,27 +17,22 @@ import { colors } from '@/constants/colors';
 import { getCachedUri } from '@/services/mediaCache';
 import type { GaspMediaType } from '@/services/api/schemas/gasp.schema';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 
 interface HoldToViewProps {
   imageUri: string;
   mediaType?: GaspMediaType;
   blurhash?: string;
   senderName: string;
-  /** JSON text overlay data from message content */
   textOverlayJson?: string;
-  /** Shared value (0 = not holding, 1 = holding) — controls instruction overlay visibility */
   isHolding: SharedValue<number>;
-  /** Shared value (0–1) — ring progress, starts after countdown completes */
   holdProgress: SharedValue<number>;
-  /**
-   * Shared value (0 = hidden, 1 = revealed) — controls media visibility.
-   * Set to 1 after countdown completes, stays 1 until screen closes or re-record.
-   * Decoupled from isHolding so media stays visible when finger lifts mid-recording.
-   */
   isRevealed: SharedValue<number>;
-  /** Callback with video duration in ms (called when player loads) */
   onVideoLoad?: (durationMs: number) => void;
+  /** When true, mutes/pauses the video player to free AVCapture for reaction recording */
+  isRecording?: boolean;
+  /** Callback ref — call to stop video and free AVCapture session */
+  onStopVideoRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export function HoldToView({
@@ -50,6 +45,8 @@ export function HoldToView({
   holdProgress,
   isRevealed,
   onVideoLoad,
+  isRecording = false,
+  onStopVideoRef,
 }: HoldToViewProps) {
   const isVideo = mediaType === 'video';
   const textOverlay = textOverlayJson ? parseTextOverlay(textOverlayJson) : null;
@@ -63,19 +60,50 @@ export function HoldToView({
     // Don't auto-play — controlled by hold gesture
   });
 
-  // Report video duration to parent when player is ready
+  // Report video duration to parent when player is ready.
+  // On iPhone 16/17, duration may be 0 at readyToPlay — poll until it's populated.
   useEffect(() => {
     if (!isVideo || !onVideoLoad) return;
-    const handleReady = () => {
+
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let fallbackTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const reportDuration = (durationS: number) => {
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+      if (fallbackTimeout) { clearTimeout(fallbackTimeout); fallbackTimeout = null; }
+      onVideoLoad(Math.ceil(durationS * 1000));
+    };
+
+    const tryReport = () => {
       if (videoPlayer.duration > 0) {
-        onVideoLoad(Math.ceil(videoPlayer.duration * 1000));
+        reportDuration(videoPlayer.duration);
+        return true;
+      }
+      return false;
+    };
+
+    const handleReady = () => {
+      if (!tryReport()) {
+        // Duration not yet populated — poll every 100ms up to 2s
+        pollInterval = setInterval(() => { tryReport(); }, 100);
+        // Fallback: unblock gesture after 2s with 10s default
+        fallbackTimeout = setTimeout(() => {
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+          onVideoLoad(10_000);
+        }, 2000);
       }
     };
+
     const sub = videoPlayer.addListener('statusChange', ({ status }: { status: string }) => {
       if (status === 'readyToPlay') handleReady();
     });
     if (videoPlayer.status === 'readyToPlay') handleReady();
-    return () => sub.remove();
+
+    return () => {
+      sub.remove();
+      if (pollInterval) clearInterval(pollInterval);
+      if (fallbackTimeout) clearTimeout(fallbackTimeout);
+    };
   }, [isVideo, videoPlayer, onVideoLoad]);
 
   const startVideo = useCallback(() => {
@@ -87,6 +115,33 @@ export function HoldToView({
       Sentry.captureException(e, { extra: { context: 'HoldToView.startVideo' } });
     }
   }, [videoPlayer, isVideo]);
+
+  // Expose stop function via ref so parent can stop video before recording starts
+  const [isVideoStopped, setIsVideoStopped] = useState(false);
+  useEffect(() => {
+    if (onStopVideoRef) {
+      onStopVideoRef.current = () => {
+        try { videoPlayer.pause(); } catch {}
+        setIsVideoStopped(true);
+      };
+    }
+    return () => {
+      if (onStopVideoRef) onStopVideoRef.current = null;
+    };
+  }, [videoPlayer, onStopVideoRef]);
+
+  // Pause video during reaction recording to free AVCapture session
+  useEffect(() => {
+    if (!isVideo) return;
+    if (isRecording) {
+      try { videoPlayer.pause(); } catch {}
+    } else {
+      // Resume only if revealed
+      if (isRevealed.get() === 1) {
+        try { videoPlayer.play(); } catch {}
+      }
+    }
+  }, [isRecording, isVideo, videoPlayer, isRevealed]);
 
   const pauseVideo = useCallback(() => {
     if (!isVideo) return;
@@ -131,25 +186,32 @@ export function HoldToView({
     <View style={styles.container}>
       {/* Blurred preview (always visible) */}
       {isVideo ? (
-        <Image
-          placeholder={blurhash ? { blurhash } : undefined}
-          style={styles.blurredImage}
-          contentFit="cover"
-        />
+        <>
+          <Image
+            placeholder={blurhash ? { blurhash } : undefined}
+            style={styles.blurredImage}
+            contentFit="cover"
+          />
+          <View style={styles.blurOverlay} />
+        </>
       ) : (
-        <Image
-          source={{ uri: resolvedUri }}
-          placeholder={blurhash ? { blurhash } : undefined}
-          style={styles.blurredImage}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          blurRadius={30}
-        />
+        <>
+          <Image
+            source={{ uri: resolvedUri }}
+            placeholder={blurhash ? { blurhash } : undefined}
+            style={styles.blurredImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            blurRadius={80}
+          />
+          {/* Extra dark overlay to fully obscure content */}
+          <View style={styles.blurOverlay} />
+        </>
       )}
 
       {/* Revealed media (visible on hold) */}
       <Animated.View style={[styles.revealedContainer, imageStyle]}>
-        {isVideo && videoPlayer ? (
+        {isVideo && videoPlayer && !isVideoStopped ? (
           <VideoView
             player={videoPlayer}
             style={styles.revealedImage}
@@ -175,7 +237,7 @@ export function HoldToView({
           {senderName}
         </Text>
         <Text variant="caption" style={styles.instruction}>
-          {'HOLD TO VIEW'}
+          {'TAP TO VIEW'}
         </Text>
       </Animated.View>
 
@@ -194,15 +256,16 @@ const styles = StyleSheet.create({
   },
   blurredImage: {
     ...StyleSheet.absoluteFillObject,
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
+  },
+  blurOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
   },
   revealedContainer: {
     ...StyleSheet.absoluteFillObject,
   },
   revealedImage: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
+    ...StyleSheet.absoluteFillObject,
   },
   instructionOverlay: {
     ...StyleSheet.absoluteFillObject,
