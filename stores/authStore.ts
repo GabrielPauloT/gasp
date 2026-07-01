@@ -58,6 +58,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    if (__DEV__) {
+      console.tronLog?.warn('authStore | logout');
+    }
     // Revoke token on backend (best effort)
     try {
       await authApi.logout();
@@ -103,6 +106,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       setApiToken(token);
       await setUserData(JSON.stringify(user));
       connectSocket(token);
+      if (__DEV__) {
+        console.tronLog?.log('authStore | login success', { userId: user.id, username: user.username });
+      }
       import('@/services/pushService').then(({ registerIfNeeded }) => registerIfNeeded().catch(() => {}));
       set({
         user,
@@ -124,6 +130,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       setApiToken(token);
       await setUserData(JSON.stringify(user));
       connectSocket(token);
+      if (__DEV__) {
+        console.tronLog?.log('authStore | register success', { userId: user.id, username: user.username });
+      }
       import('@/services/pushService').then(({ registerIfNeeded }) => registerIfNeeded().catch(() => {}));
       set({
         user,
@@ -170,6 +179,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         const user = await usersApi.getMe();
         await setUserData(JSON.stringify(user));
         connectSocket(savedToken);
+        if (__DEV__) {
+          console.tronLog?.log('authStore | session restored', { userId: user.id, username: user.username });
+        }
         import('@/services/pushService').then(({ registerIfNeeded }) => registerIfNeeded().catch(() => {}));
         set({
           user,
@@ -191,6 +203,9 @@ export const useAuthStore = create<AuthState>((set) => ({
             setApiToken(newToken);
             await setUserData(JSON.stringify(refreshedUser));
             connectSocket(newToken);
+            if (__DEV__) {
+              console.tronLog?.log('authStore | silent refresh success', { userId: refreshedUser.id });
+            }
             import('@/services/pushService').then(({ registerIfNeeded }) => registerIfNeeded().catch(() => {}));
             set({
               user: refreshedUser,

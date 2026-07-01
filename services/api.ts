@@ -35,6 +35,12 @@ api.interceptors.request.use((config) => {
   if (_token) {
     config.headers.Authorization = `Bearer ${_token}`;
   }
+  if (__DEV__) {
+    console.tronLog?.debug(`API ▶ ${config.method?.toUpperCase()} ${config.url}`, {
+      params: config.params,
+      data: config.data,
+    });
+  }
   return config;
 });
 
@@ -42,12 +48,27 @@ api.interceptors.request.use((config) => {
 let refreshPromise: Promise<string> | null = null;
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (__DEV__) {
+      console.tronLog?.log(`API ◀ ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`, {
+        data: response.data,
+      });
+    }
+    return response;
+  },
   async (error) => {
     const original = error.config;
 
     // If 401 and not already retried, try to refresh
     // Skip refresh for auth endpoints to avoid infinite loops
+    if (__DEV__) {
+      console.tronLog?.error(`API ✖ ${error.response?.status ?? 'ERR'} ${original.method?.toUpperCase()} ${original.url}`, {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
+    }
+
     const isAuthEndpoint = original.url?.includes('/auth/');
     if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;

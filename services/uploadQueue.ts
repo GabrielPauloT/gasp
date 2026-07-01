@@ -73,6 +73,10 @@ export async function enqueueUpload(
   queue.push(item);
   await writeQueue(queue);
 
+  if (__DEV__) {
+    console.tronLog?.log('uploadQueue | enqueue', { id: item.id, type, uri: uri.slice(-50) });
+  }
+
   // Fire-and-forget; callers don't await the result
   processQueue();
 
@@ -114,9 +118,15 @@ export async function processQueue(): Promise<void> {
       }
 
       if (succeeded) {
+        if (__DEV__) {
+          console.tronLog?.log('uploadQueue | success', { id: item.id, type: item.type });
+        }
         // Remove completed item
         queue = queue.filter((q) => q.id !== item.id);
       } else {
+        if (__DEV__) {
+          console.tronLog?.error('uploadQueue | failed (max attempts)', { id: item.id, type: item.type, uri: item.uri.slice(-50) });
+        }
         // Mark as failed
         queue = queue.map((q) =>
           q.id === item.id

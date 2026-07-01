@@ -46,15 +46,24 @@ export function connectSocket(token: string): Socket {
       const item = eventBuffer.shift()!;
       socket?.emit(item.event, item.data);
     }
-    if (__DEV__) console.log('[socket] connected:', socket?.id);
+    if (__DEV__) {
+      console.tronLog?.log('socket | connected', { id: socket?.id });
+      console.log('[socket] connected:', socket?.id);
+    }
   });
 
   socket.on('disconnect', (reason) => {
-    if (__DEV__) console.log('[socket] disconnected:', reason);
+    if (__DEV__) {
+      console.tronLog?.warn('socket | disconnected', { reason });
+      console.log('[socket] disconnected:', reason);
+    }
   });
 
   socket.on('connect_error', async (err) => {
-    if (__DEV__) console.warn('[socket] connect error:', err.message);
+    if (__DEV__) {
+      console.tronLog?.error('socket | connect_error', { message: err.message });
+      console.warn('[socket] connect error:', err.message);
+    }
 
     // Detect expired/invalid token errors
     const isTokenError = err.message.includes('jwt') ||
@@ -191,8 +200,12 @@ export interface GaspStatusUpdated {
 type EventHandler<T> = (data: T) => void;
 
 export function onChatNewMessage(handler: EventHandler<ChatNewMessage>) {
-  socket?.on('chat:new_message', handler);
-  return () => { socket?.off('chat:new_message', handler); };
+  const wrappedHandler = (data: ChatNewMessage) => {
+    if (__DEV__) console.tronLog?.debug('socket ◀ chat:new_message', { conversationId: data.conversationId, messageId: data.message.id });
+    handler(data);
+  };
+  socket?.on('chat:new_message', wrappedHandler);
+  return () => { socket?.off('chat:new_message', wrappedHandler); };
 }
 
 export function onChatConversationUpdated(handler: EventHandler<ChatConversationUpdated>) {
@@ -226,18 +239,30 @@ export function onPresenceBulkStatus(handler: EventHandler<PresenceBulkStatus>) 
 }
 
 export function onGaspReceived(handler: EventHandler<GaspReceived>) {
-  socket?.on('gasp:received', handler);
-  return () => { socket?.off('gasp:received', handler); };
+  const wrappedHandler = (data: GaspReceived) => {
+    if (__DEV__) console.tronLog?.log('socket ◀ gasp:received', { gaspId: data.gasp.id, from: data.gasp.senderId });
+    handler(data);
+  };
+  socket?.on('gasp:received', wrappedHandler);
+  return () => { socket?.off('gasp:received', wrappedHandler); };
 }
 
 export function onGaspViewed(handler: EventHandler<GaspViewed>) {
-  socket?.on('gasp:viewed', handler);
-  return () => { socket?.off('gasp:viewed', handler); };
+  const wrappedHandler = (data: GaspViewed) => {
+    if (__DEV__) console.tronLog?.debug('socket ◀ gasp:viewed', { gaspId: data.gaspId });
+    handler(data);
+  };
+  socket?.on('gasp:viewed', wrappedHandler);
+  return () => { socket?.off('gasp:viewed', wrappedHandler); };
 }
 
 export function onGaspReactionReceived(handler: EventHandler<GaspReactionReceived>) {
-  socket?.on('gasp:reaction_received', handler);
-  return () => { socket?.off('gasp:reaction_received', handler); };
+  const wrappedHandler = (data: GaspReactionReceived) => {
+    if (__DEV__) console.tronLog?.log('socket ◀ gasp:reaction_received', { gaspId: data.gaspId, reactionId: data.reaction.id });
+    handler(data);
+  };
+  socket?.on('gasp:reaction_received', wrappedHandler);
+  return () => { socket?.off('gasp:reaction_received', wrappedHandler); };
 }
 
 export function onGaspExpired(handler: EventHandler<GaspExpired>) {
@@ -246,6 +271,10 @@ export function onGaspExpired(handler: EventHandler<GaspExpired>) {
 }
 
 export function onGaspStatusUpdated(handler: EventHandler<GaspStatusUpdated>) {
-  socket?.on('gasp:status_updated', handler);
-  return () => { socket?.off('gasp:status_updated', handler); };
+  const wrappedHandler = (data: GaspStatusUpdated) => {
+    if (__DEV__) console.tronLog?.debug('socket ◀ gasp:status_updated', { gaspId: data.gaspId, status: data.deliveryStatus });
+    handler(data);
+  };
+  socket?.on('gasp:status_updated', wrappedHandler);
+  return () => { socket?.off('gasp:status_updated', wrappedHandler); };
 }
