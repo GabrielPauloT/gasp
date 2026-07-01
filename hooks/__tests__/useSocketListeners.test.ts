@@ -160,6 +160,7 @@ function makeGasp(overrides: Partial<Gasp> = {}): Gasp {
     senderId: 'sender-1',
     senderName: 'Alice',
     senderAvatarUrl: 'https://example.com/avatar.jpg',
+    imageUrl: 'https://example.com/gasp.jpg',
     imageUri: 'https://example.com/gasp.jpg',
     mediaType: 'image',
     blurhash: 'LKO2?U%2Tw=w',

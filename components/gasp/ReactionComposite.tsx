@@ -1,26 +1,25 @@
-import { useRef } from 'react';
-import { StyleSheet, View, Dimensions, Image } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View, Image, type LayoutChangeEvent } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { InlineVideo } from '@/components/ui/InlineVideo';
-import type { RefObject } from 'react';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const PIP_WIDTH = SCREEN_WIDTH * 0.32;
-const PIP_HEIGHT = PIP_WIDTH * 1.2;
-const WATERMARK_SIZE = SCREEN_WIDTH * 0.12;
 
 interface ReactionCompositeProps {
   originalUri: string;
   originalMediaType?: 'image' | 'video';
   reactionVideoUri: string;
-  /** If provided, component renders off-screen at 1080×1920 for capture */
-  captureRef?: RefObject<View>;
-  /** Render at full capture resolution (1080×1920) instead of screen size */
-  forCapture?: boolean;
+  // captureRef and forCapture intentionally removed — composition is server-side
 }
 
-function OriginalMedia({ uri, mediaType, style }: { uri: string; mediaType: 'image' | 'video'; style: object }) {
+function OriginalMedia({
+  uri,
+  mediaType,
+  style,
+}: {
+  uri: string;
+  mediaType: 'image' | 'video';
+  style: object;
+}) {
   const player = useVideoPlayer(mediaType === 'video' ? uri : 'about:blank', (p) => {
     p.loop = true;
     p.muted = true;
@@ -28,72 +27,86 @@ function OriginalMedia({ uri, mediaType, style }: { uri: string; mediaType: 'ima
   });
 
   if (mediaType === 'video') {
-    return <VideoView player={player} style={style} contentFit="contain" nativeControls={false} />;
+    return (
+      <VideoView
+        player={player}
+        style={style}
+        contentFit="cover"
+        nativeControls={false}
+      />
+    );
   }
-  return <ExpoImage source={{ uri }} style={style} contentFit="contain" />;
+  return <ExpoImage source={{ uri }} style={style} contentFit="cover" />;
 }
 
 export function ReactionComposite({
   originalUri,
   originalMediaType = 'image',
   reactionVideoUri,
-  captureRef,
-  forCapture = false,
 }: ReactionCompositeProps) {
-  const containerRef = useRef<View>(null);
-  const ref = captureRef ?? containerRef;
+  const [containerWidth, setContainerWidth] = useState(0);
 
-  const W = forCapture ? 1080 : '100%' as any;
-  const H = forCapture ? 1920 : SCREEN_HEIGHT * 0.55;
-  const pipW = forCapture ? 1080 * 0.32 : PIP_WIDTH;
-  const pipH = pipW * 1.2;
-  const wmSize = forCapture ? 1080 * 0.12 : WATERMARK_SIZE;
+  const handleLayout = (e: LayoutChangeEvent) => {
+    setContainerWidth(e.nativeEvent.layout.width);
+  };
+
+  const watermarkSize = containerWidth > 0 ? containerWidth * 0.12 : 0;
 
   return (
-    <View
-      ref={ref}
-      collapsable={false}
-      style={forCapture ? { width: 1080, height: 1920, backgroundColor: '#000', overflow: 'hidden' } : [styles.container, { flex: 1 }]}
-    >
-      {/* Original gasp — full background */}
-      <OriginalMedia
-        uri={originalUri}
-        mediaType={originalMediaType}
-        style={forCapture ? { width: 1080, height: 1920 } : StyleSheet.absoluteFill}
-      />
-
-      {/* Reaction video — PiP top-right */}
-      <View style={[styles.pip, { width: pipW, height: pipH, top: 24, right: 12 }]}>
+    <View style={styles.container} onLayout={handleLayout}>
+      {/* Reaction video — left 1/3 */}
+      <View style={styles.reactionPanel}>
         <InlineVideo
           uri={reactionVideoUri}
-          style={{ width: pipW, height: pipH }}
+          style={StyleSheet.absoluteFill}
           paused={false}
           muted={false}
         />
       </View>
 
-      {/* GASP watermark — bottom-right */}
-      <Image
-        source={require('@/assets/images/icon.png')}
-        style={[styles.watermark, { width: wmSize, height: wmSize, bottom: 16, right: 16 }]}
-        resizeMode="contain"
-      />
+      {/* Original gasp — right 2/3 */}
+      <View style={styles.gaspPanel}>
+        <OriginalMedia
+          uri={originalUri}
+          mediaType={originalMediaType}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
+
+      {/* GASP watermark — bottom-right of container */}
+      {watermarkSize > 0 && (
+        <Image
+          source={require('@/assets/images/icon.png')}
+          style={[
+            styles.watermark,
+            {
+              width: watermarkSize,
+              height: watermarkSize,
+              bottom: 16,
+              right: 16,
+            },
+          ]}
+          resizeMode="contain"
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    flexDirection: 'row',
     backgroundColor: '#000',
     overflow: 'hidden',
   },
-  pip: {
-    position: 'absolute',
-    borderRadius: 12,
-    borderCurve: 'continuous',
+  reactionPanel: {
+    flex: 1,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  gaspPanel: {
+    flex: 2,
+    overflow: 'hidden',
   },
   watermark: {
     position: 'absolute',

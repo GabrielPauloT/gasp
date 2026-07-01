@@ -1,4 +1,4 @@
-import { StyleSheet, View, Dimensions, Pressable } from 'react-native';
+import { StyleSheet, View, Dimensions, Pressable, ActivityIndicator } from 'react-native';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/colors';
 import { Send, RotateCcw, Download } from 'lucide-react-native';
@@ -18,6 +18,8 @@ interface ReactionPreviewProps {
   onDiscard?: () => void;
   onRetake?: () => void;
   onSave?: () => void;
+  /** True while foreground upload or composite job is in flight after Send tap */
+  isSending?: boolean;
 }
 
 export function ReactionPreview({
@@ -30,6 +32,7 @@ export function ReactionPreview({
   onDiscard,
   onRetake,
   onSave,
+  isSending = false,
 }: ReactionPreviewProps) {
   return (
     <View style={styles.container}>
@@ -64,11 +67,16 @@ export function ReactionPreview({
           </Pressable>
           <Pressable
             onPress={onSend}
-            style={styles.sendButton}
+            disabled={isSending}
+            style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
             accessibilityRole="button"
             accessibilityLabel="Send reaction"
           >
-            <Send size={20} color="#FFFFFF" />
+            {isSending ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Send size={20} color="#FFFFFF" />
+            )}
             <Text variant="body" style={styles.sendText}>{'Send Reaction'}</Text>
           </Pressable>
         </Animated.View>
@@ -145,6 +153,9 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     borderCurve: 'continuous',
     backgroundColor: colors.primary,
+  },
+  sendButtonDisabled: {
+    opacity: 0.6,
   },
   sendText: { color: '#FFFFFF', fontWeight: '600' },
   discardButton: {
