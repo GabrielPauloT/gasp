@@ -8,6 +8,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Text } from '@/components/ui/Text';
+import { mediumHaptic, heavyHaptic } from '@/utils/haptics';
 
 interface RecordingCountdownProps {
   isActive: boolean;
@@ -50,9 +51,12 @@ export function RecordingCountdown({ isActive, onCountdownComplete }: RecordingC
     }
   }, [showDot, dotOpacity]);
 
+  const countdownStartedRef = useRef(false);
+
   // Countdown logic: 3 -> 2 -> 1 -> complete, cancelled if isActive becomes false
   useEffect(() => {
     if (!isActive) {
+      countdownStartedRef.current = false;
       setCount(null);
       setShowDot(false);
       numberScale.value = 0;
@@ -61,21 +65,31 @@ export function RecordingCountdown({ isActive, onCountdownComplete }: RecordingC
       return;
     }
 
+    // Guard: prevent re-running if already counting down (e.g. re-render mid-countdown)
+    if (countdownStartedRef.current) return;
+    countdownStartedRef.current = true;
+
     setCount(3);
     setShowDot(false);
+    mediumHaptic();
 
-    const t1 = setTimeout(() => setCount(2), 1000);
-    const t2 = setTimeout(() => setCount(1), 2000);
-    const t3 = setTimeout(() => {
-      setCount(null);
-      setShowDot(true);
-      onCountdownCompleteRef.current();
-    }, 3000);
+    let current = 3;
+    const interval = setInterval(() => {
+      current -= 1;
+      if (current > 0) {
+        setCount(current);
+        mediumHaptic();
+      } else {
+        clearInterval(interval);
+        setCount(null);
+        setShowDot(true);
+        heavyHaptic();
+        onCountdownCompleteRef.current();
+      }
+    }, 1000);
 
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
+      clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);

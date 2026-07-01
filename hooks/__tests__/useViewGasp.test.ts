@@ -121,9 +121,9 @@ describe('useViewGasp', () => {
         result.current.handleCountdownComplete();
       });
 
-      // B3 fix: recordAsync is called after AVCAPTURE_SETTLE_MS (500ms) delay
+      // B3 fix: recordAsync is called after AVCAPTURE_SETTLE_MS (2000ms) delay
       act(() => {
-        jest.advanceTimersByTime(500);
+        jest.advanceTimersByTime(2000);
       });
 
       expect(result.current.isRecording).toBe(true);
