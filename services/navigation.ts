@@ -54,6 +54,11 @@ export async function openGaspViewer(params: GaspViewerParams): Promise<void> {
 
   if (!imageUri) return;
 
+  // Preserve the original CDN URL for the composite payload BEFORE cacheMedia
+  // replaces it with a local file:// path. view-gasp.tsx passes this as
+  // chatGaspUrl → useViewGasp → compositeReaction payload.
+  const cdnGaspUrl = imageUri;
+
   let localUri = imageUri;
   try {
     const expiry = new Date();
@@ -74,6 +79,7 @@ export async function openGaspViewer(params: GaspViewerParams): Promise<void> {
       chatConversationId: conversationId ?? '',
       chatMessageId: messageId ?? '',
       chatTextOverlay: textOverlay ?? '',
+      chatGaspUrl: cdnGaspUrl,
     },
   });
 }

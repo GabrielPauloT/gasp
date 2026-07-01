@@ -28,6 +28,9 @@ export const GaspSchema = z.object({
   senderId: z.string(),
   senderName: z.string(),
   senderAvatarUrl: z.string().nullable(),
+  /** Remote CDN URL of the original gasp media — never overwritten by mediaCache */
+  imageUrl: z.string().optional().default(''),
+  /** Local cached URI (file:// after mediaCache processes it) */
   imageUri: z.string(),
   mediaType: GaspMediaTypeSchema,
   blurhash: z.string(),
@@ -62,6 +65,7 @@ export function normalizePendingGasp(item: ApiPendingGasp): Gasp {
     senderId: item.gasp.senderId,
     senderName: item.sender?.displayName ?? item.sender?.username ?? 'Unknown',
     senderAvatarUrl: item.sender?.avatarUrl ?? null,
+    imageUrl: item.gasp.imageUrl ?? '',
     imageUri: item.gasp.imageUrl ?? '',
     mediaType: item.gasp.mediaType ?? 'image',
     blurhash: item.gasp.blurhash ?? '',
@@ -82,6 +86,7 @@ export function normalizeGasp(raw: z.infer<typeof ApiGaspSchema>): Gasp {
     senderId: raw.senderId,
     senderName: '',
     senderAvatarUrl: null,
+    imageUrl: raw.imageUrl,
     imageUri: raw.imageUrl,
     mediaType: raw.mediaType ?? 'image',
     blurhash: raw.blurhash ?? '',

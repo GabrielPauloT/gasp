@@ -29,6 +29,8 @@ export default function ViewGaspScreen() {
     chatConversationId?: string;
     chatMessageId?: string;
     chatTextOverlay?: string;
+    /** Remote CDN URL of the original gasp — used for composite payload */
+    chatGaspUrl?: string;
   }>();
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -46,6 +48,8 @@ export default function ViewGaspScreen() {
   const blurhash = params.chatBlurhash || gasp?.blurhash;
   const conversationId = params.chatConversationId || '';
   const messageId = params.chatMessageId || '';
+  // CDN URL for composite payload — chatGaspUrl takes priority, then gasp.imageUrl, fallback to local URI
+  const gaspUrl = params.chatGaspUrl || gasp?.imageUrl || imageUri || '';
 
   // Image gasps: 10s fixed. Video gasps: actual video duration (set by onVideoLoad).
   // Both capped at MAX_REACTION_DURATION_S (30s) inside useViewGasp.
@@ -84,6 +88,7 @@ export default function ViewGaspScreen() {
     isCountingDown,
     isRecording,
     previewUri,
+    isSending,
     reactionDurationS,
     handleHoldStart,
     handleCountdownComplete,
@@ -100,6 +105,7 @@ export default function ViewGaspScreen() {
     startProgressAnimation: stableStartProgress,
     resetProgress: stableResetProgress,
     onStopGaspVideo: stableStopVideo,
+    gaspUrl,
   });
 
   const { gesture, isHolding, holdProgress, startProgressAnimation, resetProgress } =
@@ -209,7 +215,7 @@ export default function ViewGaspScreen() {
         <View style={styles.previewOverlay}>
           <ReactionPreview originalImageUri={imageUri} originalMediaType={mediaType} reactionVideoUri={previewUri}
             senderName={senderName} onSend={handleSend} onReRecord={handleReRecord}
-            onDiscard={handleDiscard} />
+            onDiscard={handleDiscard} isSending={isSending} />
         </View>
       )}
     </View>
