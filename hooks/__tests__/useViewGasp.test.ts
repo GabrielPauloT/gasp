@@ -149,14 +149,21 @@ describe('useViewGasp', () => {
       expect(result.current.isCountingDown).toBe(false);
     });
 
-    it('navigates back when no video was captured', async () => {
+    it('shows an error alert when no video was captured (instead of silently navigating back)', async () => {
+      const alertSpy = jest.spyOn(require('react-native').Alert, 'alert').mockImplementation(() => {});
       const { result } = renderHook(() => useViewGasp(defaultProps as any));
 
       await act(async () => {
         await result.current.handleRelease();
       });
 
-      expect(mockRouter.back).toHaveBeenCalled();
+      expect(alertSpy).toHaveBeenCalledWith(
+        'Recording failed',
+        'Could not capture your reaction. Please try again.',
+        expect.any(Array),
+      );
+      expect(mockRouter.back).not.toHaveBeenCalled();
+      alertSpy.mockRestore();
     });
   });
 

@@ -25,10 +25,14 @@ export function InlineVideo({
   useEffect(() => {
     if (player.status === 'readyToPlay') {
       setReady(true);
+      if (!paused) player.play();
       return;
     }
     const sub = player.addListener('statusChange', ({ status }: { status: string }) => {
-      if (status === 'readyToPlay') setReady(true);
+      if (status === 'readyToPlay') {
+        setReady(true);
+        if (!paused) player.play();
+      }
     });
     return () => sub.remove();
   }, [player]);

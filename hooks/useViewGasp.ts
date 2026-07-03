@@ -215,7 +215,13 @@ export function useViewGasp({
       }).catch(() => {});
       setPreviewUri(videoUri);
     } else {
-      router.back();
+      // Recording returned no URI — camera likely wasn't ready.
+      // Show an alert so the user knows what happened instead of silently closing.
+      Alert.alert(
+        'Recording failed',
+        'Could not capture your reaction. Please try again.',
+        [{ text: 'OK', onPress: () => router.back() }],
+      );
     }
   }, [user]);
 
