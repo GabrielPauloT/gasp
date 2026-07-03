@@ -67,6 +67,16 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
+// ── Mock react-native-compressor ─────────────────────────────────────
+jest.mock('react-native-compressor', () => ({
+  Video: {
+    compress: jest.fn((uri) => Promise.resolve(uri)),
+  },
+  Image: {
+    compress: jest.fn((uri) => Promise.resolve(uri)),
+  },
+}));
+
 // ── Mock react-native-reanimated ─────────────────────────────────────
 jest.mock('react-native-reanimated', () => {
   const Reanimated = require('react-native-reanimated/mock');

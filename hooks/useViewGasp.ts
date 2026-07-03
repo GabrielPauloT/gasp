@@ -5,10 +5,11 @@ import { CameraView } from 'expo-camera';
 import { withTiming, type SharedValue } from 'react-native-reanimated';
 import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '@/stores/authStore';
-import { useChatStore } from '@/stores/chatStore';
 import { useCloseViewGasp, useCreateReaction } from '@/hooks/queries/useGasps';
 import { uploadWithRetry, enqueueUpload, removeFromQueue } from '@/services/uploadQueue';
 import { buildCompositePayload, compositeReaction } from '@/services/compositeService';
+import { sendMessage as sendMessageREST } from '@/services/api/messages';
+import { compressVideo } from '@/services/videoCompression';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 
 const MAX_REACTION_DURATION_S = 30;
@@ -52,7 +53,6 @@ export function useViewGasp({
   gaspUrl,
 }: UseViewGaspProps) {
   const user = useAuthStore((s) => s.user);
-  const { sendMessage } = useChatStore();
   const closeViewMutation = useCloseViewGasp();
   const createReactionMutation = useCreateReaction();
 
@@ -87,13 +87,14 @@ export function useViewGasp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Private helper: retry sendMessage up to maxRetries times with exponential backoff.
+  /** Private helper: retry sendMessage via REST up to maxRetries times with backoff.
+   *  Uses HTTP instead of socket to guarantee delivery even during reconnections.
    *  The same mediaUrl is preserved across all attempts (never mutated). */
   const sendMessageWithRetry = useCallback(
     async (
       convId: string,
       mediaUrl: string,
-      msgId: string,
+      _msgId: string,
       maxRetries: number,
     ) => {
       let lastError: unknown;
@@ -103,7 +104,11 @@ export function useViewGasp({
           await sleep(delay);
         }
         try {
-          sendMessage(convId, '[Reaction]', 'reaction', mediaUrl, msgId || undefined);
+          await sendMessageREST(convId, {
+            content: '[Reaction]',
+            type: 'reaction',
+            mediaUrl,
+          });
           return; // success
         } catch (e) {
           lastError = e;
@@ -111,7 +116,7 @@ export function useViewGasp({
       }
       throw lastError;
     },
-    [sendMessage],
+    [],
   );
 
   /** Private helper: show a non-blocking toast for composite fallback */
@@ -243,15 +248,29 @@ export function useViewGasp({
     const localUri = previewUri;
     const userId = user?.id ?? 'guest';
 
+    if (__DEV__) {
+      console.tronLog?.log('handleSend | start', { localUri: localUri.slice(-40), userId, conversationId, messageId, gaspUrl: gaspUrl.slice(-40) });
+    }
+
     setIsSending(true);
     // NOTE: router.back() is NOT called here — it fires after upload succeeds
 
     (async () => {
       try {
-        // 1. Foreground upload (bg queue still active as safety net during upload)
+        // 1. Compress reaction video before upload to reduce size (~8MB → ~1MB)
+        let uploadUri = localUri;
+        try {
+          uploadUri = await compressVideo(localUri);
+          if (__DEV__) console.tronLog?.log('handleSend | compressed', { from: localUri.slice(-30), to: uploadUri.slice(-30) });
+        } catch {
+          // compression failed — use original
+          uploadUri = localUri;
+        }
+
+        // 2. Foreground upload (bg queue still active as safety net during upload)
         let reactionVideoUrl: string;
         try {
-          const result = await uploadWithRetry(localUri, 'reactions', userId);
+          const result = await uploadWithRetry(uploadUri, 'reactions', userId);
           if (!result.downloadUrl) {
             throw new Error('uploadWithRetry returned empty downloadUrl');
           }
@@ -301,14 +320,12 @@ export function useViewGasp({
               tags: { feature: 'super-imposed-reaction' },
             });
           }
-          // Fallback: send raw reaction video
-          sendMessage(
-            conversationId,
-            '[Reaction]',
-            'reaction',
-            reactionVideoUrl,
-            messageId || undefined,
-          );
+          // Fallback: send raw reaction video via REST
+          await sendMessageREST(conversationId, {
+            content: '[Reaction]',
+            type: 'reaction',
+            mediaUrl: reactionVideoUrl,
+          }).catch(() => {}); // best-effort, don't throw
           reactionSucceededRef.current = true;
           showFallbackToast();
         } finally {
@@ -330,7 +347,6 @@ export function useViewGasp({
     conversationId,
     messageId,
     user,
-    sendMessage,
     sendMessageWithRetry,
     showFallbackToast,
     showUploadErrorToast,
@@ -351,8 +367,12 @@ export function useViewGasp({
    */
   const handleDiscard = useCallback(() => {
     router.back();                                              // immediate, non-blocking
-    compositeAbortControllerRef.current?.abort();              // cancel composite if in-flight
-    compositeAbortControllerRef.current = null;
+    // Only abort composite if reaction hasn't been sent yet — if it has,
+    // let the composite finish in background so sender receives the rich video.
+    if (!reactionSucceededRef.current) {
+      compositeAbortControllerRef.current?.abort();
+      compositeAbortControllerRef.current = null;
+    }
     if (bgUploadQueueIdRef.current) {
       removeFromQueue(bgUploadQueueIdRef.current).catch(() => {});
       bgUploadQueueIdRef.current = null;
