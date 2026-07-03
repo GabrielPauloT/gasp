@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View, Image, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { InlineVideo } from '@/components/ui/InlineVideo';
@@ -44,16 +44,8 @@ export function ReactionComposite({
   originalMediaType = 'image',
   reactionVideoUri,
 }: ReactionCompositeProps) {
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  const handleLayout = (e: LayoutChangeEvent) => {
-    setContainerWidth(e.nativeEvent.layout.width);
-  };
-
-  const watermarkSize = containerWidth > 0 ? containerWidth * 0.12 : 0;
-
   return (
-    <View style={styles.container} onLayout={handleLayout}>
+    <View style={styles.container}>
       {/* Reaction video — left 1/3 */}
       <View style={styles.reactionPanel}>
         <InlineVideo
@@ -72,23 +64,6 @@ export function ReactionComposite({
           style={StyleSheet.absoluteFill}
         />
       </View>
-
-      {/* GASP watermark — bottom-right of container */}
-      {watermarkSize > 0 && (
-        <Image
-          source={require('@/assets/images/icon.png')}
-          style={[
-            styles.watermark,
-            {
-              width: watermarkSize,
-              height: watermarkSize,
-              bottom: 16,
-              right: 16,
-            },
-          ]}
-          resizeMode="contain"
-        />
-      )}
     </View>
   );
 }
@@ -107,9 +82,5 @@ const styles = StyleSheet.create({
   gaspPanel: {
     flex: 2,
     overflow: 'hidden',
-  },
-  watermark: {
-    position: 'absolute',
-    opacity: 0.7,
   },
 });
