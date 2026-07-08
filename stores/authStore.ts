@@ -75,7 +75,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
 
     try {
-      await firebaseSignOut(getAuth());
+      const auth = getAuth();
+      if (auth.currentUser) {
+        await firebaseSignOut(auth);
+      }
     } catch (e) {
       Sentry.captureException(e);
     }
@@ -226,7 +229,10 @@ export const useAuthStore = create<AuthState>((set) => ({
           extra: { context: 'authStore.initializeAuth.tokenValidation' },
         });
         try {
-          await firebaseSignOut(getAuth());
+          const auth = getAuth();
+          if (auth.currentUser) {
+            await firebaseSignOut(auth);
+          }
         } catch (signOutError) {
           Sentry.captureException(signOutError, {
             extra: { context: 'authStore.initializeAuth.firebaseSignOut' },

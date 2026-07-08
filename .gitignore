@@ -35,6 +35,10 @@ yarn-error.*
 .env
 .env*.local
 
+# Firebase config files — contain sensitive API keys, never commit
+GoogleService-Info.plist
+google-services.json
+
 # typescript
 *.tsbuildinfo
 
