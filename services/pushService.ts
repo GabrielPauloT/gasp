@@ -9,17 +9,27 @@ import { formatReminderMessage as _formatReminderMessage } from '@/services/noti
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type NotificationType = 'gasp' | 'message' | 'reaction' | 'reminder';
+export type NotificationType =
+  | 'message.new'
+  | 'gasp.received'
+  | 'gasp.reaction_received'
+  | 'friend.request'
+  | 'friend.accepted';
+
+type LegacyNotificationType = 'gasp' | 'message' | 'reaction' | 'reminder';
 
 export interface DeepLinkPayload {
-  type: NotificationType;
+  kind?: NotificationType;
+  type?: NotificationType | LegacyNotificationType;
   gaspId?: string;
   conversationId?: string;
   reactionId?: string;
 }
 
 export interface PushNotificationData {
-  type: NotificationType;
+  kind?: NotificationType;
+  type?: NotificationType | LegacyNotificationType;
+  route?: string;
   gaspId?: string;
   conversationId?: string;
   reactionId?: string;
@@ -28,15 +38,20 @@ export interface PushNotificationData {
 
 // ── Module-level setup ───────────────────────────────────────────────────────
 
-// Suppress foreground native banners — satisfies Requirement 5.5
+// Show native banners only when app is in background/inactive — in foreground
+// the ToastBanner component handles notifications instead (Requirement 5.5)
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: false,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: false,
-    shouldShowList: false,
-  }),
+  handleNotification: async () => {
+    const appState = require('react-native').AppState.currentState;
+    const isBackground = appState === 'background' || appState === 'inactive';
+    return {
+      shouldShowAlert: isBackground,
+      shouldPlaySound: isBackground,
+      shouldSetBadge: true,
+      shouldShowBanner: isBackground,
+      shouldShowList: isBackground,
+    };
+  },
 });
 
 // Handle notification taps — satisfies Requirement 5.4
@@ -57,20 +72,22 @@ const FALLBACK_ROUTE = '/(tabs)/inbox';
  * Satisfies Requirements 5.4, 7.6
  */
 export function resolveDeepLink(payload: DeepLinkPayload): string {
-  switch (payload.type) {
-    case 'gasp':
+  const kind = payload.kind ?? payload.type;
+
+  switch (kind) {
+    case 'gasp.received':
       if (!payload.gaspId) {
-        Sentry.captureMessage('resolveDeepLink: missing gaspId for type "gasp"', {
+        Sentry.captureMessage('resolveDeepLink: missing gaspId for kind "gasp.received"', {
           level: 'warning',
           extra: { payload },
         });
         return FALLBACK_ROUTE;
       }
-      return '/(modals)/gasp-viewer?gaspId=' + payload.gaspId;
+      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
 
-    case 'message':
+    case 'message.new':
       if (!payload.conversationId) {
-        Sentry.captureMessage('resolveDeepLink: missing conversationId for type "message"', {
+        Sentry.captureMessage('resolveDeepLink: missing conversationId for kind "message.new"', {
           level: 'warning',
           extra: { payload },
         });
@@ -78,28 +95,48 @@ export function resolveDeepLink(payload: DeepLinkPayload): string {
       }
       return '/chat/' + payload.conversationId;
 
-    case 'reaction':
-      if (!payload.reactionId) {
-        Sentry.captureMessage('resolveDeepLink: missing reactionId for type "reaction"', {
+    case 'gasp.reaction_received':
+      if (!payload.gaspId) {
+        Sentry.captureMessage('resolveDeepLink: missing gaspId for kind "gasp.reaction_received"', {
           level: 'warning',
           extra: { payload },
         });
         return FALLBACK_ROUTE;
       }
-      return '/(modals)/reaction-viewer?reactionId=' + payload.reactionId;
+      return '/(modals)/reaction-result?gaspId=' + payload.gaspId;
+
+    case 'friend.request':
+      return '/(tabs)/discover';
+
+    case 'friend.accepted':
+      return '/(tabs)/chat';
+
+    // Backward compatibility for old push payloads that may still be delivered.
+    case 'gasp':
+      if (!payload.gaspId) {
+        Sentry.captureMessage('resolveDeepLink: missing gaspId for legacy type "gasp"', {
+          level: 'warning',
+          extra: { payload },
+        });
+        return FALLBACK_ROUTE;
+      }
+      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
+
+    case 'message':
+      if (!payload.conversationId) return FALLBACK_ROUTE;
+      return '/chat/' + payload.conversationId;
+
+    case 'reaction':
+      if (payload.gaspId) return '/(modals)/reaction-result?gaspId=' + payload.gaspId;
+      if (payload.reactionId) return '/(modals)/reaction-result?reactionId=' + payload.reactionId;
+      return FALLBACK_ROUTE;
 
     case 'reminder':
-      if (!payload.gaspId) {
-        Sentry.captureMessage('resolveDeepLink: missing gaspId for type "reminder"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return '/(modals)/gasp-viewer?gaspId=' + payload.gaspId;
+      if (!payload.gaspId) return FALLBACK_ROUTE;
+      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
 
     default:
-      Sentry.captureMessage('resolveDeepLink: unknown notification type', {
+      Sentry.captureMessage('resolveDeepLink: unknown notification kind', {
         level: 'warning',
         extra: { payload },
       });
@@ -124,11 +161,13 @@ export async function hasPermission(): Promise<boolean> {
 export async function registerIfNeeded(): Promise<void> {
   // 1. Check current permission status
   let { status } = await Notifications.getPermissionsAsync();
+  if (__DEV__) console.tronLog?.log('[PushService] permission status:', status);
 
   // If not granted, request permission
   if (status !== 'granted') {
     const response = await Notifications.requestPermissionsAsync();
     status = response.status;
+    if (__DEV__) console.tronLog?.log('[PushService] permission after request:', status);
   }
 
   // 2. If still not granted: log denial and persist flag — no retry (Requirement 5.3)
@@ -147,24 +186,35 @@ export async function registerIfNeeded(): Promise<void> {
   try {
     const tokenResponse = await Notifications.getDevicePushTokenAsync();
     token = tokenResponse.data;
+    if (__DEV__) console.tronLog?.log('[PushService] FCM token obtained:', token.slice(0, 20) + '...');
   } catch (error) {
     // 6. Token fetch failure: log and return silently
+    // 'status' is already in scope (~line 126) from the permission check above.
+    // Avoids an extra async call inside catch that could itself throw and break silencing.
+    if (__DEV__) console.tronLog?.error('[PushService] getDevicePushTokenAsync failed:', error);
     Sentry.captureException(error, {
-      extra: { context: 'pushService.registerIfNeeded.getDevicePushToken' },
+      extra: {
+        context: 'pushService.registerIfNeeded.getDevicePushToken',
+        permissionStatus: status,
+      },
     });
     return;
   }
 
   // 4. Compare with stored token — only register if changed or absent (Requirements 5.2, 5.7)
   const storedToken = await SecureStore.getItemAsync('fcm_token');
+  if (__DEV__) console.tronLog?.log('[PushService] stored token match:', storedToken === token);
 
   if (storedToken !== token) {
     const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+    if (__DEV__) console.tronLog?.log('[PushService] registering device with backend...', { platform });
 
     try {
       await registerDevice(token, platform);
+      if (__DEV__) console.tronLog?.log('[PushService] device registered successfully ✅');
     } catch (error) {
       // 7. registerDevice failure: log and clear cached token to force retry on next launch
+      if (__DEV__) console.tronLog?.error('[PushService] registerDevice failed:', error);
       Sentry.captureException(error, {
         extra: { context: 'pushService.registerIfNeeded.registerDevice' },
       });

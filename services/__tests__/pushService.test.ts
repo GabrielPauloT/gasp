@@ -40,10 +40,9 @@ const SecureStore = require('expo-secure-store') as {
  * Expected path prefixes for each notification type.
  */
 const expectedPrefixes: Record<string, string> = {
-  gasp: '/(modals)/gasp-viewer?gaspId=',
-  message: '/chat/',
-  reaction: '/(modals)/reaction-viewer?reactionId=',
-  reminder: '/(modals)/gasp-viewer?gaspId=',
+  'gasp.received': '/(modals)/view-gasp?gaspId=',
+  'message.new': '/chat/',
+  'gasp.reaction_received': '/(modals)/reaction-result?gaspId=',
 };
 
 /**
@@ -51,13 +50,11 @@ const expectedPrefixes: Record<string, string> = {
  */
 function idFieldForType(type: string): keyof DeepLinkPayload {
   switch (type) {
-    case 'gasp':
-    case 'reminder':
+    case 'gasp.received':
+    case 'gasp.reaction_received':
       return 'gaspId';
-    case 'message':
+    case 'message.new':
       return 'conversationId';
-    case 'reaction':
-      return 'reactionId';
     default:
       return 'gaspId';
   }
@@ -78,10 +75,9 @@ describe('Property-Based Tests', () => {
   // Feature: gasp-notifications, Property 7: Deep link resolution is total and correct
   it('Property 7: resolveDeepLink returns a non-empty string starting with the expected path prefix and containing the relevant ID', () => {
     const notificationTypeArb = fc.constantFrom(
-      'gasp' as const,
-      'message' as const,
-      'reaction' as const,
-      'reminder' as const
+      'gasp.received' as const,
+      'message.new' as const,
+      'gasp.reaction_received' as const
     );
 
     const idArb = fc.string({ minLength: 1, maxLength: 64 }).filter(
@@ -90,7 +86,7 @@ describe('Property-Based Tests', () => {
 
     fc.assert(
       fc.property(notificationTypeArb, idArb, (type, id) => {
-        const payload: PushNotificationData = { type };
+        const payload: PushNotificationData = { kind: type };
 
         // Set the required ID field based on type
         const field = idFieldForType(type);
@@ -149,33 +145,33 @@ describe('Property-Based Tests', () => {
 // ── Unit Tests ───────────────────────────────────────────────────────────────
 
 describe('resolveDeepLink', () => {
-  it('returns gasp viewer route for type "gasp" with gaspId', () => {
-    const result = resolveDeepLink({ type: 'gasp', gaspId: 'abc-123' });
-    expect(result).toBe('/(modals)/gasp-viewer?gaspId=abc-123');
+  it('returns view-gasp route for kind "gasp.received" with gaspId', () => {
+    const result = resolveDeepLink({ kind: 'gasp.received', gaspId: 'abc-123' });
+    expect(result).toBe('/(modals)/view-gasp?gaspId=abc-123');
   });
 
-  it('returns chat route for type "message" with conversationId', () => {
-    const result = resolveDeepLink({ type: 'message', conversationId: 'conv-456' });
+  it('returns chat route for kind "message.new" with conversationId', () => {
+    const result = resolveDeepLink({ kind: 'message.new', conversationId: 'conv-456' });
     expect(result).toBe('/chat/conv-456');
   });
 
-  it('returns reaction viewer route for type "reaction" with reactionId', () => {
-    const result = resolveDeepLink({ type: 'reaction', reactionId: 'react-789' });
-    expect(result).toBe('/(modals)/reaction-viewer?reactionId=react-789');
+  it('returns reaction result route for kind "gasp.reaction_received" with gaspId', () => {
+    const result = resolveDeepLink({ kind: 'gasp.reaction_received', gaspId: 'gasp-789' });
+    expect(result).toBe('/(modals)/reaction-result?gaspId=gasp-789');
   });
 
-  it('returns gasp viewer route for type "reminder" with gaspId', () => {
+  it('returns view-gasp route for legacy type "reminder" with gaspId', () => {
     const result = resolveDeepLink({ type: 'reminder', gaspId: 'gasp-reminder-1' });
-    expect(result).toBe('/(modals)/gasp-viewer?gaspId=gasp-reminder-1');
+    expect(result).toBe('/(modals)/view-gasp?gaspId=gasp-reminder-1');
   });
 
-  it('returns fallback /(tabs)/inbox for unknown type', () => {
+  it('returns fallback /(tabs)/inbox for unknown kind', () => {
     const result = resolveDeepLink({ type: 'unknown' as any });
     expect(result).toBe('/(tabs)/inbox');
   });
 
-  it('returns fallback when required ID is missing for gasp type', () => {
-    const result = resolveDeepLink({ type: 'gasp' });
+  it('returns fallback when required ID is missing for gasp kind', () => {
+    const result = resolveDeepLink({ kind: 'gasp.received' });
     expect(result).toBe('/(tabs)/inbox');
   });
 });

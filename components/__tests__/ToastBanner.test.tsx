@@ -92,7 +92,7 @@ describe("ToastBanner", () => {
 
     // router.push should be called with the gasp viewer route
     expect(router.push).toHaveBeenCalledWith(
-      "/(modals)/gasp-viewer?gaspId=gasp-xyz",
+      "/(modals)/view-gasp?gaspId=gasp-xyz",
     );
 
     // dequeueToast should have been called — activeToast is now null

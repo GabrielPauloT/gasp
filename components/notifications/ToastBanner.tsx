@@ -67,7 +67,7 @@ export function ToastBanner() {
     if (!activeToast) return;
     clearTimer();
     cancelAnimation(translateYSv);
-    router.push(("/(modals)/gasp-viewer?gaspId=" + activeToast.gaspId) as any);
+    router.push(("/(modals)/view-gasp?gaspId=" + activeToast.gaspId) as any);
     dequeueToast();
   };
 
