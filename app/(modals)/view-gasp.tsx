@@ -16,6 +16,7 @@ import { useViewGasp } from '@/hooks/useViewGasp';
 import { useGaspStore } from '@/stores/gaspStore';
 import { useAppStore } from '@/stores/appStore';
 import { useOpenGasp, usePendingGasps } from '@/hooks/queries/useGasps';
+import { useGetOrCreateConversation } from '@/hooks/queries/useChat';
 import { colors } from '@/constants/colors';
 
 export default function ViewGaspScreen() {
@@ -37,6 +38,7 @@ export default function ViewGaspScreen() {
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const { data: pendingGasps = [] } = usePendingGasps();
   const openGaspMutation = useOpenGasp();
+  const getOrCreateConversationMutation = useGetOrCreateConversation();
 
   const gasp = params.gaspId
     ? pendingGasps.find((g) => g.id === params.gaspId) ?? pendingGasps[0]
@@ -80,6 +82,12 @@ export default function ViewGaspScreen() {
   const stableResetProgress = useCallback(() => resetProgressRef.current(), []);
   const stopVideoRef = useRef<(() => void) | null>(null);
   const stableStopVideo = useCallback(() => stopVideoRef.current?.(), []);
+  const resolveConversationId = useCallback(async () => {
+    if (conversationId) return conversationId;
+    if (!gasp?.senderId) return null;
+    const conversation = await getOrCreateConversationMutation.mutateAsync(gasp.senderId);
+    return conversation.id;
+  }, [conversationId, gasp?.senderId, getOrCreateConversationMutation]);
 
   const {
     reactionCameraRef,
@@ -106,6 +114,7 @@ export default function ViewGaspScreen() {
     resetProgress: stableResetProgress,
     onStopGaspVideo: stableStopVideo,
     gaspUrl,
+    resolveConversationId,
   });
 
   const { gesture, isHolding, holdProgress, startProgressAnimation, resetProgress } =

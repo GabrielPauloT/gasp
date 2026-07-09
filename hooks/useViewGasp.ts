@@ -32,6 +32,7 @@ interface UseViewGaspProps {
   onStopGaspVideo?: () => void;
   /** Remote CDN URL of the original gasp — required for composite payload */
   gaspUrl: string;
+  resolveConversationId?: () => Promise<string | null>;
 }
 
 /** Private helper: sleep for ms milliseconds */
@@ -51,6 +52,7 @@ export function useViewGasp({
   resetProgress,
   onStopGaspVideo,
   gaspUrl,
+  resolveConversationId,
 }: UseViewGaspProps) {
   const user = useAuthStore((s) => s.user);
   const closeViewMutation = useCloseViewGasp();
@@ -133,6 +135,14 @@ export function useViewGasp({
     Alert.alert(
       'Upload failed',
       'Could not upload your reaction. Please try again.',
+      [{ text: 'OK' }],
+    );
+  }, []);
+
+  const showMissingConversationToast = useCallback(() => {
+    Alert.alert(
+      'Could not send reaction',
+      'We could not find the chat for this gasp. Please try again from the conversation.',
       [{ text: 'OK' }],
     );
   }, []);
@@ -257,6 +267,17 @@ export function useViewGasp({
 
     (async () => {
       try {
+        const resolvedConversationId = conversationId || await resolveConversationId?.() || '';
+        if (!resolvedConversationId) {
+          Sentry.captureMessage('Reaction send blocked: missing conversationId', {
+            tags: { feature: 'super-imposed-reaction', step: 'conversation-resolution' },
+            extra: { gaspId: gasp?.id, senderId: gasp?.senderId, messageId },
+          });
+          setIsSending(false);
+          showMissingConversationToast();
+          return;
+        }
+
         // 1. Compress reaction video before upload to reduce size (~8MB → ~1MB)
         let uploadUri = localUri;
         try {
@@ -304,7 +325,7 @@ export function useViewGasp({
         try {
           const { compositeUrl } = await compositeReaction(payload, controller.signal);
           clearTimeout(timeoutId);
-          await sendMessageWithRetry(conversationId, compositeUrl, messageId, 3);
+          await sendMessageWithRetry(resolvedConversationId, compositeUrl, messageId, 3);
           reactionSucceededRef.current = true;
         } catch (e: unknown) {
           clearTimeout(timeoutId);
@@ -321,7 +342,7 @@ export function useViewGasp({
             });
           }
           // Fallback: send raw reaction video via REST
-          await sendMessageREST(conversationId, {
+          await sendMessageREST(resolvedConversationId, {
             content: '[Reaction]',
             type: 'reaction',
             mediaUrl: reactionVideoUrl,
@@ -349,7 +370,9 @@ export function useViewGasp({
     user,
     sendMessageWithRetry,
     showFallbackToast,
+    showMissingConversationToast,
     showUploadErrorToast,
+    resolveConversationId,
   ]);
 
   // Option A: full reset — user goes back through 3-2-1 for an authentic reaction
