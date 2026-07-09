@@ -20,16 +20,19 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 
 import { ToastBanner } from "@/components/notifications/ToastBanner";
-import { useNotificationStore } from "@/stores/notificationStore";
+import { ToastItem, useNotificationStore } from "@/stores/notificationStore";
 import { router } from "expo-router";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeToast(overrides = {}) {
+function makeToast(overrides: Partial<ToastItem> = {}): ToastItem {
   return {
     id: "toast-1",
+    kind: "gasp.received",
+    title: "New Gasp",
+    body: "Alice",
+    route: "/(modals)/view-gasp?gaspId=gasp-abc",
     gaspId: "gasp-abc",
-    senderName: "Alice",
     imageUri: "https://example.com/img.jpg",
     blurhash: "LKO2?U%2Tw=w",
     ...overrides,
@@ -82,7 +85,10 @@ describe("ToastBanner", () => {
   });
 
   it("tap handler calls router.push with correct gasp viewer route then calls dequeueToast", () => {
-    const toast = makeToast({ gaspId: "gasp-xyz" });
+    const toast = makeToast({
+      gaspId: "gasp-xyz",
+      route: "/(modals)/view-gasp?gaspId=gasp-xyz",
+    });
     useNotificationStore.setState({ activeToast: toast });
 
     const { getByText } = render(<ToastBanner />);
@@ -103,12 +109,12 @@ describe("ToastBanner", () => {
     const first = makeToast({
       id: "toast-1",
       gaspId: "gasp-1",
-      senderName: "Alice",
+      body: "Alice",
     });
     const second = makeToast({
       id: "toast-2",
       gaspId: "gasp-2",
-      senderName: "Bob",
+      body: "Bob",
     });
 
     // Set up: first is active, second is in queue

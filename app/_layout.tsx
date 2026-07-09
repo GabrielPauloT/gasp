@@ -48,7 +48,7 @@ Sentry.init({
         /^https:\/\/gasp-backend-production\.up\.railway\.app/,
         "localhost",
       ],
-    }),
+    } as any),
   ],
 });
 

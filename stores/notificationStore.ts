@@ -1,11 +1,24 @@
 import { create } from 'zustand';
 
+export type NotificationKind =
+  | 'message.new'
+  | 'gasp.received'
+  | 'gasp.reaction_received'
+  | 'friend.request'
+  | 'friend.accepted';
+
 export interface ToastItem {
   id: string;
-  gaspId: string;
-  senderName: string;
-  imageUri: string;
-  blurhash: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  route: string;
+  actorName?: string;
+  imageUri?: string;
+  blurhash?: string;
+  conversationId?: string;
+  gaspId?: string;
+  reactionId?: string;
 }
 
 interface NotificationState {
@@ -37,7 +50,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   chatHasUnread: false,
 
   enqueueToast: (item) => {
-    const { activeToast } = get();
+    const { activeToast, toastQueue } = get();
+    if (activeToast?.id === item.id || toastQueue.some((queued) => queued.id === item.id)) {
+      return;
+    }
+
     if (activeToast === null) {
       set({ activeToast: item });
     } else {

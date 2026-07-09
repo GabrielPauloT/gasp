@@ -101,17 +101,25 @@ jest.mock('@/hooks/queries/useChat', () => ({
 // ── Mock @/stores/authStore ──────────────────────────────────────────────────────
 
 jest.mock('@/stores/authStore', () => ({
-  useAuthStore: (selector: (s: any) => any) =>
-    selector({ isAuthenticated: true, user: { id: 'user-123' } }),
+  useAuthStore: Object.assign(
+    (selector: (s: any) => any) =>
+      selector({ isAuthenticated: true, user: { id: 'user-123' } }),
+    {
+      getState: jest.fn(() => ({ user: { id: 'user-123' } })),
+    },
+  ),
 }));
 
 // ── Mock @/stores/chatStore ──────────────────────────────────────────────────────
 
+let mockActiveConversationId: string | null = null;
+const mockSetTypingUser = jest.fn();
+
 jest.mock('@/stores/chatStore', () => ({
   useChatStore: {
     getState: jest.fn(() => ({
-      activeConversationId: null,
-      setTypingUser: jest.fn(),
+      activeConversationId: mockActiveConversationId,
+      setTypingUser: mockSetTypingUser,
     })),
   },
 }));
@@ -142,12 +150,16 @@ jest.mock('@/stores/inboxStore', () => ({
 
 const mockEnqueueToast = jest.fn();
 const mockTriggerTabPulse = jest.fn();
+const mockSetInboxUnreadType = jest.fn();
+const mockSetChatHasUnread = jest.fn();
 
 jest.mock('@/stores/notificationStore', () => ({
   useNotificationStore: {
     getState: jest.fn(() => ({
       enqueueToast: mockEnqueueToast,
       triggerTabPulse: mockTriggerTabPulse,
+      setInboxUnreadType: mockSetInboxUnreadType,
+      setChatHasUnread: mockSetChatHasUnread,
     })),
   },
 }));
@@ -173,6 +185,21 @@ function makeGasp(overrides: Partial<Gasp> = {}): Gasp {
   };
 }
 
+function makeMessage(overrides: any = {}) {
+  return {
+    id: 'msg-1',
+    conversationId: 'conv-1',
+    senderId: 'sender-1',
+    content: 'hello',
+    type: 'text',
+    createdAt: new Date().toISOString(),
+    readAt: undefined,
+    mediaUrl: undefined,
+    replyToId: null,
+    ...overrides,
+  };
+}
+
 // ── Setup/Teardown ───────────────────────────────────────────────────────────────
 
 beforeEach(() => {
@@ -181,6 +208,7 @@ beforeEach(() => {
   Object.keys(capturedHandlers).forEach((key) => delete capturedHandlers[key]);
   // Clear query cache
   Object.keys(queryCache).forEach((key) => delete queryCache[key]);
+  mockActiveConversationId = null;
 });
 
 // ── Tests ────────────────────────────────────────────────────────────────────────
@@ -202,8 +230,11 @@ describe('useSocketListeners', () => {
       expect(mockEnqueueToast).toHaveBeenCalledTimes(1);
       expect(mockEnqueueToast).toHaveBeenCalledWith({
         id: 'gasp-abc',
+        kind: 'gasp.received',
+        title: 'New Gasp',
+        body: 'Bob',
+        route: '/(modals)/view-gasp?gaspId=gasp-abc',
         gaspId: 'gasp-abc',
-        senderName: 'Bob',
         imageUri: 'https://cdn.example.com/image.jpg',
         blurhash: 'L6Pj0^i_.AyE_3t7t7R*',
       });
@@ -217,6 +248,86 @@ describe('useSocketListeners', () => {
       capturedHandlers['gasp:received']({ gasp });
 
       expect(mockTriggerTabPulse).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not duplicate pending cache or toast for the same gasp id', () => {
+      const existing = makeGasp({ id: 'gasp-abc' });
+      queryCache[JSON.stringify(queryKeys.gasps.pending)] = [existing];
+
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['gasp:received']({ gasp: makeGasp({ id: 'gasp-abc' }) });
+
+      const pending = queryCache[JSON.stringify(queryKeys.gasps.pending)] as Gasp[];
+      expect(pending).toEqual([existing]);
+      expect(mockEnqueueToast).not.toHaveBeenCalled();
+      expect(mockTriggerTabPulse).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('chat:new_message event', () => {
+    it('increments unread and enqueues a toast when conversation is not active', () => {
+      queryCache[JSON.stringify(queryKeys.conversations.all)] = [{
+        id: 'conv-1',
+        unreadCount: 0,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        lastMessageAt: '2026-01-01T00:00:00.000Z',
+        lastMessage: makeMessage({ id: 'old-msg' }),
+      }];
+
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['chat:new_message']({
+        conversationId: 'conv-1',
+        message: makeMessage({ id: 'msg-2', senderId: 'sender-2', content: 'hi' }),
+      });
+
+      const conversations = queryCache[JSON.stringify(queryKeys.conversations.all)] as any[];
+      expect(conversations[0].unreadCount).toBe(1);
+      expect(mockEnqueueToast).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'msg-2',
+        kind: 'message.new',
+        route: '/chat/conv-1',
+      }));
+      expect(mockSetChatHasUnread).toHaveBeenCalledWith(true);
+    });
+
+    it('does not increment unread or toast for active conversation', () => {
+      mockActiveConversationId = 'conv-1';
+      queryCache[JSON.stringify(queryKeys.conversations.all)] = [{
+        id: 'conv-1',
+        unreadCount: 0,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        lastMessage: null,
+      }];
+
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['chat:new_message']({
+        conversationId: 'conv-1',
+        message: makeMessage({ id: 'msg-2', senderId: 'sender-2' }),
+      });
+
+      const conversations = queryCache[JSON.stringify(queryKeys.conversations.all)] as any[];
+      expect(conversations[0].unreadCount).toBe(0);
+      expect(mockEnqueueToast).not.toHaveBeenCalled();
+    });
+
+    it('does not increment unread twice for duplicate last message', () => {
+      const message = makeMessage({ id: 'msg-2', senderId: 'sender-2' });
+      queryCache[JSON.stringify(queryKeys.conversations.all)] = [{
+        id: 'conv-1',
+        unreadCount: 1,
+        updatedAt: message.createdAt,
+        lastMessage: message,
+      }];
+
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['chat:new_message']({ conversationId: 'conv-1', message });
+
+      const conversations = queryCache[JSON.stringify(queryKeys.conversations.all)] as any[];
+      expect(conversations[0].unreadCount).toBe(1);
     });
   });
 

@@ -1,10 +1,10 @@
 import * as Sentry from '@sentry/react-native';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 import { registerDevice } from '@/services/api/devices';
+import { openNotificationRoute } from '@/services/notificationNavigation';
 import { formatReminderMessage as _formatReminderMessage } from '@/services/notificationHelpers';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ Notifications.setNotificationHandler({
 Notifications.addNotificationResponseReceivedListener((response) => {
   const data = response.notification.request.content.data as unknown as PushNotificationData;
   const route = resolveDeepLink(data);
-  router.push(route as any);
+  openNotificationRoute(route);
 });
 
 // ── Deep Link Resolver ────────────────────────────────────────────────────────
