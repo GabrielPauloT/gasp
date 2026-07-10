@@ -7,10 +7,10 @@ import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '@/stores/authStore';
 import { useCloseViewGasp, useCreateReaction } from '@/hooks/queries/useGasps';
 import { uploadWithRetry, enqueueUpload, removeFromQueue } from '@/services/uploadQueue';
-import { buildCompositePayload, compositeReaction } from '@/services/compositeService';
 import { sendMessage as sendMessageREST } from '@/services/api/messages';
 import { compressVideo } from '@/services/videoCompression';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
+import { useTranslation } from 'react-i18next';
 
 const MAX_REACTION_DURATION_S = 30;
 // After stopping expo-video, iOS needs ~2s for AVAudioSession to fully release
@@ -19,6 +19,15 @@ const AVCAPTURE_SETTLE_MS = 2000;
 
 // Backoff delays for sendMessage retries: immediate, 500ms, 1500ms
 const SEND_RETRY_DELAYS_MS = [0, 500, 1500];
+
+export function buildReactionMessagePayload(mediaUrl: string, replyToId?: string) {
+  return {
+    content: '[Reaction]',
+    type: 'reaction' as const,
+    mediaUrl,
+    ...(replyToId && { replyToId }),
+  };
+}
 
 interface UseViewGaspProps {
   gasp: Gasp | null;
@@ -30,7 +39,7 @@ interface UseViewGaspProps {
   resetProgress: () => void;
   /** Called to stop the gasp video before recording starts — frees AVCapture session */
   onStopGaspVideo?: () => void;
-  /** Remote CDN URL of the original gasp — required for composite payload */
+  /** Remote CDN URL of the original gasp — retained for diagnostics */
   gaspUrl: string;
   resolveConversationId?: () => Promise<string | null>;
 }
@@ -54,9 +63,12 @@ export function useViewGasp({
   gaspUrl,
   resolveConversationId,
 }: UseViewGaspProps) {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const closeViewMutation = useCloseViewGasp();
-  const createReactionMutation = useCreateReaction();
+  const { mutateAsync: createReaction } = useCreateReaction();
+  const currentGaspId = gasp?.id;
+  const currentGaspSenderId = gasp?.senderId;
 
   const reactionCameraRef = useRef<CameraView>(null);
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
@@ -68,9 +80,6 @@ export function useViewGasp({
   const reactionSucceededRef = useRef(false);
   // Track background upload so we can cancel it on discard
   const bgUploadQueueIdRef = useRef<string | null>(null);
-  // AbortController for in-flight composite HTTP request
-  const compositeAbortControllerRef = useRef<AbortController | null>(null);
-
   const [isCountingDown, setIsCountingDown] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
@@ -81,7 +90,10 @@ export function useViewGasp({
     return () => {
       isMountedRef.current = false;
       recordingPromiseRef.current = null;
+      // Read latest refs on unmount so inbox-mode gasps close only when no reaction succeeded.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       const id = gaspIdRef.current;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (id && openedRef.current && !reactionSucceededRef.current) {
         closeViewMutation.mutate(id);
       }
@@ -96,7 +108,7 @@ export function useViewGasp({
     async (
       convId: string,
       mediaUrl: string,
-      _msgId: string,
+      replyToId: string,
       maxRetries: number,
     ) => {
       let lastError: unknown;
@@ -106,11 +118,7 @@ export function useViewGasp({
           await sleep(delay);
         }
         try {
-          await sendMessageREST(convId, {
-            content: '[Reaction]',
-            type: 'reaction',
-            mediaUrl,
-          });
+          await sendMessageREST(convId, buildReactionMessagePayload(mediaUrl, replyToId));
           return; // success
         } catch (e) {
           lastError = e;
@@ -121,31 +129,22 @@ export function useViewGasp({
     [],
   );
 
-  /** Private helper: show a non-blocking toast for composite fallback */
-  const showFallbackToast = useCallback(() => {
-    Alert.alert(
-      'Heads up',
-      'Enhanced reaction unavailable — your reaction was sent as a regular video.',
-      [{ text: 'OK' }],
-    );
-  }, []);
-
   /** Private helper: show upload error toast */
   const showUploadErrorToast = useCallback(() => {
     Alert.alert(
-      'Upload failed',
-      'Could not upload your reaction. Please try again.',
-      [{ text: 'OK' }],
+      t('viewGasp.uploadFailedTitle'),
+      t('viewGasp.uploadFailedBody'),
+      [{ text: t('common.ok') }],
     );
-  }, []);
+  }, [t]);
 
   const showMissingConversationToast = useCallback(() => {
     Alert.alert(
-      'Could not send reaction',
-      'We could not find the chat for this gasp. Please try again from the conversation.',
-      [{ text: 'OK' }],
+      t('viewGasp.missingConversationTitle'),
+      t('viewGasp.missingConversationBody'),
+      [{ text: t('common.ok') }],
     );
-  }, []);
+  }, [t]);
 
   const handleHoldStart = useCallback(() => {
     releasedRef.current = false;
@@ -183,7 +182,8 @@ export function useViewGasp({
           setIsRecording(false);
           recordingPromiseRef.current = null;
         });
-      } catch {
+      } catch (e) {
+        Sentry.captureException(e, { tags: { feature: 'reaction-recording', step: 'start-recording' } });
         isRecordingRef.current = false;
         setIsRecording(false);
         recordingPromiseRef.current = null;
@@ -227,18 +227,22 @@ export function useViewGasp({
       const userId = user?.id ?? 'guest';
       enqueueUpload(videoUri, 'reactions', userId).then((queueId) => {
         bgUploadQueueIdRef.current = queueId;
-      }).catch(() => {});
+      }).catch((e) => {
+        Sentry.captureException(e, {
+          tags: { feature: 'super-imposed-reaction', step: 'background-upload-enqueue' },
+        });
+      });
       setPreviewUri(videoUri);
     } else {
       // Recording returned no URI — camera likely wasn't ready.
       // Show an alert so the user knows what happened instead of silently closing.
       Alert.alert(
-        'Recording failed',
-        'Could not capture your reaction. Please try again.',
-        [{ text: 'OK', onPress: () => router.back() }],
+        t('viewGasp.recordingFailedTitle'),
+        t('viewGasp.recordingFailedBody'),
+        [{ text: t('common.ok'), onPress: () => router.back() }],
       );
     }
-  }, [user]);
+  }, [t, user]);
 
   /**
    * handleSend — composite flow (Requirement 2.2, 3.5, 4.1, 5.x, 8.x)
@@ -247,11 +251,9 @@ export function useViewGasp({
    * 1. setIsSending(true) — disables Send button immediately
    * 2. uploadWithRetry → on failure: setIsSending(false), show toast, keep ReactionPreview visible
    * 3. removeFromQueue (bg upload no longer needed — CDN URL obtained)
-   * 4. setPreviewUri(null) + router.back() — navigate before composite starts
-   * 5. compositeReaction (fire-and-forget from UI perspective) with 8 000ms AbortController
-   * 6. On success: sendMessageWithRetry with compositeUrl
-   * 7. On composite error/timeout: Sentry log + fallback sendMessage + toast
-   * 8. finally: setIsSending(false), clear compositeAbortControllerRef
+   * 4. setPreviewUri(null) + router.back()
+   * 5. sendMessageWithRetry with raw reactionVideoUrl + replyToId
+   * 6. finally: setIsSending(false)
    */
   const handleSend = useCallback(() => {
     if (!previewUri || isSending) return;
@@ -271,7 +273,7 @@ export function useViewGasp({
         if (!resolvedConversationId) {
           Sentry.captureMessage('Reaction send blocked: missing conversationId', {
             tags: { feature: 'super-imposed-reaction', step: 'conversation-resolution' },
-            extra: { gaspId: gasp?.id, senderId: gasp?.senderId, messageId },
+            extra: { gaspId: currentGaspId, senderId: currentGaspSenderId, messageId },
           });
           setIsSending(false);
           showMissingConversationToast();
@@ -283,7 +285,10 @@ export function useViewGasp({
         try {
           uploadUri = await compressVideo(localUri);
           if (__DEV__) console.tronLog?.log('handleSend | compressed', { from: localUri.slice(-30), to: uploadUri.slice(-30) });
-        } catch {
+        } catch (e) {
+          Sentry.captureException(e, {
+            tags: { feature: 'super-imposed-reaction', step: 'compression' },
+          });
           // compression failed — use original
           uploadUri = localUri;
         }
@@ -308,7 +313,11 @@ export function useViewGasp({
 
         // 2. Upload succeeded — cancel bg queue entry (CDN URL already obtained)
         if (bgUploadQueueIdRef.current) {
-          await removeFromQueue(bgUploadQueueIdRef.current).catch(() => {});
+          await removeFromQueue(bgUploadQueueIdRef.current).catch((e) => {
+            Sentry.captureException(e, {
+              tags: { feature: 'super-imposed-reaction', step: 'background-upload-remove-after-send' },
+            });
+          });
           bgUploadQueueIdRef.current = null;
         }
 
@@ -316,41 +325,23 @@ export function useViewGasp({
         setPreviewUri(null);
         router.back();
 
-        // 4. Composite request with 8 000ms AbortController timeout (fire-and-forget)
-        const controller = new AbortController();
-        compositeAbortControllerRef.current = controller;
-        const timeoutId = setTimeout(() => controller.abort(), 8_000);
-        const payload = buildCompositePayload(reactionVideoUrl, gaspUrl);
-
         try {
-          const { compositeUrl } = await compositeReaction(payload, controller.signal);
-          clearTimeout(timeoutId);
-          await sendMessageWithRetry(resolvedConversationId, compositeUrl, messageId, 3);
-          reactionSucceededRef.current = true;
-        } catch (e: unknown) {
-          clearTimeout(timeoutId);
-          const isAbort = e instanceof Error && e.name === 'AbortError';
-          if (isAbort) {
-            Sentry.captureMessage('Composite job timed out', {
-              extra: { durationMs: 8_000, payload },
-              tags: { feature: 'super-imposed-reaction' },
+          if (messageId) {
+            await sendMessageWithRetry(resolvedConversationId, reactionVideoUrl, messageId, 3);
+          } else if (currentGaspId) {
+            await createReaction({
+              gaspId: currentGaspId,
+              videoUrl: reactionVideoUrl,
             });
           } else {
-            Sentry.captureException(e, {
-              extra: { payload },
-              tags: { feature: 'super-imposed-reaction' },
-            });
+            await sendMessageREST(resolvedConversationId, buildReactionMessagePayload(reactionVideoUrl));
           }
-          // Fallback: send raw reaction video via REST
-          await sendMessageREST(resolvedConversationId, {
-            content: '[Reaction]',
-            type: 'reaction',
-            mediaUrl: reactionVideoUrl,
-          }).catch(() => {}); // best-effort, don't throw
           reactionSucceededRef.current = true;
-          showFallbackToast();
+        } catch (sendError: unknown) {
+          Sentry.captureException(sendError, {
+            tags: { feature: 'super-imposed-reaction', step: 'send-reaction-message' },
+          });
         } finally {
-          compositeAbortControllerRef.current = null;
           setIsSending(false);
         }
       } catch (e) {
@@ -368,8 +359,10 @@ export function useViewGasp({
     conversationId,
     messageId,
     user,
+    currentGaspId,
+    currentGaspSenderId,
+    createReaction,
     sendMessageWithRetry,
-    showFallbackToast,
     showMissingConversationToast,
     showUploadErrorToast,
     resolveConversationId,
@@ -386,18 +379,16 @@ export function useViewGasp({
   /**
    * handleDiscard — cancel everything in-flight (Requirement 6.x)
    *
-   * Order: router.back() → abort composite → removeFromQueue → closeViewMutation (inbox only)
+   * Order: router.back() → removeFromQueue → closeViewMutation (inbox only)
    */
   const handleDiscard = useCallback(() => {
     router.back();                                              // immediate, non-blocking
-    // Only abort composite if reaction hasn't been sent yet — if it has,
-    // let the composite finish in background so sender receives the rich video.
-    if (!reactionSucceededRef.current) {
-      compositeAbortControllerRef.current?.abort();
-      compositeAbortControllerRef.current = null;
-    }
     if (bgUploadQueueIdRef.current) {
-      removeFromQueue(bgUploadQueueIdRef.current).catch(() => {});
+      removeFromQueue(bgUploadQueueIdRef.current).catch((e) => {
+        Sentry.captureException(e, {
+          tags: { feature: 'super-imposed-reaction', step: 'background-upload-remove-discard' },
+        });
+      });
       bgUploadQueueIdRef.current = null;
     }
     const id = gaspIdRef.current;

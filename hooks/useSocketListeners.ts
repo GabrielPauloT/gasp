@@ -1,6 +1,6 @@
 import { addMessageToCache } from '@/hooks/queries/useChat';
 import { queryClient } from '@/lib/queryClient';
-import type { Conversation } from '@/services/api/schemas/chat.schema';
+import type { Conversation, Message } from '@/services/api/schemas/chat.schema';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 import { queryKeys } from '@/services/queryKeys';
 import {
@@ -130,6 +130,9 @@ export function useSocketListeners() {
     cleanups.push(
       onChatNewMessage(({ conversationId, message }) => {
         addMessageToCache(queryClient, conversationId, message);
+        if (shouldRefetchReactionMessage(message)) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.messages.byConversation(conversationId) });
+        }
 
         const activeId = useChatStore.getState().activeConversationId;
         const currentUserId = useAuthStore.getState().user?.id;
@@ -199,4 +202,8 @@ export function useSocketListeners() {
       cleanups.forEach((cleanup) => cleanup());
     };
   }, [isAuthenticated]);
+}
+
+function shouldRefetchReactionMessage(message: Message) {
+  return message.type === 'reaction' && !!message.replyToId && !message.replyToMessage;
 }

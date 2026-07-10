@@ -4,6 +4,7 @@ import { colors } from '@/constants/colors';
 import { Send, RotateCcw, Download } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInDown, ZoomIn, Easing } from 'react-native-reanimated';
 import { ReactionComposite } from '@/components/gasp/ReactionComposite';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COMPOSITE_HEIGHT = SCREEN_WIDTH * 1.4;
@@ -34,12 +35,14 @@ export function ReactionPreview({
   onSave,
   isSending = false,
 }: ReactionPreviewProps) {
+  const { t } = useTranslation();
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <Animated.View entering={FadeIn.delay(50).duration(300)}>
-          <Text variant="title" style={styles.title}>{'Your Reaction'}</Text>
-          <Text variant="caption" style={styles.subtitle}>{`to ${senderName}'s gasp`}</Text>
+          <Text variant="title" style={styles.title}>{t('reaction.yourReaction')}</Text>
+          <Text variant="caption" style={styles.subtitle}>{t('reaction.reactionTo', { name: senderName })}</Text>
         </Animated.View>
 
         {/* Composite zooms in with back-easing for a "ta-da" feel */}
@@ -51,6 +54,11 @@ export function ReactionPreview({
             originalUri={originalImageUri}
             originalMediaType={originalMediaType}
             reactionVideoUri={reactionVideoUri}
+            reactionLabel={t('reaction.you')}
+            originalLabel={t('reaction.senderGasp', { name: senderName })}
+            showLabels
+            showDivider
+            watermarkMode="hidden"
           />
         </Animated.View>
 
@@ -60,36 +68,37 @@ export function ReactionPreview({
             onPress={onReRecord ?? onRetake}
             style={styles.retakeButton}
             accessibilityRole="button"
-            accessibilityLabel="Re-record reaction"
+            accessibilityLabel={t('reaction.reRecord')}
           >
             <RotateCcw size={20} color={colors.textPrimary} />
-            <Text variant="body" style={styles.retakeText}>{'Re-record'}</Text>
+            <Text variant="body" style={styles.retakeText}>{t('reaction.reRecord')}</Text>
           </Pressable>
           <Pressable
             onPress={onSend}
             disabled={isSending}
+            accessibilityState={{ disabled: isSending }}
             style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
             accessibilityRole="button"
-            accessibilityLabel="Send reaction"
+            accessibilityLabel={t('reaction.sendReaction')}
           >
             {isSending ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <Send size={20} color="#FFFFFF" />
             )}
-            <Text variant="body" style={styles.sendText}>{'Send Reaction'}</Text>
+            <Text variant="body" style={styles.sendText}>{t('reaction.sendReaction')}</Text>
           </Pressable>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(400).duration(250)} style={styles.secondaryActions}>
           {onSave && (
-            <Pressable onPress={onSave} style={styles.saveButton} accessibilityRole="button" accessibilityLabel="Save to camera roll">
+            <Pressable onPress={onSave} style={styles.saveButton} accessibilityRole="button" accessibilityLabel={t('reaction.saveToCameraRoll')}>
               <Download size={18} color={colors.textSecondary} />
-              <Text variant="body" style={styles.saveText}>{'Save to Camera Roll'}</Text>
+              <Text variant="body" style={styles.saveText}>{t('reaction.saveToCameraRoll')}</Text>
             </Pressable>
           )}
-          <Pressable onPress={onDiscard} style={styles.discardButton} accessibilityRole="button" accessibilityLabel="Discard reaction">
-            <Text variant="body" style={styles.discardText}>{'Discard'}</Text>
+          <Pressable onPress={onDiscard} style={styles.discardButton} accessibilityRole="button" accessibilityLabel={t('reaction.discard')}>
+            <Text variant="body" style={styles.discardText}>{t('reaction.discard')}</Text>
           </Pressable>
         </Animated.View>
       </View>
@@ -155,7 +164,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   sendButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.82,
   },
   sendText: { color: '#FFFFFF', fontWeight: '600' },
   discardButton: {

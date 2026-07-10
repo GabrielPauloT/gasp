@@ -1,7 +1,7 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render } from '@testing-library/react-native';
+import { StyleSheet, type ViewStyle } from 'react-native';
 import { ReactionComposite } from '@/components/gasp/ReactionComposite';
-import fc from 'fast-check';
 
 jest.mock('@/components/ui/InlineVideo', () => ({
   InlineVideo: 'InlineVideo',
@@ -27,40 +27,74 @@ const DEFAULT_PROPS = {
 describe('ReactionComposite', () => {
   describe('layout', () => {
     it('renders a row container', () => {
-      const { getByTestId } = render(
-        <ReactionComposite {...DEFAULT_PROPS} />,
-      );
       // Container has flexDirection row via styles — verify by checking panels exist
       expect(() => render(<ReactionComposite {...DEFAULT_PROPS} />)).not.toThrow();
     });
 
     it('renders the reaction panel (flex:1) on the left and gasp panel (flex:2) on the right', () => {
-      const { UNSAFE_getAllByType } = render(
+      const { getByTestId } = render(
         <ReactionComposite {...DEFAULT_PROPS} />,
       );
-      const { View } = require('react-native');
-      const views = UNSAFE_getAllByType(View);
-      // Find panels by their flex values in style
-      const reactionPanel = views.find((v: any) =>
-        v.props.style && (
-          Array.isArray(v.props.style)
-            ? v.props.style.some((s: any) => s?.flex === 1)
-            : v.props.style?.flex === 1
-        ),
+      const reactionStyle = StyleSheet.flatten(getByTestId('reaction-composite-reaction-panel').props.style) as ViewStyle;
+      const gaspStyle = StyleSheet.flatten(getByTestId('reaction-composite-gasp-panel').props.style) as ViewStyle;
+
+      expect(reactionStyle.flex).toBe(1);
+      expect(gaspStyle.flex).toBe(2);
+    });
+
+    it('allows playback to override the panel split', () => {
+      const { getByTestId } = render(
+        <ReactionComposite {...DEFAULT_PROPS} reactionFlex={45} originalFlex={55} />,
       );
-      const gaspPanel = views.find((v: any) =>
-        v.props.style && (
-          Array.isArray(v.props.style)
-            ? v.props.style.some((s: any) => s?.flex === 2)
-            : v.props.style?.flex === 2
-        ),
-      );
-      expect(reactionPanel).toBeDefined();
-      expect(gaspPanel).toBeDefined();
+      const reactionStyle = StyleSheet.flatten(getByTestId('reaction-composite-reaction-panel').props.style) as ViewStyle;
+      const gaspStyle = StyleSheet.flatten(getByTestId('reaction-composite-gasp-panel').props.style) as ViewStyle;
+
+      expect(reactionStyle.flex).toBe(45);
+      expect(gaspStyle.flex).toBe(55);
     });
 
     it('renders the container with flexDirection row', () => {
       expect(() => render(<ReactionComposite {...DEFAULT_PROPS} />)).not.toThrow();
+    });
+
+    it('renders divider by default', () => {
+      const { getByTestId } = render(
+        <ReactionComposite {...DEFAULT_PROPS} />,
+      );
+
+      expect(getByTestId('reaction-composite-divider')).toBeTruthy();
+    });
+
+    it('hides divider when showDivider is false', () => {
+      const { queryByTestId } = render(
+        <ReactionComposite {...DEFAULT_PROPS} showDivider={false} />,
+      );
+
+      expect(queryByTestId('reaction-composite-divider')).toBeNull();
+    });
+
+    it('renders panel labels only when showLabels is true', () => {
+      const { getByText, queryByText } = render(
+        <ReactionComposite
+          {...DEFAULT_PROPS}
+          reactionLabel="You"
+          originalLabel="Alice's gasp"
+          showLabels
+        />,
+      );
+
+      expect(getByText('You')).toBeTruthy();
+      expect(getByText("Alice's gasp")).toBeTruthy();
+
+      const hidden = render(
+        <ReactionComposite
+          {...DEFAULT_PROPS}
+          reactionLabel="You"
+          originalLabel="Alice's gasp"
+        />,
+      );
+      expect(hidden.queryByText('You')).toBeNull();
+      expect(queryByText('Missing')).toBeNull();
     });
 
     it('does not accept captureRef or forCapture props (TypeScript compile-time check)', () => {
@@ -72,7 +106,7 @@ describe('ReactionComposite', () => {
 
       // If captureRef/forCapture were still in the interface, passing them would not crash.
       // The real guard is TypeScript — this test documents the intent.
-      const propsWithRemoved = DEFAULT_PROPS as any;
+      const propsWithRemoved: typeof DEFAULT_PROPS & { captureRef?: unknown; forCapture?: unknown } = { ...DEFAULT_PROPS };
       delete propsWithRemoved.captureRef;
       delete propsWithRemoved.forCapture;
       expect(() => render(<ReactionComposite {...propsWithRemoved} />)).not.toThrow();

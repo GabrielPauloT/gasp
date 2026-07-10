@@ -7,7 +7,30 @@
  */
 
 import { renderHook, act } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import { router } from 'expo-router';
+import type { CameraView } from 'expo-camera';
+import type { SharedValue } from 'react-native-reanimated';
 import { useViewGasp } from '@/hooks/useViewGasp';
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const values: Record<string, string> = {
+        'common.ok': 'OK',
+        'viewGasp.recordingFailedTitle': 'Recording failed',
+        'viewGasp.recordingFailedBody': 'Could not capture your reaction. Please try again.',
+        'viewGasp.uploadFailedTitle': 'Upload failed',
+        'viewGasp.uploadFailedBody': 'Could not upload your reaction. Please try again.',
+        'viewGasp.missingConversationTitle': 'Could not send reaction',
+        'viewGasp.missingConversationBody': 'We could not find the chat for this gasp. Please try again from the conversation.',
+        'reaction.enhancedUnavailableTitle': 'Reaction sent',
+        'reaction.enhancedUnavailableBody': 'Enhanced view unavailable, so we sent the reaction video.',
+      };
+      return values[key] ?? key;
+    },
+  }),
+}));
 
 // Mock expo-router
 jest.mock('expo-router', () => ({
@@ -15,7 +38,7 @@ jest.mock('expo-router', () => ({
 }));
 
 // Mock navigation
-const mockRouter = require('expo-router').router;
+const mockRouter = router;
 
 // Mock services/uploadQueue
 jest.mock('@/services/uploadQueue', () => ({
@@ -42,18 +65,20 @@ jest.mock('@/stores/chatStore', () => ({
 }));
 
 describe('useViewGasp', () => {
-  const defaultProps = {
+  const defaultProps: Parameters<typeof useViewGasp>[0] = {
     gasp: null,
     conversationId: '',
     messageId: '',
-    isRevealed: { value: 0 },
+    holdDurationS: 5,
+    isRevealed: { value: 0 } as SharedValue<number>,
     startProgressAnimation: jest.fn(),
     resetProgress: jest.fn(),
+    gaspUrl: 'https://cdn.test/gasp.jpg',
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    defaultProps.isRevealed = { value: 0 };
+    defaultProps.isRevealed = { value: 0 } as SharedValue<number>;
     defaultProps.startProgressAnimation = jest.fn();
     defaultProps.resetProgress = jest.fn();
   });
@@ -62,7 +87,7 @@ describe('useViewGasp', () => {
 
   describe('return shape', () => {
     it('returns all expected properties', () => {
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       expect(result.current.reactionCameraRef).toBeDefined();
       expect(result.current.gaspIdRef).toBeDefined();
@@ -84,7 +109,7 @@ describe('useViewGasp', () => {
 
   describe('handleHoldStart', () => {
     it('sets isCountingDown to true', () => {
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       act(() => {
         result.current.handleHoldStart();
@@ -98,7 +123,7 @@ describe('useViewGasp', () => {
 
   describe('handleCountdownComplete', () => {
     it('calls startProgressAnimation', () => {
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       act(() => {
         result.current.handleCountdownComplete();
@@ -109,13 +134,13 @@ describe('useViewGasp', () => {
 
     it('sets isRecording to true (when cameraRef is available)', () => {
       jest.useFakeTimers();
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       // Simulate camera ref being available
-      (result.current.reactionCameraRef as any).current = {
+      result.current.reactionCameraRef.current = {
         recordAsync: jest.fn(() => Promise.resolve({ uri: 'file://video.mp4' })),
         stopRecording: jest.fn(),
-      };
+      } as unknown as CameraView;
 
       act(() => {
         result.current.handleCountdownComplete();
@@ -135,7 +160,7 @@ describe('useViewGasp', () => {
 
   describe('handleRelease', () => {
     it('sets isCountingDown to false', async () => {
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       act(() => {
         result.current.handleHoldStart();
@@ -150,8 +175,8 @@ describe('useViewGasp', () => {
     });
 
     it('shows an error alert when no video was captured (instead of silently navigating back)', async () => {
-      const alertSpy = jest.spyOn(require('react-native').Alert, 'alert').mockImplementation(() => {});
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       await act(async () => {
         await result.current.handleRelease();
@@ -171,7 +196,7 @@ describe('useViewGasp', () => {
 
   describe('handleReRecord', () => {
     it('clears previewUri', () => {
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       act(() => {
         result.current.handleReRecord();
@@ -181,7 +206,7 @@ describe('useViewGasp', () => {
     });
 
     it('calls resetProgress', () => {
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       act(() => {
         result.current.handleReRecord();
@@ -195,7 +220,7 @@ describe('useViewGasp', () => {
 
   describe('handleDiscard', () => {
     it('navigates back', () => {
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       act(() => {
         result.current.handleDiscard();
@@ -205,7 +230,7 @@ describe('useViewGasp', () => {
     });
 
     it('calls closeViewMutation when gaspId is set', () => {
-      const { result } = renderHook(() => useViewGasp(defaultProps as any));
+      const { result } = renderHook(() => useViewGasp(defaultProps));
 
       // Set gaspId as if gasp was opened
       result.current.gaspIdRef.current = 'gasp-123';

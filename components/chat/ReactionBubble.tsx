@@ -1,16 +1,15 @@
 import { useState, useCallback } from 'react';
-import { View, StyleSheet, Pressable, Modal } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Play, CornerDownRight, X } from 'lucide-react-native';
+import { CornerDownRight } from 'lucide-react-native';
 import { Text } from '@/components/ui/Text';
 import { getCachedUri } from '@/services/mediaCache';
 import { colors } from '@/constants/colors';
 import type { Message } from '@/services/api/schemas/chat.schema';
-import { MediaBadge } from './MediaBadge';
 import { chatMediaStyles } from './chatMediaStyles';
-import { ReactionComposite } from '@/components/gasp/ReactionComposite';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { ReactionThumbnail } from './ReactionThumbnail';
+import { ReactionPlaybackModal } from './ReactionPlaybackModal';
 
 interface ReactionBubbleProps {
   message: Message;
@@ -25,15 +24,21 @@ export function ReactionBubble({
   replyToMessage,
   otherParticipantName,
 }: ReactionBubbleProps) {
+  const { t } = useTranslation();
   const rawMediaUri = message.mediaUrl || message.content;
   const resolvedMediaUri = rawMediaUri ? (getCachedUri(rawMediaUri) ?? rawMediaUri) : rawMediaUri;
+  const reactionLabel = isOwnMessage ? t('reaction.you') : otherParticipantName ?? t('reaction.reaction');
+  const originalLabel = isOwnMessage && otherParticipantName
+    ? t('reaction.senderGasp', { name: otherParticipantName })
+    : t('reaction.yourGasp');
 
   // Original gasp URI comes from the replied-to message
   const originalUri = replyToMessage?.mediaUrl ?? replyToMessage?.content ?? '';
   const resolvedOriginalUri = originalUri ? (getCachedUri(originalUri) ?? originalUri) : '';
+  const isBackendCompositeMedia = isCompositeMediaUrl(resolvedMediaUri);
+  const hasCompositeMedia = !!(resolvedMediaUri && resolvedOriginalUri && !isBackendCompositeMedia);
 
   const [showComposite, setShowComposite] = useState(false);
-  const insets = useSafeAreaInsets();
 
   const handleReactionPress = useCallback(() => {
     setShowComposite(true);
@@ -56,7 +61,9 @@ export function ReactionBubble({
             blurRadius={12}
           />
           <Text variant="caption" style={styles.replyText} numberOfLines={1}>
-            {isOwnMessage ? `${otherParticipantName}'s` : 'Your'} gasp
+            {isOwnMessage && otherParticipantName
+              ? t('reaction.senderGasp', { name: otherParticipantName })
+              : t('reaction.yourGasp')}
           </Text>
         </View>
       )}
@@ -64,69 +71,38 @@ export function ReactionBubble({
       <Pressable
         onPress={handleReactionPress}
         accessibilityRole="button"
-        accessibilityLabel="Reaction video, tap to view composite"
+        accessibilityLabel={t('reaction.reactionVideoTap')}
         style={[
           chatMediaStyles.bubble,
           isOwnMessage ? chatMediaStyles.ownBubble : chatMediaStyles.otherBubble,
           chatMediaStyles.mediaBubble,
         ]}
       >
-        <View style={chatMediaStyles.mediaContainer}>
-          <View style={[chatMediaStyles.media, styles.reactionPlaceholder]}>
-            <LinearGradient
-              colors={['#1A1A2E', '#2A1A3E', '#1A1A2E']}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.playCircle}>
-              <Play size={24} color="#FFFFFF" fill="#FFFFFF" style={{ marginLeft: 2 }} />
-            </View>
-          </View>
-          <MediaBadge label="REACTION" variant="reaction" />
-        </View>
+        <ReactionThumbnail
+          reactionUri={resolvedMediaUri ?? undefined}
+          originalUri={hasCompositeMedia ? resolvedOriginalUri : undefined}
+        />
       </Pressable>
 
-      {/* Full-screen composite modal */}
-      <Modal
+      <ReactionPlaybackModal
         visible={showComposite}
-        animationType="fade"
-        presentationStyle="fullScreen"
-        onRequestClose={handleClose}
-      >
-        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
-          <ReactionComposite
-            originalUri={resolvedOriginalUri}
-            reactionVideoUri={resolvedMediaUri ?? ''}
-          />
-          <Pressable
-            onPress={handleClose}
-            style={[styles.closeButton, { top: insets.top + 12 }]}
-            accessibilityRole="button"
-            accessibilityLabel="Close reaction view"
-          >
-            <X size={24} color="#FFFFFF" />
-          </Pressable>
-        </View>
-      </Modal>
+        reactionUri={resolvedMediaUri ?? undefined}
+        originalUri={resolvedOriginalUri || undefined}
+        reactionLabel={reactionLabel}
+        originalLabel={originalLabel}
+        hasCompositeMedia={hasCompositeMedia}
+        onClose={handleClose}
+      />
     </>
   );
 }
 
+function isCompositeMediaUrl(uri?: string | null) {
+  return !!uri && /\/composites\//.test(uri);
+}
+
 // ── Styles ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  reactionPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(124, 58, 237, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(124, 58, 237, 0.8)',
-  },
   replyStrip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -144,19 +120,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   replyText: { fontSize: 11, color: colors.textTertiary },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  closeButton: {
-    position: 'absolute',
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
 });

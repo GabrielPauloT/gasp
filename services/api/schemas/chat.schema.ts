@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const MessageTypeSchema = z.enum(['text', 'gasp', 'reaction', 'image']);
 export type MessageType = z.infer<typeof MessageTypeSchema>;
 
-export const MessageSchema = z.object({
+const BaseMessageSchema = z.object({
   id: z.string(),
   conversationId: z.string(),
   senderId: z.string(),
@@ -13,6 +13,10 @@ export const MessageSchema = z.object({
   readAt: z.string().optional(),
   mediaUrl: z.string().optional(),
   replyToId: z.string().nullable().optional(),
+});
+
+export const MessageSchema = BaseMessageSchema.extend({
+  replyToMessage: BaseMessageSchema.nullable().optional(),
 });
 
 export type Message = z.infer<typeof MessageSchema>;

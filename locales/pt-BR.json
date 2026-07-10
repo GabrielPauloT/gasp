@@ -52,7 +52,28 @@
   "reaction": {
     "reactedToYourGasp": "{{name}} reagiu ao seu gasp",
     "reacted": " reagiu ao seu gasp",
-    "someone": "Alguém"
+    "someone": "Alguém",
+    "yourReaction": "Sua reação",
+    "reactionTo": "ao gasp de {{name}}",
+    "you": "Você",
+    "reaction": "Reação",
+    "reactedBy": "{{name}} reagiu",
+    "reactionOnly": "Reação de {{name}}",
+    "senderGasp": "gasp de {{name}}",
+    "yourGasp": "Seu gasp",
+    "gasp": "Gasp",
+    "reRecord": "Gravar de novo",
+    "sendReaction": "Enviar reação",
+    "saveToCameraRoll": "Salvar no rolo da câmera",
+    "discard": "Descartar",
+    "reactionVideoTap": "Vídeo de reação, toque para ver o composto",
+    "closeReactionView": "Fechar visualização da reação",
+    "playReaction": "Reproduzir reação",
+    "pauseReaction": "Pausar reação",
+    "muteReaction": "Silenciar reação",
+    "unmuteReaction": "Ativar som da reação",
+    "enhancedUnavailableTitle": "Reação enviada",
+    "enhancedUnavailableBody": "A visualização aprimorada não ficou disponível, então enviamos o vídeo da reação."
   },
   "chat": {
     "startConversation": "Start the conversation by sending a gasp!",
@@ -91,7 +112,13 @@
     "cameraMicRequired": "Camera & Microphone Required",
     "needsFrontCamera": "GASP needs your front camera and microphone to capture your reaction while viewing",
     "reactionNotSent": "Reaction not sent",
-    "reactionUploadFailed": "Your reaction video could not be uploaded. Please try again."
+    "reactionUploadFailed": "Your reaction video could not be uploaded. Please try again.",
+    "uploadFailedTitle": "Falha no envio",
+    "uploadFailedBody": "Não foi possível enviar seu vídeo de reação. Tente novamente.",
+    "missingConversationTitle": "Não foi possível enviar a reação",
+    "missingConversationBody": "Não encontramos a conversa deste gasp. Tente novamente pela conversa.",
+    "recordingFailedTitle": "Falha na gravação",
+    "recordingFailedBody": "Não foi possível capturar sua reação. Tente novamente."
   },
   "errors": {
     "somethingWentWrong": "Something went wrong",
