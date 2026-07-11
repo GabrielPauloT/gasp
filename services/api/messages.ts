@@ -23,6 +23,7 @@ export async function sendMessage(
     content: string;
     type?: MessageType;
     mediaUrl?: string;
+    replyToId?: string;
   },
 ): Promise<Message> {
   const res = await api.post<Message>(
