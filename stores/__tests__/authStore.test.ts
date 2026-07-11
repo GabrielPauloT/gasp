@@ -37,6 +37,11 @@ import { setApiToken, registerAuthCallbacks } from '@/services/api';
 import { connectSocket, disconnectSocket } from '@/services/socket';
 import * as SecureStore from 'expo-secure-store';
 
+declare global {
+  var mockFirebaseCurrentUser: { uid: string } | null;
+  var mockFirebaseSignOut: jest.Mock<Promise<void>, []>;
+}
+
 // ── Typed mock helpers ────────────────────────────────────────────────────────
 
 const mockLogin = authApi.login as jest.Mock;
