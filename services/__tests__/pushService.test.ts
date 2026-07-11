@@ -6,12 +6,26 @@ jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(),
   requestPermissionsAsync: jest.fn(),
   getDevicePushTokenAsync: jest.fn(),
+  getExpoPushTokenAsync: jest.fn(),
   setNotificationHandler: jest.fn(),
   addNotificationResponseReceivedListener: jest.fn(),
+  getLastNotificationResponseAsync: jest.fn(),
+}));
+
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    expoConfig: { extra: { eas: { projectId: 'test-project-id' } } },
+    easConfig: { projectId: 'test-project-id' },
+  },
 }));
 
 jest.mock('expo-router', () => ({
   router: { push: jest.fn() },
+}));
+
+jest.mock('@/services/notificationNavigation', () => ({
+  openNotificationRoute: jest.fn(),
 }));
 
 jest.mock('@/services/api/devices', () => ({
@@ -20,9 +34,11 @@ jest.mock('@/services/api/devices', () => ({
 
 // Import after mocks are declared (jest.mock is hoisted anyway)
 import { registerDevice } from '@/services/api/devices';
+import { openNotificationRoute } from '@/services/notificationNavigation';
 import type { DeepLinkPayload, PushNotificationData } from '@/services/pushService';
-import { registerIfNeeded, resolveDeepLink } from '@/services/pushService';
+import { openLastNotificationResponseIfAny, registerIfNeeded, resolveDeepLink } from '@/services/pushService';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 const mockedNotifications = Notifications as jest.Mocked<typeof Notifications>;
 const mockedRegisterDevice = registerDevice as jest.Mock;
@@ -64,6 +80,7 @@ function idFieldForType(type: string): keyof DeepLinkPayload {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
   SecureStore.getItemAsync.mockReset();
   SecureStore.setItemAsync.mockReset();
   SecureStore.deleteItemAsync.mockReset();
@@ -105,6 +122,29 @@ describe('Property-Based Tests', () => {
         expect(result).toContain(id);
       })
     );
+  });
+
+  it('uses Expo push token registration on iOS because Firebase Admin cannot send APNs tokens directly', async () => {
+    Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+    const expoToken = 'ExpoPushToken[ios-token-123]';
+
+    mockedNotifications.getPermissionsAsync.mockResolvedValue({
+      status: 'granted',
+      expires: 'never',
+      granted: true,
+      canAskAgain: true,
+    } as any);
+    mockedNotifications.getExpoPushTokenAsync.mockResolvedValue({
+      data: expoToken,
+      type: 'expo',
+    } as any);
+    SecureStore.getItemAsync.mockResolvedValue(null);
+
+    await registerIfNeeded();
+
+    expect(mockedNotifications.getExpoPushTokenAsync).toHaveBeenCalledWith({ projectId: 'test-project-id' });
+    expect(mockedNotifications.getDevicePushTokenAsync).not.toHaveBeenCalled();
+    expect(mockedRegisterDevice).toHaveBeenCalledWith(expoToken, 'ios');
   });
 
   // Feature: gasp-notifications, Property 8: FCM token registration calls API with correct token
@@ -153,6 +193,17 @@ describe('resolveDeepLink', () => {
   it('returns chat route for kind "message.new" with conversationId', () => {
     const result = resolveDeepLink({ kind: 'message.new', conversationId: 'conv-456' });
     expect(result).toBe('/chat/conv-456');
+  });
+
+  it('preserves sender metadata for message notification chat routes', () => {
+    const result = resolveDeepLink({
+      kind: 'message.new',
+      conversationId: 'conv-456',
+      actorName: 'Alex Gasp',
+      actorAvatarUrl: 'https://example.com/alex.jpg',
+    });
+
+    expect(result).toBe('/chat/conv-456?name=Alex+Gasp&avatarUrl=https%3A%2F%2Fexample.com%2Falex.jpg');
   });
 
   it('returns reaction result route for kind "gasp.reaction_received" with gaspId', () => {
@@ -254,8 +305,10 @@ describe('registerIfNeeded', () => {
       getPermissionsAsync: jest.fn(),
       requestPermissionsAsync: jest.fn(),
       getDevicePushTokenAsync: jest.fn(),
+      getExpoPushTokenAsync: jest.fn(),
       setNotificationHandler: jest.fn(),
       addNotificationResponseReceivedListener: jest.fn(),
+      getLastNotificationResponseAsync: jest.fn(),
     }));
     jest.doMock('expo-router', () => ({ router: { push: jest.fn() } }));
     jest.doMock('@/services/api/devices', () => ({
@@ -274,5 +327,28 @@ describe('registerIfNeeded', () => {
         handleNotification: expect.any(Function),
       })
     );
+  });
+});
+
+describe('openLastNotificationResponseIfAny', () => {
+  it('opens the route from the last notification response once auth/root is ready', async () => {
+    mockedNotifications.getLastNotificationResponseAsync.mockResolvedValue({
+      notification: {
+        request: {
+          identifier: 'notification-1',
+          content: {
+            data: {
+              kind: 'message.new',
+              conversationId: 'conv-1',
+              actorName: 'Alex',
+            },
+          },
+        },
+      },
+    } as any);
+
+    await openLastNotificationResponseIfAny();
+
+    expect(openNotificationRoute).toHaveBeenCalledWith('/chat/conv-1?name=Alex');
   });
 });

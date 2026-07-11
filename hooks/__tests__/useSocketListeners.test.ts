@@ -269,6 +269,9 @@ describe('useSocketListeners', () => {
     it('increments unread and enqueues a toast when conversation is not active', () => {
       queryCache[JSON.stringify(queryKeys.conversations.all)] = [{
         id: 'conv-1',
+        participantIds: ['user-1', 'sender-2'],
+        participantNames: ['Current User', 'Alex'],
+        participantAvatars: [null, 'https://example.com/alex.jpg'],
         unreadCount: 0,
         updatedAt: '2026-01-01T00:00:00.000Z',
         lastMessageAt: '2026-01-01T00:00:00.000Z',
@@ -287,7 +290,7 @@ describe('useSocketListeners', () => {
       expect(mockEnqueueToast).toHaveBeenCalledWith(expect.objectContaining({
         id: 'msg-2',
         kind: 'message.new',
-        route: '/chat/conv-1',
+        route: '/chat/conv-1?name=Alex&avatarUrl=https%3A%2F%2Fexample.com%2Falex.jpg',
       }));
       expect(mockSetChatHasUnread).toHaveBeenCalledWith(true);
     });

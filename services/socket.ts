@@ -105,6 +105,15 @@ export function getSocket(): Socket | null {
   return socket;
 }
 
+// ── Notification app-state events ─────────────────────────────────
+
+export function sendNotificationAppState(data: {
+  state: 'active' | 'inactive' | 'background';
+  activeConversationId?: string | null;
+}) {
+  bufferedEmit('notification:app_state', data);
+}
+
 // ── Chat events ────────────────────────────────────────────────────
 
 export interface ChatNewMessage {

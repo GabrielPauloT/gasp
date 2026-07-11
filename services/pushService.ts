@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react-native';
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -24,6 +25,9 @@ export interface DeepLinkPayload {
   gaspId?: string;
   conversationId?: string;
   reactionId?: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
+  senderName?: string;
 }
 
 export interface PushNotificationData {
@@ -34,6 +38,8 @@ export interface PushNotificationData {
   conversationId?: string;
   reactionId?: string;
   senderName?: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
 }
 
 // ── Module-level setup ───────────────────────────────────────────────────────
@@ -56,14 +62,46 @@ Notifications.setNotificationHandler({
 
 // Handle notification taps — satisfies Requirement 5.4
 Notifications.addNotificationResponseReceivedListener((response) => {
+  openNotificationResponse(response);
+});
+
+let lastOpenedNotificationId: string | null = null;
+
+function openNotificationResponse(response: Notifications.NotificationResponse | null | undefined) {
+  if (!response) return;
+
+  const notificationId = response.notification.request.identifier;
+  if (notificationId && notificationId === lastOpenedNotificationId) return;
+  lastOpenedNotificationId = notificationId ?? null;
+
   const data = response.notification.request.content.data as unknown as PushNotificationData;
   const route = resolveDeepLink(data);
   openNotificationRoute(route);
-});
+}
+
+export async function openLastNotificationResponseIfAny(): Promise<void> {
+  try {
+    openNotificationResponse(await Notifications.getLastNotificationResponseAsync());
+  } catch (error) {
+    Sentry.captureException(error, {
+      extra: { context: 'pushService.openLastNotificationResponseIfAny' },
+    });
+  }
+}
 
 // ── Deep Link Resolver ────────────────────────────────────────────────────────
 
 const FALLBACK_ROUTE = '/(tabs)/inbox';
+const EAS_PROJECT_ID = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+
+function appendQueryParams(route: string, params: Record<string, string | undefined>) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) search.set(key, value);
+  });
+  const query = search.toString();
+  return query ? `${route}?${query}` : route;
+}
 
 /**
  * Resolves a push notification payload to an in-app route.
@@ -93,7 +131,10 @@ export function resolveDeepLink(payload: DeepLinkPayload): string {
         });
         return FALLBACK_ROUTE;
       }
-      return '/chat/' + payload.conversationId;
+      return appendQueryParams('/chat/' + payload.conversationId, {
+        name: payload.actorName ?? payload.senderName,
+        avatarUrl: payload.actorAvatarUrl,
+      });
 
     case 'gasp.reaction_received':
       if (!payload.gaspId) {
@@ -124,7 +165,10 @@ export function resolveDeepLink(payload: DeepLinkPayload): string {
 
     case 'message':
       if (!payload.conversationId) return FALLBACK_ROUTE;
-      return '/chat/' + payload.conversationId;
+      return appendQueryParams('/chat/' + payload.conversationId, {
+        name: payload.actorName ?? payload.senderName,
+        avatarUrl: payload.actorAvatarUrl,
+      });
 
     case 'reaction':
       if (payload.gaspId) return '/(modals)/reaction-result?gaspId=' + payload.gaspId;
@@ -181,12 +225,21 @@ export async function registerIfNeeded(): Promise<void> {
     return;
   }
 
-  // 3. Obtain FCM token
+  // 3. Obtain push token. Android uses native FCM tokens for Firebase Admin.
+  // iOS uses Expo push tokens because getDevicePushTokenAsync returns APNs tokens,
+  // which Firebase Admin cannot send to as multicast FCM tokens.
   let token: string;
   try {
-    const tokenResponse = await Notifications.getDevicePushTokenAsync();
-    token = tokenResponse.data;
-    if (__DEV__) console.tronLog?.log('[PushService] FCM token obtained:', token.slice(0, 20) + '...');
+    if (Platform.OS === 'ios') {
+      const tokenResponse = await Notifications.getExpoPushTokenAsync(
+        EAS_PROJECT_ID ? { projectId: EAS_PROJECT_ID } : undefined,
+      );
+      token = tokenResponse.data;
+    } else {
+      const tokenResponse = await Notifications.getDevicePushTokenAsync();
+      token = tokenResponse.data;
+    }
+    if (__DEV__) console.tronLog?.log('[PushService] push token obtained:', token.slice(0, 20) + '...');
   } catch (error) {
     // 6. Token fetch failure: log and return silently
     // 'status' is already in scope (~line 126) from the permission check above.

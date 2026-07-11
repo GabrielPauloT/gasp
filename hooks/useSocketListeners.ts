@@ -140,8 +140,10 @@ export function useSocketListeners() {
         // Only increment unreadCount for the recipient — never for the sender
         const isOwnMessage = currentUserId != null && message.senderId === currentUserId;
 
+        let latestConversations: Conversation[] = [];
         queryClient.setQueryData<Conversation[]>(queryKeys.conversations.all, (old) => {
           if (!old) return [];
+          latestConversations = old;
           return old.map((c) => {
             if (c.id !== conversationId) return c;
             const isDuplicate = c.lastMessage?.id === message.id;
@@ -162,7 +164,7 @@ export function useSocketListeners() {
             kind: 'message.new',
             title: 'New Message',
             body: message.content,
-            route: `/chat/${conversationId}`,
+            route: routeForConversationToast(conversationId, latestConversations, message.senderId, currentUserId),
             conversationId,
           });
           useNotificationStore.getState().setChatHasUnread(true);
@@ -206,4 +208,26 @@ export function useSocketListeners() {
 
 function shouldRefetchReactionMessage(message: Message) {
   return message.type === 'reaction' && !!message.replyToId && !message.replyToMessage;
+}
+
+function routeForConversationToast(
+  conversationId: string,
+  conversations: Conversation[],
+  messageSenderId?: string,
+  currentUserId?: string,
+) {
+  const conversation = conversations.find((c) => c.id === conversationId);
+  const senderIndex = conversation?.participantIds?.findIndex((id) => id === messageSenderId) ?? -1;
+  const otherIndex = senderIndex >= 0
+    ? senderIndex
+    : conversation?.participantIds?.findIndex((id) => id !== currentUserId) ?? -1;
+  const name = otherIndex >= 0 ? conversation?.participantNames?.[otherIndex] : undefined;
+  const avatarUrl = otherIndex >= 0 ? conversation?.participantAvatars?.[otherIndex] : undefined;
+  const search = new URLSearchParams();
+
+  if (name) search.set('name', name);
+  if (avatarUrl) search.set('avatarUrl', avatarUrl);
+
+  const query = search.toString();
+  return query ? `/chat/${conversationId}?${query}` : `/chat/${conversationId}`;
 }

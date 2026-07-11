@@ -110,13 +110,18 @@ Out of scope for this MVP: notification preferences screen, complex batching str
 
 #### Acceptance Criteria
 
-1. WHEN a NotificationEvent is created and the Presence_Service reports that the Recipient has no active Socket.IO connection, THE Backend SHALL enqueue a push job in the Notification_Queue.
-2. WHEN a NotificationEvent is created and the Presence_Service reports that the Recipient has an active Socket.IO connection, THE Backend SHALL deliver the event via the Socket_Service and SHALL NOT enqueue a push job for that event.
-3. WHEN the Notification_Worker processes a push job and the Recipient has one or more Device_Tokens, THE Notification_Worker SHALL send the notification via FCM multicast to all registered Device_Tokens.
-4. WHEN the Notification_Worker processes a push job and the Recipient has no registered Device_Tokens, THE Notification_Worker SHALL log the skip with reason `no_devices` and return without error.
-5. WHEN the user taps a push notification, THE App SHALL call `router.push` with the value of the `route` field from the notification's data payload.
-6. WHEN the App returns to the foreground within 30 seconds of a push being received without the user tapping it, THE App SHALL invalidate the `conversations.all` and `gasps.pending` React Query queries to refresh their data.
-7. WHEN the `route` field is absent from a notification payload, or when a required identifier (`gaspId` for gasp events, `conversationId` for message events) is missing, THE Deep_Link_Resolver SHALL navigate to `/(tabs)/inbox`.
+1. WHEN a NotificationEvent is created and the Recipient app is foreground active on the same conversation or viewing context, THE Backend/App SHALL deliver only realtime UI/cache updates and SHALL NOT show a native OS banner.
+2. WHEN a NotificationEvent is created and the Recipient app is foreground active but not on the relevant conversation or viewing context, THE App SHALL show an in-app Toast_Banner and update the relevant unread/tab state.
+3. WHEN a NotificationEvent is created and the Recipient app is backgrounded, inactive, locked, or closed, THE Backend SHALL enqueue a push job in the Notification_Queue even if Presence_Service still temporarily reports an active Socket.IO connection.
+4. THE Presence_Service SHALL NOT be the only source of truth for push suppression; push suppression SHALL require explicit foreground activity for the relevant context, not merely a recent socket heartbeat.
+5. WHEN the App transitions from active to background, THE App SHALL publish or trigger a best-effort presence state update quickly enough that the Backend can treat the user as push-eligible before the 60 second heartbeat threshold expires.
+6. WHEN the Notification_Worker processes a push job and the Recipient has one or more Device_Tokens, THE Notification_Worker SHALL send the notification via FCM multicast to all registered Device_Tokens.
+7. WHEN the Notification_Worker sends an iOS push notification, THE APNs payload SHALL include a visible alert and `sound: "default"` unless the user has disabled notification sound at the OS level.
+8. WHEN the Notification_Worker processes a push job and the Recipient has no registered Device_Tokens, THE Notification_Worker SHALL log the skip with reason `no_devices` and return without error.
+9. WHEN the user taps a push notification, THE App SHALL call `router.push` with the value of the `route` field from the notification's data payload, after normalizing required route params.
+10. WHEN the App is launched cold from a push notification, THE App SHALL inspect the last notification response and navigate to the target route once auth/router state is ready.
+11. WHEN the App returns to the foreground within 30 seconds of a push being received without the user tapping it, THE App SHALL invalidate the `conversations.all` and `gasps.pending` React Query queries to refresh their data.
+12. WHEN the `route` field is absent from a notification payload, or when a required identifier (`gaspId` for gasp events, `conversationId` for message events) is missing, THE Deep_Link_Resolver SHALL navigate to `/(tabs)/inbox`.
 
 ---
 
@@ -132,6 +137,9 @@ Out of scope for this MVP: notification preferences screen, complex batching str
 4. WHEN the Deep_Link_Resolver receives a NotificationEvent with `kind === 'friend.request'`, THE Deep_Link_Resolver SHALL return `/(tabs)/discover`.
 5. WHEN the Deep_Link_Resolver receives a NotificationEvent with `kind === 'friend.accepted'`, THE Deep_Link_Resolver SHALL return `/(tabs)/chat`.
 6. THE Push_Service SHALL not contain any reference to the stale route `/(modals)/gasp-viewer`; all gasp-related navigation SHALL use `/(modals)/view-gasp`.
+7. WHEN a `message.new` notification routes to `/chat/:conversationId`, THE payload or route params SHALL include enough participant metadata (`actorId`, `actorName`, and optional `actorAvatarUrl`) for the Chat screen to render a non-`Unknown` header before `useConversations()` has refreshed.
+8. WHEN the App opens `/chat/:conversationId` from a push or toast and the conversation is not yet present in the local conversations cache, THE Chat screen SHALL fetch or derive the participant context before showing a fallback `Unknown` label.
+9. WHEN a notification tap opens an existing conversation, THE App SHALL avoid creating a new conversation or new navigation stack entry for an unknown user.
 
 ---
 
@@ -145,6 +153,7 @@ Out of scope for this MVP: notification preferences screen, complex batching str
 2. WHEN a message is created and the Recipient is an Offline_User, THE Backend SHALL enqueue exactly one `message.new` push notification for the Recipient; THE Backend SHALL NOT enqueue a push for the Sender.
 3. WHEN a `message.new` socket event arrives, THE Socket_Listeners SHALL update the `lastMessage`, `lastMessageAt`, and `updatedAt` fields of the matching conversation in the React Query cache regardless of whether the user is the sender or recipient.
 4. WHEN a `message.new` push notification is sent, THE Backend SHALL populate the `conversationId` field in the NotificationEvent payload.
+5. WHEN a `message.new` push notification is sent, THE Backend SHALL populate `actorId` and `actorName` for the sender so the receiving Chat screen can render the correct participant context immediately.
 
 ---
 

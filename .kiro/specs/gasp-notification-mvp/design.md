@@ -12,14 +12,16 @@ The Gasp Notification MVP standardizes the existing notification pieces into a s
 - A BullMQ notification queue and worker in `gasp-backend/src/jobs/workers/notification.worker.ts`
 - Presence detection through Socket.IO and Redis
 
-The design keeps those pieces and refactors around one canonical `NotificationEvent`. The highest-risk current issues are contract drift, route drift, duplicate listeners, and missing notification wiring for messages/reactions.
+The design keeps those pieces and refactors around one canonical `NotificationEvent`. The highest-risk current issues are contract drift, route drift, duplicate listeners, missing notification wiring for messages/reactions, presence-based push suppression while the app is backgrounded, and chat notification taps opening with missing participant context.
 
 ### Key invariants
 
 - The app and backend use the same `kind` values.
 - Foreground delivery uses socket/UI, not native banners.
-- Background delivery uses push.
+- Background, inactive, locked, and closed-app delivery uses native push.
+- Socket presence alone is not sufficient to suppress push.
 - Tapping a notification never opens a stale route.
+- Tapping a chat notification never opens a new `Unknown` chat.
 - Notification failure never rolls back the original domain action.
 - The MVP avoids preferences, batching, notification history, and rich media pushes.
 
@@ -43,13 +45,13 @@ sequenceDiagram
     A->>API: create message/gasp/reaction/friend event
     API->>API: persist domain record
     API->>NS: build Notification_Event
-    NS->>PS: is recipient online?
+    NS->>PS: is recipient foreground-active in relevant context?
 
-    alt recipient online
+    alt recipient foreground-active in relevant context
         NS->>S: emit notification/domain socket event
         S->>F: realtime event
         F->>F: update cache/store, show foreground UI if appropriate
-    else recipient offline/background
+    else recipient background/inactive/closed or context unknown
         NS->>Q: enqueue push job
         Q->>W: process job
         W->>F: native push with Notification_Event data
@@ -63,12 +65,23 @@ sequenceDiagram
 ```txt
 Domain action succeeds
   -> build canonical Notification_Event
-  -> if recipient is online: socket delivery
-  -> else: push queue delivery
+  -> if recipient is foreground-active in the same relevant context: socket/cache delivery only
+  -> if recipient is foreground-active elsewhere: socket/cache delivery plus in-app toast
+  -> if recipient is backgrounded, inactive, locked, closed, or app-state is unknown: push queue delivery
   -> if notification delivery fails: log and preserve domain action
 ```
 
 The domain action is the source of truth. Notifications are best-effort side effects.
+
+### Delivery state matrix
+
+| Recipient state | Expected signal | Notes |
+|-----------------|-----------------|-------|
+| Active in same chat/viewing context | Inline/cache update only | No toast, no OS banner, no unread increment for active chat. |
+| Active elsewhere in app | Toast_Banner plus unread/tab state | Uses socket/domain event and never depends on iOS Notification Center. |
+| Background or inactive | Native iOS/Android push | Must enqueue push even if socket presence has not expired yet. |
+| Locked or app closed | Native iOS/Android push | Requires registered device token and worker delivery. |
+| Unknown app state | Native push preferred | Avoid silent misses; dedupe protects duplicate visible signals. |
 
 ---
 
@@ -89,6 +102,7 @@ export interface NotificationEvent {
   recipientId: string;
   actorId: string;
   actorName: string;
+  actorAvatarUrl?: string;
   title: string;
   body: string;
   route: string;
@@ -120,6 +134,7 @@ The backend worker sends the full routing payload in `data`, not only the displa
   recipientId: event.recipientId,
   actorId: event.actorId,
   actorName: event.actorName,
+  actorAvatarUrl: event.actorAvatarUrl ?? '',
   conversationId: event.conversationId ?? '',
   gaspId: event.gaspId ?? '',
   reactionId: event.reactionId ?? '',
@@ -128,6 +143,8 @@ The backend worker sends the full routing payload in `data`, not only the displa
 ```
 
 FCM data values are strings. Optional values are omitted or serialized as empty strings, then normalized by the app.
+
+For chat notifications, `actorId` and `actorName` are required even when `conversationId` is present. The Chat screen must be able to render the sender identity before the conversations query refreshes, otherwise push taps can briefly open an `Unknown` header or look like a new chat.
 
 ---
 
@@ -149,7 +166,7 @@ export function buildFriendAcceptedNotification(params): NotificationEvent
 export async function deliverNotification(event: NotificationEvent): Promise<void>
 ```
 
-`deliverNotification` decides whether to emit socket or enqueue push based on presence. It must catch/log failures so the caller does not roll back the domain action.
+`deliverNotification` decides whether to emit socket and/or enqueue push based on app state, active context, and presence. Presence is useful for realtime delivery, but it must not be the only gate for push suppression because Socket.IO/Redis can still report a recently backgrounded physical device as online. It must catch/log failures so the caller does not roll back the domain action.
 
 ### Message flow
 
@@ -158,7 +175,7 @@ export async function deliverNotification(event: NotificationEvent): Promise<voi
 - `gasp-backend/src/modules/messages/messages.service.ts`
 - `gasp-backend/src/modules/conversations/conversations.service.ts`
 
-When a message is created, the backend finds all participants except the sender and creates one `message.new` event per recipient. Sender self-notification is explicitly forbidden.
+When a message is created, the backend finds all participants except the sender and creates one `message.new` event per recipient. Sender self-notification is explicitly forbidden. Each event includes `conversationId`, `actorId`, `actorName`, and optional `actorAvatarUrl`.
 
 The message socket event still updates message caches. The notification event is responsible for foreground toast/tab behavior and offline push.
 
@@ -178,7 +195,7 @@ After `createReaction` succeeds and the existing reaction chat message is create
 
 **File:** `gasp-backend/src/jobs/workers/notification.worker.ts`
 
-The worker receives a canonical Notification_Event. It sends `notification: { title, body }` and `data` containing the canonical routing fields. It removes invalid device tokens after FCM failures.
+The worker receives a canonical Notification_Event. It sends `notification: { title, body }` and `data` containing the canonical routing fields. For iOS it includes an APNs alert and `sound: "default"` so eligible background/locked devices can show a banner/list item and play the default notification sound. It removes invalid device tokens after FCM failures.
 
 ---
 
@@ -197,6 +214,8 @@ export function resolveNotificationRoute(event: Partial<NotificationEvent>): str
 It returns a route for valid payloads and `/(tabs)/inbox` for unknown or incomplete payloads. It logs fallback cases to Sentry.
 
 This replaces old route assumptions like `/(modals)/gasp-viewer`.
+
+For `message.new`, the resolver preserves `actorName` and optional `actorAvatarUrl` as route params when available. If the route is `/chat/:conversationId` and the conversations cache is cold, `app/chat/[id].tsx` uses those params or fetches the conversation before rendering the header. It must not show `Unknown` for a valid notification tap.
 
 ### Notification store
 
