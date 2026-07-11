@@ -29,7 +29,7 @@ export default function ChatScreen() {
 
   const { data: messagesData, isLoading: isLoadingMessages, fetchNextPage, hasNextPage, isFetchingNextPage: isLoadingMore } = useMessages(id);
   const messages = flattenMessages(messagesData);
-  const markAsReadMutation = useMarkAsRead();
+  const { mutate: markAsRead } = useMarkAsRead();
 
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
@@ -45,10 +45,10 @@ export default function ChatScreen() {
     if (id) {
       chatJoinConversation(id);
       chatMarkRead(id);
-      markAsReadMutation.mutate(id);
+      markAsRead(id);
       return () => chatLeaveConversation(id);
     }
-  }, [id]);
+  }, [id, markAsRead]);
 
   const handleSend = useCallback((text: string) => {
     if (id) {
@@ -93,7 +93,7 @@ export default function ChatScreen() {
 
     // Resolve reply-to message for reactions
     const replyToMessage = item.replyToId
-      ? currentMessages.find((m) => m.id === item.replyToId) ?? null
+      ? item.replyToMessage ?? currentMessages.find((m) => m.id === item.replyToId) ?? null
       : null;
 
     // Date separator: show when date changes from the older message (index+1) or it's the oldest message

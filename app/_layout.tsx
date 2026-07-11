@@ -22,8 +22,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
-import { LogBox } from "react-native";
+import { useEffect, useRef } from "react";
+import { AppState, type AppStateStatus, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // Suppress warnings from third-party dependencies we don't control
@@ -48,7 +48,7 @@ Sentry.init({
         /^https:\/\/gasp-backend-production\.up\.railway\.app/,
         "localhost",
       ],
-    }),
+    } as any),
   ],
 });
 
@@ -67,6 +67,8 @@ function RootContent() {
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
   const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
 
   // Register all Socket.IO listeners for real-time updates
   useSocketListeners();
@@ -76,6 +78,30 @@ function RootContent() {
 
   // Auto-download gasps based on preferences + network
   useAutoDownload();
+
+  // Disconnect socket when app goes to background so the backend marks the
+  // user as offline and sends push notifications instead of socket events.
+  // Reconnect when app comes back to foreground.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      const prev = appState.current;
+      appState.current = nextState;
+
+      if (prev === 'active' && nextState === 'background' && token) {
+        const { disconnectSocket } = require('@/services/socket');
+        disconnectSocket();
+        if (__DEV__) console.tronLog?.log('AppState | background → socket disconnected');
+      }
+
+      if (prev === 'background' && nextState === 'active' && token) {
+        const { connectSocket } = require('@/services/socket');
+        connectSocket(token);
+        if (__DEV__) console.tronLog?.log('AppState | foreground → socket reconnected');
+      }
+    });
+
+    return () => subscription.remove();
+  }, [token]);
 
   useEffect(() => {
     // Initialize media cache + preferences in parallel with auth

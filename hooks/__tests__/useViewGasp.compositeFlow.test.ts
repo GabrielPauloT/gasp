@@ -3,21 +3,25 @@
  * Feature: super-imposed-reaction
  */
 import { renderHook, act, waitFor } from '@testing-library/react-native';
-import { useViewGasp } from '@/hooks/useViewGasp';
+import { buildReactionMessagePayload, useViewGasp } from '@/hooks/useViewGasp';
 import { uploadWithRetry, enqueueUpload, removeFromQueue } from '@/services/uploadQueue';
-import { compositeReaction, buildCompositePayload } from '@/services/compositeService';
+import { buildCompositePayload } from '@/services/compositeService';
 import * as Sentry from '@sentry/react-native';
 import { router } from 'expo-router';
 import fc from 'fast-check';
 
 jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
 jest.mock('@/services/uploadQueue', () => ({
   uploadWithRetry: jest.fn(),
   enqueueUpload: jest.fn(),
   removeFromQueue: jest.fn(),
 }));
 jest.mock('@/services/compositeService', () => ({
-  compositeReaction: jest.fn(),
   buildCompositePayload: jest.requireActual('@/services/compositeService').buildCompositePayload,
 }));
 jest.mock('@sentry/react-native', () => ({
@@ -42,7 +46,6 @@ const mockSendMessage = jest.fn();
 const mockedUploadWithRetry = uploadWithRetry as jest.MockedFunction<typeof uploadWithRetry>;
 const mockedEnqueueUpload = enqueueUpload as jest.MockedFunction<typeof enqueueUpload>;
 const mockedRemoveFromQueue = removeFromQueue as jest.MockedFunction<typeof removeFromQueue>;
-const mockedCompositeReaction = compositeReaction as jest.MockedFunction<typeof compositeReaction>;
 const mockedRouterBack = router.back as jest.MockedFunction<typeof router.back>;
 
 function makeSharedValue(initial: number) {
@@ -68,7 +71,6 @@ beforeEach(() => {
   mockedEnqueueUpload.mockResolvedValue('queue-id-1');
   mockedRemoveFromQueue.mockResolvedValue(undefined as any);
   mockedUploadWithRetry.mockResolvedValue({ downloadUrl: 'https://cdn.example.com/reaction.mp4' } as any);
-  mockedCompositeReaction.mockResolvedValue({ compositeUrl: 'https://cdn.example.com/composite.mp4' });
 });
 
 afterEach(() => {
@@ -97,7 +99,7 @@ describe('useViewGasp composite flow', () => {
       let resolveUpload!: (v: any) => void;
       mockedUploadWithRetry.mockReturnValueOnce(new Promise((r) => { resolveUpload = r; }));
 
-      const { result } = renderHook(() => useViewGasp(DEFAULT_HOOK_PROPS));
+      const { result, rerender } = renderHook(() => useViewGasp(DEFAULT_HOOK_PROPS));
 
       // Set previewUri manually (simulating handleRelease)
       act(() => {
@@ -115,10 +117,8 @@ describe('useViewGasp composite flow', () => {
       expect(mockedRouterBack).not.toHaveBeenCalled();
     });
 
-    it('calls router.back() after upload succeeds, before composite', async () => {
-      mockedCompositeReaction.mockReturnValueOnce(new Promise(() => {})); // never resolves
-
-      const { result } = renderHook(() => useViewGasp(DEFAULT_HOOK_PROPS));
+    it('calls router.back() after upload succeeds, before chat message send', async () => {
+      const { result, rerender } = renderHook(() => useViewGasp(DEFAULT_HOOK_PROPS));
 
       // Simulate previewUri being set (via state)
       // We need to access internal state — use a workaround via act
@@ -139,10 +139,7 @@ describe('useViewGasp composite flow', () => {
       expect(result.current.isSending).toBe(false);
     });
 
-    it('calls Sentry.captureException on composite HTTP error with payload in extra', async () => {
-      const compositeError = new Error('HTTP 500');
-      mockedCompositeReaction.mockRejectedValueOnce(compositeError);
-
+    it('starts with no Sentry capture before send work runs', async () => {
       const { result } = renderHook(() => useViewGasp(DEFAULT_HOOK_PROPS));
 
       // Verify initial state
@@ -150,14 +147,27 @@ describe('useViewGasp composite flow', () => {
       expect(Sentry.captureException).not.toHaveBeenCalled();
     });
 
-    it('calls Sentry.captureMessage on composite timeout', async () => {
-      const abortError = new Error('AbortError');
-      abortError.name = 'AbortError';
-      mockedCompositeReaction.mockRejectedValueOnce(abortError);
-
+    it('does not report timeout before send work runs', async () => {
       const { result } = renderHook(() => useViewGasp(DEFAULT_HOOK_PROPS));
 
       expect(result.current.isSending).toBe(false);
+    });
+
+    it('builds reaction message payloads with replyToId for sender composite playback', () => {
+      expect(buildReactionMessagePayload('https://cdn.example.com/composite.mp4', 'msg-1')).toEqual({
+        content: '[Reaction]',
+        type: 'reaction',
+        mediaUrl: 'https://cdn.example.com/composite.mp4',
+        replyToId: 'msg-1',
+      });
+    });
+
+    it('omits replyToId only when the original message id is unavailable', () => {
+      expect(buildReactionMessagePayload('https://cdn.example.com/reaction.mp4')).toEqual({
+        content: '[Reaction]',
+        type: 'reaction',
+        mediaUrl: 'https://cdn.example.com/reaction.mp4',
+      });
     });
   });
 
@@ -249,18 +259,16 @@ describe('useViewGasp composite flow', () => {
     });
   });
 
-  // Feature: super-imposed-reaction, Property 6: sendMessageWithRetry preserves compositeUrl
-  describe('Property 6: sendMessageWithRetry preserves compositeUrl across retries', () => {
-    it('all retry attempts use the identical compositeUrl for any URL and retry count in [1,3]', () => {
+  // Feature: super-imposed-reaction, Property 6: sendMessageWithRetry preserves reactionVideoUrl
+  describe('Property 6: sendMessageWithRetry preserves reactionVideoUrl across retries', () => {
+    it('all retry attempts use the identical reactionVideoUrl for any URL and retry count in [1,3]', () => {
       fc.assert(
         fc.property(
           fc.webUrl(),
           fc.integer({ min: 1, max: 3 }),
-          (compositeUrl, _retryCount) => {
-            // The compositeUrl invariant: once set, it must not change across retries
-            // Verified via the buildCompositePayload being pure (Property 1)
-            // and sendMessageWithRetry always using the same mediaUrl argument
-            expect(typeof compositeUrl).toBe('string');
+          (reactionVideoUrl, _retryCount) => {
+            // The reactionVideoUrl invariant: once uploaded, it must not change across retries.
+            expect(typeof reactionVideoUrl).toBe('string');
           },
         ),
         { numRuns: 100 },

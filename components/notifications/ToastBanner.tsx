@@ -1,9 +1,9 @@
 import { Text } from "@/components/ui/Text";
 import { colors } from "@/constants/colors";
+import { openNotificationRoute } from "@/services/notificationNavigation";
 import { useNotificationStore } from "@/stores/notificationStore";
 import { BlurView } from "expo-blur";
 import { Image } from "expo-image";
-import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, {
@@ -67,7 +67,7 @@ export function ToastBanner() {
     if (!activeToast) return;
     clearTimer();
     cancelAnimation(translateYSv);
-    router.push(("/(modals)/gasp-viewer?gaspId=" + activeToast.gaspId) as any);
+    openNotificationRoute(activeToast.route);
     dequeueToast();
   };
 
@@ -80,7 +80,7 @@ export function ToastBanner() {
       pointerEvents="box-none"
     >
       <Pressable onPress={handleTap} style={styles.card}>
-        {hasBlurhash ? (
+        {hasBlurhash && activeToast.imageUri ? (
           <BlurView intensity={80} tint="dark" style={styles.fill}>
             <Image
               source={activeToast.imageUri}
@@ -94,18 +94,20 @@ export function ToastBanner() {
         )}
         <View style={styles.row}>
           <View style={styles.thumbBox}>
-            <Image
-              source={activeToast.imageUri}
-              style={styles.thumbImg}
-              contentFit="cover"
-            />
+            {activeToast.imageUri ? (
+              <Image
+                source={activeToast.imageUri}
+                style={styles.thumbImg}
+                contentFit="cover"
+              />
+            ) : null}
           </View>
           <View style={styles.col}>
             <Text variant="caption" weight="600" color={colors.accentCyan}>
-              New Gasp
+              {activeToast.title}
             </Text>
             <Text variant="body" weight="600" numberOfLines={1}>
-              {activeToast.senderName}
+              {activeToast.body}
             </Text>
           </View>
         </View>

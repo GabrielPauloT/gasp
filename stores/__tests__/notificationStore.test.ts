@@ -9,8 +9,11 @@ const initialState = useNotificationStore.getState();
 function makeToastItem(overrides: Partial<ToastItem> = {}): ToastItem {
   return {
     id: 'toast-1',
+    kind: 'gasp.received',
+    title: 'New Gasp',
+    body: 'Alice',
+    route: '/(modals)/view-gasp?gaspId=gasp-1',
     gaspId: 'gasp-1',
-    senderName: 'Alice',
     imageUri: 'https://example.com/img.jpg',
     blurhash: 'LKO2?U%2Tw=w',
     ...overrides,
@@ -20,8 +23,11 @@ function makeToastItem(overrides: Partial<ToastItem> = {}): ToastItem {
 // fast-check arbitrary for ToastItem
 const toastItemArb = fc.record({
   id: fc.uuid(),
+  kind: fc.constant('gasp.received' as const),
+  title: fc.string({ minLength: 1, maxLength: 50 }),
+  body: fc.string({ minLength: 1, maxLength: 100 }),
+  route: fc.webPath(),
   gaspId: fc.uuid(),
-  senderName: fc.string({ minLength: 1, maxLength: 50 }),
   imageUri: fc.webUrl(),
   blurhash: fc.string({ minLength: 4, maxLength: 30 }),
 });
@@ -61,6 +67,27 @@ describe('enqueueToast', () => {
     expect(useNotificationStore.getState().activeToast).toEqual(first);
     expect(useNotificationStore.getState().toastQueue).toHaveLength(1);
     expect(useNotificationStore.getState().toastQueue[0]).toEqual(second);
+  });
+
+  it('dedupes when the same toast id is already active', () => {
+    const item = makeToastItem({ id: 'same-id' });
+
+    useNotificationStore.getState().enqueueToast(item);
+    useNotificationStore.getState().enqueueToast({ ...item, body: 'Duplicate' });
+
+    expect(useNotificationStore.getState().activeToast).toEqual(item);
+    expect(useNotificationStore.getState().toastQueue).toHaveLength(0);
+  });
+
+  it('dedupes when the same toast id is already queued', () => {
+    const first = makeToastItem({ id: 'first' });
+    const second = makeToastItem({ id: 'second' });
+
+    useNotificationStore.getState().enqueueToast(first);
+    useNotificationStore.getState().enqueueToast(second);
+    useNotificationStore.getState().enqueueToast({ ...second, body: 'Duplicate' });
+
+    expect(useNotificationStore.getState().toastQueue).toEqual([second]);
   });
 });
 
@@ -172,7 +199,7 @@ describe('Property-Based Tests', () => {
         const enqueued = toastQueue.find(
           (item) =>
             item.gaspId === newItem.gaspId &&
-            item.senderName === newItem.senderName &&
+            item.body === newItem.body &&
             item.imageUri === newItem.imageUri
         );
         expect(enqueued).toBeDefined();
@@ -209,7 +236,7 @@ describe('Property-Based Tests', () => {
           expect(toastQueue).toHaveLength(items.length);
           for (let i = 0; i < items.length; i++) {
             expect(toastQueue[i].gaspId).toBe(items[i].gaspId);
-            expect(toastQueue[i].senderName).toBe(items[i].senderName);
+            expect(toastQueue[i].body).toBe(items[i].body);
             expect(toastQueue[i].imageUri).toBe(items[i].imageUri);
           }
 

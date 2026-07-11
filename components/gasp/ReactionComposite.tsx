@@ -1,13 +1,22 @@
-import { useState } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { InlineVideo } from '@/components/ui/InlineVideo';
+import { Text } from '@/components/ui/Text';
 
-interface ReactionCompositeProps {
+export interface ReactionCompositeProps {
   originalUri: string;
   originalMediaType?: 'image' | 'video';
   reactionVideoUri: string;
+  reactionLabel?: string;
+  originalLabel?: string;
+  showLabels?: boolean;
+  showDivider?: boolean;
+  watermarkMode?: 'hidden' | 'subtle';
+  reactionPaused?: boolean;
+  reactionMuted?: boolean;
+  reactionFlex?: number;
+  originalFlex?: number;
   // captureRef and forCapture intentionally removed — composition is server-side
 }
 
@@ -43,27 +52,49 @@ export function ReactionComposite({
   originalUri,
   originalMediaType = 'image',
   reactionVideoUri,
+  reactionLabel,
+  originalLabel,
+  showLabels = false,
+  showDivider = true,
+  watermarkMode = 'hidden',
+  reactionPaused = false,
+  reactionMuted = false,
+  reactionFlex = 1,
+  originalFlex = 2,
 }: ReactionCompositeProps) {
   return (
     <View style={styles.container}>
       {/* Reaction video — left 1/3 */}
-      <View style={styles.reactionPanel}>
+      <View testID="reaction-composite-reaction-panel" style={[styles.reactionPanel, { flex: reactionFlex }]}>
         <InlineVideo
           uri={reactionVideoUri}
           style={StyleSheet.absoluteFill}
-          paused={false}
-          muted={false}
+          paused={reactionPaused}
+          muted={reactionMuted}
         />
+        {showLabels && reactionLabel && <PanelLabel label={reactionLabel} />}
       </View>
 
+      {showDivider && <View testID="reaction-composite-divider" style={styles.divider} />}
+
       {/* Original gasp — right 2/3 */}
-      <View style={styles.gaspPanel}>
+      <View testID="reaction-composite-gasp-panel" style={[styles.gaspPanel, { flex: originalFlex }]}>
         <OriginalMedia
           uri={originalUri}
           mediaType={originalMediaType}
           style={StyleSheet.absoluteFill}
         />
+        {showLabels && originalLabel && <PanelLabel label={originalLabel} />}
       </View>
+      {watermarkMode === 'subtle' && <View testID="reaction-composite-watermark" style={styles.watermark} />}
+    </View>
+  );
+}
+
+function PanelLabel({ label }: { label: string }) {
+  return (
+    <View style={styles.labelPill}>
+      <Text variant="caption" numberOfLines={1} style={styles.labelText}>{label}</Text>
     </View>
   );
 }
@@ -76,11 +107,42 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   reactionPanel: {
-    flex: 1,
     overflow: 'hidden',
   },
+  divider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    zIndex: 2,
+  },
   gaspPanel: {
-    flex: 2,
     overflow: 'hidden',
+  },
+  labelPill: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    borderRadius: 10,
+    borderCurve: 'continuous',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.52)',
+  },
+  labelText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  watermark: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    borderCurve: 'continuous',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.28)',
   },
 });

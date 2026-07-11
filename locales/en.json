@@ -61,7 +61,28 @@
   "reaction": {
     "reactedToYourGasp": "{{name}} reacted to your gasp",
     "reacted": " reacted to your gasp",
-    "someone": "Someone"
+    "someone": "Someone",
+    "yourReaction": "Your Reaction",
+    "reactionTo": "to {{name}}'s gasp",
+    "you": "You",
+    "reaction": "Reaction",
+    "reactedBy": "{{name}} reacted",
+    "reactionOnly": "{{name}}'s reaction",
+    "senderGasp": "{{name}}'s gasp",
+    "yourGasp": "Your gasp",
+    "gasp": "Gasp",
+    "reRecord": "Re-record",
+    "sendReaction": "Send Reaction",
+    "saveToCameraRoll": "Save to Camera Roll",
+    "discard": "Discard",
+    "reactionVideoTap": "Reaction video, tap to view composite",
+    "closeReactionView": "Close reaction view",
+    "playReaction": "Play reaction",
+    "pauseReaction": "Pause reaction",
+    "muteReaction": "Mute reaction",
+    "unmuteReaction": "Unmute reaction",
+    "enhancedUnavailableTitle": "Reaction sent",
+    "enhancedUnavailableBody": "Enhanced view unavailable, so we sent the reaction video."
   },
   "chat": {
     "startConversation": "Start the conversation by sending a gasp!",
@@ -100,7 +121,13 @@
     "cameraMicRequired": "Camera & Microphone Required",
     "needsFrontCamera": "GASP needs your front camera and microphone to capture your reaction while viewing",
     "reactionNotSent": "Reaction not sent",
-    "reactionUploadFailed": "Your reaction video could not be uploaded. Please try again."
+    "reactionUploadFailed": "Your reaction video could not be uploaded. Please try again.",
+    "uploadFailedTitle": "Upload failed",
+    "uploadFailedBody": "Could not upload your reaction. Please try again.",
+    "missingConversationTitle": "Could not send reaction",
+    "missingConversationBody": "We could not find the chat for this gasp. Please try again from the conversation.",
+    "recordingFailedTitle": "Recording failed",
+    "recordingFailedBody": "Could not capture your reaction. Please try again."
   },
   "errors": {
     "somethingWentWrong": "Something went wrong",

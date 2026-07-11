@@ -1,6 +1,6 @@
 import { addMessageToCache } from '@/hooks/queries/useChat';
 import { queryClient } from '@/lib/queryClient';
-import type { Conversation } from '@/services/api/schemas/chat.schema';
+import type { Conversation, Message } from '@/services/api/schemas/chat.schema';
 import type { Gasp } from '@/services/api/schemas/gasp.schema';
 import { queryKeys } from '@/services/queryKeys';
 import {
@@ -42,16 +42,23 @@ export function useSocketListeners() {
     // ── Gasp events → React Query cache ─────────────────────────
     cleanups.push(
       onGaspReceived(({ gasp }) => {
+        const pendingGasps = queryClient.getQueryData<Gasp[]>(queryKeys.gasps.pending) ?? [];
+        if (pendingGasps.some((existing) => existing.id === gasp.id)) return;
+
         queryClient.setQueryData<Gasp[]>(queryKeys.gasps.pending, (old) =>
           [gasp, ...(old ?? [])],
         );
         useNotificationStore.getState().enqueueToast({
           id: gasp.id,
+          kind: 'gasp.received',
+          title: 'New Gasp',
+          body: gasp.senderName,
+          route: `/(modals)/view-gasp?gaspId=${gasp.id}`,
           gaspId: gasp.id,
-          senderName: gasp.senderName,
           imageUri: gasp.imageUri,
           blurhash: gasp.blurhash,
         });
+        useNotificationStore.getState().setInboxUnreadType('gasp');
         useNotificationStore.getState().triggerTabPulse();
       }),
     );
@@ -68,8 +75,18 @@ export function useSocketListeners() {
     );
 
     cleanups.push(
-      onGaspReactionReceived(({ reaction }) => {
+      onGaspReactionReceived(({ reaction, gaspId }) => {
         useGaspStore.getState().addReaction(reaction);
+        useNotificationStore.getState().enqueueToast({
+          id: reaction.id,
+          kind: 'gasp.reaction_received',
+          title: 'New Reaction',
+          body: reaction.reactorName || 'Someone reacted to your gasp',
+          route: `/(modals)/reaction-result?gaspId=${gaspId}`,
+          gaspId,
+          reactionId: reaction.id,
+        });
+        useNotificationStore.getState().setInboxUnreadType('reaction');
       }),
     );
 
@@ -113,6 +130,9 @@ export function useSocketListeners() {
     cleanups.push(
       onChatNewMessage(({ conversationId, message }) => {
         addMessageToCache(queryClient, conversationId, message);
+        if (shouldRefetchReactionMessage(message)) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.messages.byConversation(conversationId) });
+        }
 
         const activeId = useChatStore.getState().activeConversationId;
         const currentUserId = useAuthStore.getState().user?.id;
@@ -124,7 +144,8 @@ export function useSocketListeners() {
           if (!old) return [];
           return old.map((c) => {
             if (c.id !== conversationId) return c;
-            const shouldIncrement = !isOwnMessage && c.id !== activeId;
+            const isDuplicate = c.lastMessage?.id === message.id;
+            const shouldIncrement = !isDuplicate && !isOwnMessage && c.id !== activeId;
             return {
               ...c,
               lastMessage: message,
@@ -134,6 +155,18 @@ export function useSocketListeners() {
             };
           });
         });
+
+        if (!isOwnMessage && conversationId !== activeId) {
+          useNotificationStore.getState().enqueueToast({
+            id: message.id,
+            kind: 'message.new',
+            title: 'New Message',
+            body: message.content,
+            route: `/chat/${conversationId}`,
+            conversationId,
+          });
+          useNotificationStore.getState().setChatHasUnread(true);
+        }
       }),
     );
 
@@ -169,4 +202,8 @@ export function useSocketListeners() {
       cleanups.forEach((cleanup) => cleanup());
     };
   }, [isAuthenticated]);
+}
+
+function shouldRefetchReactionMessage(message: Message) {
+  return message.type === 'reaction' && !!message.replyToId && !message.replyToMessage;
 }
