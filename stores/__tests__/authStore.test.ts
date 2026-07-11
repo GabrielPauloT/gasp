@@ -96,6 +96,11 @@ describe('authStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // Reset Firebase Auth mock state — default: user is logged in
+    global.mockFirebaseCurrentUser = { uid: 'firebase-user-1' };
+    global.mockFirebaseSignOut.mockReset();
+    global.mockFirebaseSignOut.mockResolvedValue(undefined);
+
     // Reset store to initial state before each test
     useAuthStore.setState({
       user: null,
@@ -287,6 +292,28 @@ describe('authStore', () => {
       await useAuthStore.getState().logout();
 
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('gasp_auth_token');
+    });
+
+    // ── Firebase Auth guard — Bug Condition (REACT-NATIVE-6) ──────────────────
+    // Tarefa 1: teste exploratório — DEVE FALHAR antes do fix
+    // Confirma que logout() com currentUser === null lança auth/no-current-user
+    it('does not throw and does not call firebaseSignOut when currentUser is null', async () => {
+      // Bug condition: Firebase has no authenticated user
+      global.mockFirebaseCurrentUser = null;
+
+      await expect(useAuthStore.getState().logout()).resolves.not.toThrow();
+      expect(global.mockFirebaseSignOut).not.toHaveBeenCalled();
+    });
+
+    // Tarefa 2: teste de preservation — deve PASSAR antes e depois do fix
+    // Confirma que logout() com currentUser presente chama firebaseSignOut normalmente
+    it('calls firebaseSignOut exactly once when currentUser is present', async () => {
+      // Preservation: default state — user is logged in (set in beforeEach)
+      global.mockFirebaseCurrentUser = { uid: 'firebase-user-1' };
+
+      await useAuthStore.getState().logout();
+
+      expect(global.mockFirebaseSignOut).toHaveBeenCalledTimes(1);
     });
   });
 

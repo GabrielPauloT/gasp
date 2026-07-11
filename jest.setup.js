@@ -28,9 +28,16 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 // ── Mock @react-native-firebase/auth ─────────────────────────────────
+// mockFirebaseCurrentUser and mockFirebaseSignOut are exported as globals
+// so individual test files can mutate them per-test (e.g. set to null to
+// simulate no authenticated user). The factory captures the reference at
+// hoist time, but reads the variable value at call time.
+global.mockFirebaseCurrentUser = { uid: 'firebase-uid-123' };
+global.mockFirebaseSignOut = jest.fn(() => Promise.resolve());
+
 jest.mock('@react-native-firebase/auth', () => ({
-  getAuth: jest.fn(() => ({ currentUser: { uid: 'firebase-uid-123' } })),
-  signOut: jest.fn(() => Promise.resolve()),
+  getAuth: jest.fn(() => ({ currentUser: global.mockFirebaseCurrentUser })),
+  signOut: jest.fn((...args) => global.mockFirebaseSignOut(...args)),
 }));
 
 // ── Storage uploads now go through backend API (no Firebase JS SDK) ──
