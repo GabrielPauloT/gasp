@@ -75,6 +75,7 @@ This plan upgrades the existing notification system from a technically correct d
   - [x] 3.1 Update `app/chat/[id].tsx`
     - Use notification route params as immediate participant metadata when cache is cold
     - Fetch or derive participant context before rendering `Unknown`
+    - Reveal and briefly focus the routed reaction card when `highlightMessageId` is available
     - Preserve existing back behavior
     - Avoid creating a new conversation from notification route open
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_

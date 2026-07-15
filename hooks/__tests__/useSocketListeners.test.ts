@@ -356,7 +356,7 @@ describe('useSocketListeners', () => {
         actorAvatarUrl: 'https://example.com/alex.jpg',
         title: 'Alex',
         body: 'sent you a friend request',
-        route: '/(tabs)/discover',
+        route: '/(tabs)/inbox',
       });
 
       expect(mockEnqueueToast).toHaveBeenCalledWith(expect.objectContaining({
@@ -364,7 +364,7 @@ describe('useSocketListeners', () => {
         kind: 'friend.request',
         title: 'Alex',
         body: 'sent you a friend request',
-        route: '/(tabs)/discover',
+        route: '/(tabs)/inbox',
       }));
       expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.friends.requests });
     });

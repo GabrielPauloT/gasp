@@ -179,6 +179,14 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink({ kind: 'gasp.reaction_received', gaspId: 'gasp-789' })).toBe('/(tabs)/inbox');
   });
 
+  it('opens incoming friend requests in the inbox', () => {
+    expect(resolveDeepLink({ kind: 'friend.request' })).toBe('/(tabs)/inbox');
+  });
+
+  it('opens the chat continuation surface for an accepted friend request', () => {
+    expect(resolveDeepLink({ kind: 'friend.accepted' })).toBe('/(tabs)/chat');
+  });
+
   it('returns view-gasp route for legacy type "reminder" with gaspId', () => {
     const result = resolveDeepLink({ type: 'reminder', gaspId: 'gasp-reminder-1' });
     expect(result).toBe('/(modals)/view-gasp?gaspId=gasp-reminder-1');

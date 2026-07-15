@@ -74,7 +74,7 @@ export function resolveNotificationRoute(payload: NotificationRoutePayload): str
       return fallback('resolveNotificationRoute: missing reaction identifiers', payload);
 
     case 'friend.request':
-      return '/(tabs)/discover';
+      return '/(tabs)/inbox';
 
     case 'friend.accepted':
       return '/(tabs)/chat';
