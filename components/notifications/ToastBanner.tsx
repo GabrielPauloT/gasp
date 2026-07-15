@@ -16,7 +16,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const BANNER_HEIGHT = 72;
+const BANNER_HEIGHT = 76;
 
 export function ToastBanner() {
   const insets = useSafeAreaInsets();
@@ -73,13 +73,21 @@ export function ToastBanner() {
 
   if (!activeToast) return null;
   const hasBlurhash = Boolean(activeToast.blurhash);
+  const visualUri = activeToast.imageUri ?? activeToast.actorAvatarUrl;
+  const isMediaToast = Boolean(activeToast.imageUri);
+  const fallbackInitial = (activeToast.actorName ?? activeToast.title).trim().charAt(0).toUpperCase() || '?';
 
   return (
     <Animated.View
       style={[styles.wrapper, animatedStyle]}
       pointerEvents="box-none"
     >
-      <Pressable onPress={handleTap} style={styles.card}>
+      <Pressable
+        onPress={handleTap}
+        style={styles.card}
+        accessibilityRole="button"
+        accessibilityLabel={`${activeToast.title}: ${activeToast.body}`}
+      >
         {hasBlurhash && activeToast.imageUri ? (
           <BlurView intensity={80} tint="dark" style={styles.fill}>
             <Image
@@ -93,20 +101,22 @@ export function ToastBanner() {
           <View style={styles.solid} />
         )}
         <View style={styles.row}>
-          <View style={styles.thumbBox}>
-            {activeToast.imageUri ? (
+          <View style={[styles.thumbBox, !isMediaToast && styles.avatarBox]}>
+            {visualUri ? (
               <Image
-                source={activeToast.imageUri}
-                style={styles.thumbImg}
+                source={visualUri}
+                style={[styles.thumbImg, !isMediaToast && styles.avatarImage]}
                 contentFit="cover"
               />
-            ) : null}
+            ) : (
+              <Text variant="caption" weight="600" style={styles.fallbackInitial}>{fallbackInitial}</Text>
+            )}
           </View>
           <View style={styles.col}>
-            <Text variant="caption" weight="600" color={colors.accentCyan}>
+            <Text variant="body" weight="600" numberOfLines={1}>
               {activeToast.title}
             </Text>
-            <Text variant="body" weight="600" numberOfLines={1}>
+            <Text variant="caption" color={colors.textSecondary} numberOfLines={1}>
               {activeToast.body}
             </Text>
           </View>
@@ -127,7 +137,7 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 8,
     borderCurve: "continuous",
     overflow: "hidden",
     shadowColor: "#000",
@@ -152,10 +162,18 @@ const styles = StyleSheet.create({
   thumbBox: {
     width: 48,
     height: 48,
-    borderRadius: 10,
+    borderRadius: 8,
     overflow: "hidden",
     backgroundColor: colors.surface,
   },
   thumbImg: { width: 48, height: 48 },
+  avatarBox: {
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  avatarImage: { borderRadius: 24 },
+  fallbackInitial: { color: colors.textPrimary },
   col: { flex: 1, justifyContent: "center" },
 });

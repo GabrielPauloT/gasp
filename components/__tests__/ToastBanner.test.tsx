@@ -43,6 +43,7 @@ function resetStore() {
   useNotificationStore.setState({
     toastQueue: [],
     activeToast: null,
+    recentToastIds: [],
     tabPulseTrigger: 0,
     inboxUnreadType: null,
     chatHasUnread: false,
@@ -103,6 +104,35 @@ describe("ToastBanner", () => {
 
     // dequeueToast should have been called — activeToast is now null
     expect(useNotificationStore.getState().activeToast).toBeNull();
+  });
+
+  it('renders actor-first copy with an accessible notification button', () => {
+    useNotificationStore.setState({ activeToast: makeToast({
+      title: 'Alice',
+      body: 'sent you a gasp',
+      actorName: 'Alice',
+      actorAvatarUrl: 'https://example.com/alice.jpg',
+    }) });
+
+    const { getByRole, getByText } = render(<ToastBanner />);
+
+    expect(getByText('Alice')).toBeTruthy();
+    expect(getByText('sent you a gasp')).toBeTruthy();
+    expect(getByRole('button', { name: 'Alice: sent you a gasp' })).toBeTruthy();
+  });
+
+  it('renders a stable identity fallback when no media or avatar is available', () => {
+    useNotificationStore.setState({ activeToast: makeToast({
+      imageUri: undefined,
+      blurhash: undefined,
+      actorAvatarUrl: undefined,
+      actorName: 'Alice',
+      title: 'Alice',
+    }) });
+
+    const { getByText } = render(<ToastBanner />);
+
+    expect(getByText('A')).toBeTruthy();
   });
 
   it("after dequeueToast runs, the store promotes the next queue item as the new activeToast", () => {

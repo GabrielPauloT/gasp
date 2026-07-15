@@ -14,10 +14,13 @@ import {
     onGaspReceived,
     onGaspStatusUpdated,
     onGaspViewed,
+    onNotificationEvent,
     onPresenceBulkStatus,
     onPresenceUserOffline,
     onPresenceUserOnline,
 } from '@/services/socket';
+import type { NotificationEvent } from '@/services/socket';
+import { resolveNotificationRoute } from '@/services/notificationRouting';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useGaspStore } from '@/stores/gaspStore';
@@ -51,8 +54,10 @@ export function useSocketListeners() {
         useNotificationStore.getState().enqueueToast({
           id: gasp.id,
           kind: 'gasp.received',
-          title: 'New Gasp',
-          body: gasp.senderName,
+          title: gasp.senderName || 'Someone',
+          body: 'sent you a gasp',
+          actorName: gasp.senderName,
+          actorAvatarUrl: gasp.senderAvatarUrl ?? undefined,
           route: `/(modals)/view-gasp?gaspId=${gasp.id}`,
           gaspId: gasp.id,
           imageUri: gasp.imageUri,
@@ -75,18 +80,43 @@ export function useSocketListeners() {
     );
 
     cleanups.push(
-      onGaspReactionReceived(({ reaction, gaspId }) => {
+      onGaspReactionReceived(({ reaction, gaspId, conversationId, reactionMessageId, actorName, actorAvatarUrl }) => {
         useGaspStore.getState().addReaction(reaction);
         useNotificationStore.getState().enqueueToast({
           id: reaction.id,
           kind: 'gasp.reaction_received',
-          title: 'New Reaction',
-          body: reaction.reactorName || 'Someone reacted to your gasp',
-          route: `/(modals)/reaction-result?gaspId=${gaspId}`,
+          title: actorName || reaction.reactorName || 'Someone',
+          body: 'reacted to your gasp',
+          actorName: actorName || reaction.reactorName,
+          actorAvatarUrl,
+          route: resolveNotificationRoute({
+            kind: 'gasp.reaction_received',
+            conversationId,
+            reactionMessageId,
+            actorName: actorName || reaction.reactorName,
+            actorAvatarUrl,
+          }),
           gaspId,
           reactionId: reaction.id,
         });
         useNotificationStore.getState().setInboxUnreadType('reaction');
+      }),
+    );
+
+    cleanups.push(
+      onNotificationEvent((event) => {
+        const activeConversationId = useChatStore.getState().activeConversationId;
+        if (event.kind === 'message.new' && event.conversationId === activeConversationId) return;
+
+        useNotificationStore.getState().enqueueToast(toastFromNotificationEvent(event));
+
+        if (event.kind === 'friend.request') {
+          queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests });
+        }
+        if (event.kind === 'friend.accepted') {
+          queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
+          queryClient.invalidateQueries({ queryKey: queryKeys.friends.requests });
+        }
       }),
     );
 
@@ -128,7 +158,7 @@ export function useSocketListeners() {
 
     // ── Chat events → React Query cache + Zustand UI ────────────
     cleanups.push(
-      onChatNewMessage(({ conversationId, message }) => {
+      onChatNewMessage(({ conversationId, message, actorName, actorAvatarUrl }) => {
         addMessageToCache(queryClient, conversationId, message);
         if (shouldRefetchReactionMessage(message)) {
           queryClient.invalidateQueries({ queryKey: queryKeys.messages.byConversation(conversationId) });
@@ -159,12 +189,25 @@ export function useSocketListeners() {
         });
 
         if (!isOwnMessage && conversationId !== activeId) {
+          const participant = participantForConversationToast(
+            conversationId,
+            latestConversations,
+            message.senderId,
+            currentUserId,
+          );
           useNotificationStore.getState().enqueueToast({
             id: message.id,
             kind: 'message.new',
-            title: 'New Message',
+            title: actorName ?? participant.name ?? 'Someone',
             body: message.content,
-            route: routeForConversationToast(conversationId, latestConversations, message.senderId, currentUserId),
+            actorName: actorName ?? participant.name,
+            actorAvatarUrl: actorAvatarUrl ?? participant.avatarUrl,
+            route: resolveNotificationRoute({
+              kind: 'message.new',
+              conversationId,
+              actorName: actorName ?? participant.name,
+              actorAvatarUrl: actorAvatarUrl ?? participant.avatarUrl,
+            }),
             conversationId,
           });
           useNotificationStore.getState().setChatHasUnread(true);
@@ -210,12 +253,12 @@ function shouldRefetchReactionMessage(message: Message) {
   return message.type === 'reaction' && !!message.replyToId && !message.replyToMessage;
 }
 
-function routeForConversationToast(
+function participantForConversationToast(
   conversationId: string,
   conversations: Conversation[],
   messageSenderId?: string,
   currentUserId?: string,
-) {
+): { name?: string; avatarUrl?: string } {
   const conversation = conversations.find((c) => c.id === conversationId);
   const senderIndex = conversation?.participantIds?.findIndex((id) => id === messageSenderId) ?? -1;
   const otherIndex = senderIndex >= 0
@@ -223,11 +266,40 @@ function routeForConversationToast(
     : conversation?.participantIds?.findIndex((id) => id !== currentUserId) ?? -1;
   const name = otherIndex >= 0 ? conversation?.participantNames?.[otherIndex] : undefined;
   const avatarUrl = otherIndex >= 0 ? conversation?.participantAvatars?.[otherIndex] : undefined;
-  const search = new URLSearchParams();
+  return { name, avatarUrl: avatarUrl ?? undefined };
+}
 
-  if (name) search.set('name', name);
-  if (avatarUrl) search.set('avatarUrl', avatarUrl);
+function toastFromNotificationEvent(event: NotificationEvent) {
+  const id = event.eventId
+    ?? event.reactionId
+    ?? event.gaspId
+    ?? (event.conversationId ? `${event.conversationId}:${event.kind}` : `${event.actorId}:${event.kind}`);
 
-  const query = search.toString();
-  return query ? `/chat/${conversationId}?${query}` : `/chat/${conversationId}`;
+  return {
+    id,
+    kind: event.kind,
+    title: event.actorName || 'Someone',
+    body: notificationBody(event),
+    actorName: event.actorName,
+    actorAvatarUrl: event.actorAvatarUrl,
+    route: resolveNotificationRoute(event),
+    conversationId: event.conversationId,
+    gaspId: event.gaspId,
+    reactionId: event.reactionId,
+  };
+}
+
+function notificationBody(event: NotificationEvent) {
+  switch (event.kind) {
+    case 'message.new':
+      return event.body;
+    case 'gasp.received':
+      return 'sent you a gasp';
+    case 'gasp.reaction_received':
+      return 'reacted to your gasp';
+    case 'friend.request':
+      return 'sent you a friend request';
+    case 'friend.accepted':
+      return 'accepted your request';
+  }
 }

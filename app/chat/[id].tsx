@@ -12,8 +12,9 @@ import { DateSeparator } from '@/components/chat/DateSeparator';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
-import { useConversations, useMessages, flattenMessages, useMarkAsRead } from '@/hooks/queries/useChat';
+import { useConversation, useConversations, useMessages, flattenMessages, useMarkAsRead } from '@/hooks/queries/useChat';
 import { chatJoinConversation, chatLeaveConversation, chatMarkRead } from '@/services/socket';
+import { resolveChatParticipant } from '@/services/chatParticipant';
 import { colors } from '@/constants/colors';
 import type { Message } from '@/services/api/schemas/chat.schema';
 
@@ -36,10 +37,18 @@ export default function ChatScreen() {
 
   const { data: conversations = [] } = useConversations();
   const conversation = conversations.find((c) => c.id === id);
-
-  // Participant resolution
-  const otherParticipantName = conversation?.participantNames?.find(n => n !== user?.username && n !== user?.displayName) || name || 'Unknown';
-  const otherParticipantAvatar = conversation?.participantAvatars?.find((a, idx) => conversation.participantIds[idx] !== user?.id) || avatarUrl;
+  const { data: fetchedConversation } = useConversation(id, !conversation && !name);
+  const otherParticipant = resolveChatParticipant({
+    conversation,
+    fetchedConversation,
+    currentUserId: user?.id,
+    currentUsername: user?.username,
+    currentDisplayName: user?.displayName,
+    routeName: name,
+    routeAvatarUrl: avatarUrl,
+  });
+  const otherParticipantName = otherParticipant.name;
+  const otherParticipantAvatar = otherParticipant.avatarUrl;
 
   useEffect(() => {
     if (id) {

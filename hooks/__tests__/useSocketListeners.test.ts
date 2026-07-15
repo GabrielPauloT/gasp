@@ -39,6 +39,10 @@ jest.mock('@/services/socket', () => ({
     capturedHandlers['gasp:status_updated'] = handler;
     return () => { delete capturedHandlers['gasp:status_updated']; };
   }),
+  onNotificationEvent: jest.fn((handler: Handler) => {
+    capturedHandlers['notification:event'] = handler;
+    return () => { delete capturedHandlers['notification:event']; };
+  }),
   onPresenceBulkStatus: jest.fn((handler: Handler) => {
     capturedHandlers['presence:bulk_status'] = handler;
     return () => {};
@@ -84,11 +88,13 @@ const mockSetQueryData = jest.fn((key: readonly string[], updater: any) => {
 const mockGetQueryData = jest.fn((key: readonly string[]) => {
   return queryCache[JSON.stringify(key)];
 });
+const mockInvalidateQueries = jest.fn();
 
 jest.mock('@/lib/queryClient', () => ({
   queryClient: {
     setQueryData: (key: any, updater: any) => mockSetQueryData(key, updater),
     getQueryData: (key: any) => mockGetQueryData(key),
+    invalidateQueries: (options: any) => mockInvalidateQueries(options),
   },
 }));
 
@@ -209,6 +215,7 @@ beforeEach(() => {
   // Clear query cache
   Object.keys(queryCache).forEach((key) => delete queryCache[key]);
   mockActiveConversationId = null;
+  mockInvalidateQueries.mockClear();
 });
 
 // ── Tests ────────────────────────────────────────────────────────────────────────
@@ -231,8 +238,10 @@ describe('useSocketListeners', () => {
       expect(mockEnqueueToast).toHaveBeenCalledWith({
         id: 'gasp-abc',
         kind: 'gasp.received',
-        title: 'New Gasp',
-        body: 'Bob',
+        title: 'Bob',
+        body: 'sent you a gasp',
+        actorName: 'Bob',
+        actorAvatarUrl: 'https://example.com/avatar.jpg',
         route: '/(modals)/view-gasp?gaspId=gasp-abc',
         gaspId: 'gasp-abc',
         imageUri: 'https://cdn.example.com/image.jpg',
@@ -331,6 +340,86 @@ describe('useSocketListeners', () => {
 
       const conversations = queryCache[JSON.stringify(queryKeys.conversations.all)] as any[];
       expect(conversations[0].unreadCount).toBe(1);
+    });
+  });
+
+  describe('notification:event', () => {
+    it('enqueues actor-first friend request toast and refreshes pending requests', () => {
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['notification:event']({
+        kind: 'friend.request',
+        eventId: 'friendship-1',
+        recipientId: 'user-123',
+        actorId: 'alex-1',
+        actorName: 'Alex',
+        actorAvatarUrl: 'https://example.com/alex.jpg',
+        title: 'Alex',
+        body: 'sent you a friend request',
+        route: '/(tabs)/discover',
+      });
+
+      expect(mockEnqueueToast).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'friendship-1',
+        kind: 'friend.request',
+        title: 'Alex',
+        body: 'sent you a friend request',
+        route: '/(tabs)/discover',
+      }));
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.friends.requests });
+    });
+
+    it('enqueues friend accepted toast and refreshes friendship queries', () => {
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['notification:event']({
+        kind: 'friend.accepted',
+        eventId: 'friendship-1',
+        recipientId: 'user-123',
+        actorId: 'alex-1',
+        actorName: 'Alex',
+        title: 'Alex',
+        body: 'accepted your request',
+        route: '/(tabs)/chat',
+      });
+
+      expect(mockEnqueueToast).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'friendship-1',
+        kind: 'friend.accepted',
+        body: 'accepted your request',
+        route: '/(tabs)/chat',
+      }));
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.friends.all });
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.friends.requests });
+    });
+
+    it('uses the same event id as the domain event so the toast store can dedupe it', () => {
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['gasp:reaction_received']({
+        gaspId: 'gasp-1',
+        reaction: { id: 'reaction-1', reactorName: 'Alex' },
+        conversationId: 'conv-1',
+        reactionMessageId: 'message-1',
+        actorName: 'Alex',
+      });
+      capturedHandlers['notification:event']({
+        kind: 'gasp.reaction_received',
+        eventId: 'reaction-1',
+        reactionId: 'reaction-1',
+        reactionMessageId: 'message-1',
+        conversationId: 'conv-1',
+        gaspId: 'gasp-1',
+        recipientId: 'user-123',
+        actorId: 'alex-1',
+        actorName: 'Alex',
+        title: 'Alex',
+        body: 'reacted to your gasp',
+        route: '/chat/conv-1',
+      });
+
+      expect(mockEnqueueToast.mock.calls[0][0].id).toBe('reaction-1');
+      expect(mockEnqueueToast.mock.calls[1][0].id).toBe('reaction-1');
     });
   });
 

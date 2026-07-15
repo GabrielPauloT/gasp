@@ -119,6 +119,8 @@ export function sendNotificationAppState(data: {
 export interface ChatNewMessage {
   message: Message;
   conversationId: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
 }
 
 export interface ChatTyping {
@@ -193,6 +195,26 @@ export interface GaspViewed {
 export interface GaspReactionReceived {
   reaction: Reaction;
   gaspId: string;
+  conversationId?: string;
+  reactionMessageId?: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
+}
+
+export interface NotificationEvent {
+  kind: 'message.new' | 'gasp.received' | 'gasp.reaction_received' | 'friend.request' | 'friend.accepted';
+  recipientId: string;
+  actorId: string;
+  actorName: string;
+  actorAvatarUrl?: string;
+  title: string;
+  body: string;
+  route: string;
+  conversationId?: string;
+  gaspId?: string;
+  reactionId?: string;
+  reactionMessageId?: string;
+  eventId?: string;
 }
 
 export interface GaspExpired {
@@ -272,6 +294,15 @@ export function onGaspReactionReceived(handler: EventHandler<GaspReactionReceive
   };
   socket?.on('gasp:reaction_received', wrappedHandler);
   return () => { socket?.off('gasp:reaction_received', wrappedHandler); };
+}
+
+export function onNotificationEvent(handler: EventHandler<NotificationEvent>) {
+  const wrappedHandler = (data: NotificationEvent) => {
+    if (__DEV__) console.tronLog?.log('socket ◀ notification:event', { kind: data.kind, eventId: data.eventId });
+    handler(data);
+  };
+  socket?.on('notification:event', wrappedHandler);
+  return () => { socket?.off('notification:event', wrappedHandler); };
 }
 
 export function onGaspExpired(handler: EventHandler<GaspExpired>) {

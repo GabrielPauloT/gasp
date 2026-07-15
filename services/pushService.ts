@@ -6,29 +6,18 @@ import { Platform } from 'react-native';
 
 import { registerDevice } from '@/services/api/devices';
 import { openNotificationRoute } from '@/services/notificationNavigation';
+import {
+  resolveNotificationRoute,
+  type LegacyNotificationType,
+  type NotificationRoutePayload,
+  type NotificationType,
+} from '@/services/notificationRouting';
 import { formatReminderMessage as _formatReminderMessage } from '@/services/notificationHelpers';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type NotificationType =
-  | 'message.new'
-  | 'gasp.received'
-  | 'gasp.reaction_received'
-  | 'friend.request'
-  | 'friend.accepted';
-
-type LegacyNotificationType = 'gasp' | 'message' | 'reaction' | 'reminder';
-
-export interface DeepLinkPayload {
-  kind?: NotificationType;
-  type?: NotificationType | LegacyNotificationType;
-  gaspId?: string;
-  conversationId?: string;
-  reactionId?: string;
-  actorName?: string;
-  actorAvatarUrl?: string;
-  senderName?: string;
-}
+export type { NotificationType } from '@/services/notificationRouting';
+export type DeepLinkPayload = NotificationRoutePayload;
 
 export interface PushNotificationData {
   kind?: NotificationType;
@@ -37,6 +26,7 @@ export interface PushNotificationData {
   gaspId?: string;
   conversationId?: string;
   reactionId?: string;
+  reactionMessageId?: string;
   senderName?: string;
   actorName?: string;
   actorAvatarUrl?: string;
@@ -75,7 +65,7 @@ function openNotificationResponse(response: Notifications.NotificationResponse |
   lastOpenedNotificationId = notificationId ?? null;
 
   const data = response.notification.request.content.data as unknown as PushNotificationData;
-  const route = resolveDeepLink(data);
+  const route = resolveNotificationRoute(data);
   openNotificationRoute(route);
 }
 
@@ -89,104 +79,8 @@ export async function openLastNotificationResponseIfAny(): Promise<void> {
   }
 }
 
-// ── Deep Link Resolver ────────────────────────────────────────────────────────
-
-const FALLBACK_ROUTE = '/(tabs)/inbox';
 const EAS_PROJECT_ID = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-
-function appendQueryParams(route: string, params: Record<string, string | undefined>) {
-  const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value) search.set(key, value);
-  });
-  const query = search.toString();
-  return query ? `${route}?${query}` : route;
-}
-
-/**
- * Resolves a push notification payload to an in-app route.
- * Pure function — no side effects beyond Sentry logging on fallback.
- *
- * Satisfies Requirements 5.4, 7.6
- */
-export function resolveDeepLink(payload: DeepLinkPayload): string {
-  const kind = payload.kind ?? payload.type;
-
-  switch (kind) {
-    case 'gasp.received':
-      if (!payload.gaspId) {
-        Sentry.captureMessage('resolveDeepLink: missing gaspId for kind "gasp.received"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
-
-    case 'message.new':
-      if (!payload.conversationId) {
-        Sentry.captureMessage('resolveDeepLink: missing conversationId for kind "message.new"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return appendQueryParams('/chat/' + payload.conversationId, {
-        name: payload.actorName ?? payload.senderName,
-        avatarUrl: payload.actorAvatarUrl,
-      });
-
-    case 'gasp.reaction_received':
-      if (!payload.gaspId) {
-        Sentry.captureMessage('resolveDeepLink: missing gaspId for kind "gasp.reaction_received"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return '/(modals)/reaction-result?gaspId=' + payload.gaspId;
-
-    case 'friend.request':
-      return '/(tabs)/discover';
-
-    case 'friend.accepted':
-      return '/(tabs)/chat';
-
-    // Backward compatibility for old push payloads that may still be delivered.
-    case 'gasp':
-      if (!payload.gaspId) {
-        Sentry.captureMessage('resolveDeepLink: missing gaspId for legacy type "gasp"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
-
-    case 'message':
-      if (!payload.conversationId) return FALLBACK_ROUTE;
-      return appendQueryParams('/chat/' + payload.conversationId, {
-        name: payload.actorName ?? payload.senderName,
-        avatarUrl: payload.actorAvatarUrl,
-      });
-
-    case 'reaction':
-      if (payload.gaspId) return '/(modals)/reaction-result?gaspId=' + payload.gaspId;
-      if (payload.reactionId) return '/(modals)/reaction-result?reactionId=' + payload.reactionId;
-      return FALLBACK_ROUTE;
-
-    case 'reminder':
-      if (!payload.gaspId) return FALLBACK_ROUTE;
-      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
-
-    default:
-      Sentry.captureMessage('resolveDeepLink: unknown notification kind', {
-        level: 'warning',
-        extra: { payload },
-      });
-      return FALLBACK_ROUTE;
-  }
-}
+export const resolveDeepLink = resolveNotificationRoute;
 
 // ── Exported Functions ───────────────────────────────────────────────────────
 

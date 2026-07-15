@@ -35,7 +35,6 @@ jest.mock('@/services/api/devices', () => ({
 // Import after mocks are declared (jest.mock is hoisted anyway)
 import { registerDevice } from '@/services/api/devices';
 import { openNotificationRoute } from '@/services/notificationNavigation';
-import type { DeepLinkPayload, PushNotificationData } from '@/services/pushService';
 import { openLastNotificationResponseIfAny, registerIfNeeded, resolveDeepLink } from '@/services/pushService';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
@@ -52,30 +51,6 @@ const SecureStore = require('expo-secure-store') as {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Expected path prefixes for each notification type.
- */
-const expectedPrefixes: Record<string, string> = {
-  'gasp.received': '/(modals)/view-gasp?gaspId=',
-  'message.new': '/chat/',
-  'gasp.reaction_received': '/(modals)/reaction-result?gaspId=',
-};
-
-/**
- * Returns the ID field name required for each notification type.
- */
-function idFieldForType(type: string): keyof DeepLinkPayload {
-  switch (type) {
-    case 'gasp.received':
-    case 'gasp.reaction_received':
-      return 'gaspId';
-    case 'message.new':
-      return 'conversationId';
-    default:
-      return 'gaspId';
-  }
-}
-
 // ── Setup ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
@@ -91,35 +66,17 @@ beforeEach(() => {
 describe('Property-Based Tests', () => {
   // Feature: gasp-notifications, Property 7: Deep link resolution is total and correct
   it('Property 7: resolveDeepLink returns a non-empty string starting with the expected path prefix and containing the relevant ID', () => {
-    const notificationTypeArb = fc.constantFrom(
-      'gasp.received' as const,
-      'message.new' as const,
-      'gasp.reaction_received' as const
-    );
-
-    const idArb = fc.string({ minLength: 1, maxLength: 64 }).filter(
-      (s) => !s.includes('?') && !s.includes('&') && !s.includes('/')
-    );
+    const idArb = fc.uuid();
 
     fc.assert(
-      fc.property(notificationTypeArb, idArb, (type, id) => {
-        const payload: PushNotificationData = { kind: type };
-
-        // Set the required ID field based on type
-        const field = idFieldForType(type);
-        (payload as any)[field] = id;
-
-        const result = resolveDeepLink(payload as DeepLinkPayload);
-
-        // Result is a non-empty string
-        expect(result.length).toBeGreaterThan(0);
-
-        // Result starts with the expected prefix
-        const prefix = expectedPrefixes[type];
-        expect(result.startsWith(prefix)).toBe(true);
-
-        // Result contains the relevant ID
-        expect(result).toContain(id);
+      fc.property(idArb, (id) => {
+        expect(resolveDeepLink({ kind: 'gasp.received', gaspId: id })).toBe(`/(modals)/view-gasp?gaspId=${id}`);
+        expect(resolveDeepLink({ kind: 'message.new', conversationId: id })).toBe(`/chat/${id}`);
+        expect(resolveDeepLink({
+          kind: 'gasp.reaction_received',
+          conversationId: id,
+          reactionMessageId: id,
+        })).toContain(`/chat/${id}`);
       })
     );
   });
@@ -206,9 +163,20 @@ describe('resolveDeepLink', () => {
     expect(result).toBe('/chat/conv-456?name=Alex+Gasp&avatarUrl=https%3A%2F%2Fexample.com%2Falex.jpg');
   });
 
-  it('returns reaction result route for kind "gasp.reaction_received" with gaspId', () => {
-    const result = resolveDeepLink({ kind: 'gasp.reaction_received', gaspId: 'gasp-789' });
-    expect(result).toBe('/(modals)/reaction-result?gaspId=gasp-789');
+  it('returns chat-first reaction route with reaction context and actor metadata', () => {
+    const result = resolveDeepLink({
+      kind: 'gasp.reaction_received',
+      gaspId: 'gasp-789',
+      conversationId: 'conv-789',
+      reactionMessageId: 'reaction-message-1',
+      actorName: 'Alex',
+      actorAvatarUrl: 'https://example.com/alex.jpg',
+    });
+    expect(result).toBe('/chat/conv-789?highlightMessageId=reaction-message-1&name=Alex&avatarUrl=https%3A%2F%2Fexample.com%2Falex.jpg');
+  });
+
+  it('returns inbox fallback when a reaction notification lacks conversation context', () => {
+    expect(resolveDeepLink({ kind: 'gasp.reaction_received', gaspId: 'gasp-789' })).toBe('/(tabs)/inbox');
   });
 
   it('returns view-gasp route for legacy type "reminder" with gaspId', () => {

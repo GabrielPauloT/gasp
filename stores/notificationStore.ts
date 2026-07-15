@@ -14,6 +14,7 @@ export interface ToastItem {
   body: string;
   route: string;
   actorName?: string;
+  actorAvatarUrl?: string;
   imageUri?: string;
   blurhash?: string;
   conversationId?: string;
@@ -25,6 +26,7 @@ interface NotificationState {
   // Toast queue
   toastQueue: ToastItem[];
   activeToast: ToastItem | null;
+  recentToastIds: string[];
 
   // Tab pulse trigger (counts arrivals; component resets after animating)
   tabPulseTrigger: number;
@@ -45,15 +47,18 @@ interface NotificationState {
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   toastQueue: [],
   activeToast: null,
+  recentToastIds: [],
   tabPulseTrigger: 0,
   inboxUnreadType: null,
   chatHasUnread: false,
 
   enqueueToast: (item) => {
-    const { activeToast, toastQueue } = get();
-    if (activeToast?.id === item.id || toastQueue.some((queued) => queued.id === item.id)) {
+    const { activeToast, toastQueue, recentToastIds } = get();
+    if (recentToastIds.includes(item.id) || activeToast?.id === item.id || toastQueue.some((queued) => queued.id === item.id)) {
       return;
     }
+
+    set((state) => ({ recentToastIds: [...state.recentToastIds, item.id].slice(-100) }));
 
     if (activeToast === null) {
       set({ activeToast: item });

@@ -2,8 +2,8 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tansta
 import { queryKeys } from '@/services/queryKeys';
 import * as conversationsApi from '@/services/api/conversations';
 import * as messagesApi from '@/services/api/messages';
-import type { Message, Conversation } from '@/services/api/schemas/chat.schema';
-import type { PaginatedResponse } from '@/services/api/schemas/common.schema';
+import { ConversationSchema, type Message, type Conversation } from '@/services/api/schemas/chat.schema';
+import { validateResponse, type PaginatedResponse } from '@/services/api/schemas/common.schema';
 import { isTransientError } from './queryHelpers';
 
 export function useConversations() {
@@ -19,6 +19,17 @@ export function useConversations() {
         const bTime = b.lastMessageAt ?? b.updatedAt;
         return bTime.localeCompare(aTime);
       }),
+  });
+}
+
+export function useConversation(conversationId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.conversations.detail(conversationId),
+    queryFn: async () => {
+      const data = await conversationsApi.getConversation(conversationId);
+      return validateResponse(ConversationSchema, data, 'getConversation');
+    },
+    enabled: enabled && Boolean(conversationId),
   });
 }
 

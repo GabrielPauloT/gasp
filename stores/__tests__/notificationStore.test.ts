@@ -38,6 +38,7 @@ beforeEach(() => {
   useNotificationStore.setState({
     toastQueue: [],
     activeToast: null,
+    recentToastIds: [],
     tabPulseTrigger: 0,
     inboxUnreadType: null,
     chatHasUnread: false,
@@ -88,6 +89,19 @@ describe('enqueueToast', () => {
     useNotificationStore.getState().enqueueToast({ ...second, body: 'Duplicate' });
 
     expect(useNotificationStore.getState().toastQueue).toEqual([second]);
+  });
+
+  it('dedupes a repeated event after the original toast has been dismissed', () => {
+    jest.useFakeTimers();
+    const item = makeToastItem({ id: 'same-event' });
+
+    useNotificationStore.getState().enqueueToast(item);
+    useNotificationStore.getState().dequeueToast();
+    useNotificationStore.getState().enqueueToast(item);
+
+    expect(useNotificationStore.getState().activeToast).toBeNull();
+    expect(useNotificationStore.getState().toastQueue).toEqual([]);
+    jest.useRealTimers();
   });
 });
 
