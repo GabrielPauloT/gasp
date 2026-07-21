@@ -12,15 +12,22 @@ import { DateSeparator } from '@/components/chat/DateSeparator';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
-import { useConversations, useMessages, flattenMessages, useMarkAsRead } from '@/hooks/queries/useChat';
+import { useConversation, useConversations, useMessages, flattenMessages, useMarkAsRead } from '@/hooks/queries/useChat';
 import { chatJoinConversation, chatLeaveConversation, chatMarkRead } from '@/services/socket';
+import { resolveChatParticipant } from '@/services/chatParticipant';
+import { findMessageIndex } from '@/services/chatMessageHighlight';
 import { colors } from '@/constants/colors';
 import type { Message } from '@/services/api/schemas/chat.schema';
 
 const keyExtractor = (item: Message) => item.id;
 
 export default function ChatScreen() {
-  const { id, name, avatarUrl } = useLocalSearchParams<{ id: string, name?: string, avatarUrl?: string }>();
+  const { id, name, avatarUrl, highlightMessageId } = useLocalSearchParams<{
+    id: string;
+    name?: string;
+    avatarUrl?: string;
+    highlightMessageId?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
 
@@ -33,13 +40,42 @@ export default function ChatScreen() {
 
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const highlightedMessageIndex = findMessageIndex(messages, highlightMessageId);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!highlightMessageId || highlightedMessageIndex < 0) return;
+
+    setHighlightedMessageId(highlightMessageId);
+    const frame = requestAnimationFrame(() => {
+      flatListRef.current?.scrollToIndex({
+        index: highlightedMessageIndex,
+        animated: true,
+        viewPosition: 0.5,
+      });
+    });
+    const timeout = setTimeout(() => setHighlightedMessageId(undefined), 3_000);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timeout);
+    };
+  }, [highlightMessageId, highlightedMessageIndex]);
 
   const { data: conversations = [] } = useConversations();
   const conversation = conversations.find((c) => c.id === id);
-
-  // Participant resolution
-  const otherParticipantName = conversation?.participantNames?.find(n => n !== user?.username && n !== user?.displayName) || name || 'Unknown';
-  const otherParticipantAvatar = conversation?.participantAvatars?.find((a, idx) => conversation.participantIds[idx] !== user?.id) || avatarUrl;
+  const { data: fetchedConversation } = useConversation(id, !conversation && !name);
+  const otherParticipant = resolveChatParticipant({
+    conversation,
+    fetchedConversation,
+    currentUserId: user?.id,
+    currentUsername: user?.username,
+    currentDisplayName: user?.displayName,
+    routeName: name,
+    routeAvatarUrl: avatarUrl,
+  });
+  const otherParticipantName = otherParticipant.name;
+  const otherParticipantAvatar = otherParticipant.avatarUrl;
 
   useEffect(() => {
     if (id) {
@@ -108,13 +144,14 @@ export default function ChatScreen() {
           message={item}
           isOwnMessage={isOwnMessage}
           isSequential={isSequential}
+          isHighlighted={item.id === highlightedMessageId}
           replyToMessage={replyToMessage}
           otherParticipantName={otherNameRef.current}
         />
         {showDateSeparator && <DateSeparator date={item.createdAt} />}
       </>
     );
-  }, [user?.id]);
+  }, [highlightedMessageId, user?.id]);
 
   return (
     <KeyboardAvoidingView

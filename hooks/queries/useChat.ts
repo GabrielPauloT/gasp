@@ -22,6 +22,14 @@ export function useConversations() {
   });
 }
 
+export function useConversation(conversationId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.conversations.detail(conversationId),
+    queryFn: () => conversationsApi.getConversation(conversationId),
+    enabled: enabled && Boolean(conversationId),
+  });
+}
+
 export function useMessages(conversationId: string, enabled = true) {
   return useInfiniteQuery({
     queryKey: queryKeys.messages.byConversation(conversationId),

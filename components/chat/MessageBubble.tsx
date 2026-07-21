@@ -9,6 +9,7 @@ interface MessageBubbleProps {
   message: Message;
   isOwnMessage: boolean;
   isSequential: boolean;
+  isHighlighted?: boolean;
   replyToMessage?: Message | null;
   otherParticipantName?: string;
 }
@@ -17,6 +18,7 @@ function MessageBubbleInner({
   message,
   isOwnMessage,
   isSequential,
+  isHighlighted,
   replyToMessage,
   otherParticipantName,
 }: MessageBubbleProps) {
@@ -24,6 +26,7 @@ function MessageBubbleInner({
     <BubbleWrapper
       isOwnMessage={isOwnMessage}
       isSequential={isSequential}
+      isHighlighted={isHighlighted}
       createdAt={message.createdAt}
     >
       {message.type === 'text' && (
@@ -52,5 +55,6 @@ export const MessageBubble = memo(MessageBubbleInner, (prev, next) =>
   prev.message.id === next.message.id
   && prev.isOwnMessage === next.isOwnMessage
   && prev.isSequential === next.isSequential
+  && prev.isHighlighted === next.isHighlighted
   && prev.replyToMessage?.id === next.replyToMessage?.id
 );

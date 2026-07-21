@@ -6,12 +6,26 @@ jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(),
   requestPermissionsAsync: jest.fn(),
   getDevicePushTokenAsync: jest.fn(),
+  getExpoPushTokenAsync: jest.fn(),
   setNotificationHandler: jest.fn(),
   addNotificationResponseReceivedListener: jest.fn(),
+  getLastNotificationResponseAsync: jest.fn(),
+}));
+
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    expoConfig: { extra: { eas: { projectId: 'test-project-id' } } },
+    easConfig: { projectId: 'test-project-id' },
+  },
 }));
 
 jest.mock('expo-router', () => ({
   router: { push: jest.fn() },
+}));
+
+jest.mock('@/services/notificationNavigation', () => ({
+  openNotificationRoute: jest.fn(),
 }));
 
 jest.mock('@/services/api/devices', () => ({
@@ -20,9 +34,10 @@ jest.mock('@/services/api/devices', () => ({
 
 // Import after mocks are declared (jest.mock is hoisted anyway)
 import { registerDevice } from '@/services/api/devices';
-import type { DeepLinkPayload, PushNotificationData } from '@/services/pushService';
-import { registerIfNeeded, resolveDeepLink } from '@/services/pushService';
+import { openNotificationRoute } from '@/services/notificationNavigation';
+import { openLastNotificationResponseIfAny, registerIfNeeded, resolveDeepLink } from '@/services/pushService';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 const mockedNotifications = Notifications as jest.Mocked<typeof Notifications>;
 const mockedRegisterDevice = registerDevice as jest.Mock;
@@ -36,34 +51,11 @@ const SecureStore = require('expo-secure-store') as {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Expected path prefixes for each notification type.
- */
-const expectedPrefixes: Record<string, string> = {
-  'gasp.received': '/(modals)/view-gasp?gaspId=',
-  'message.new': '/chat/',
-  'gasp.reaction_received': '/(modals)/reaction-result?gaspId=',
-};
-
-/**
- * Returns the ID field name required for each notification type.
- */
-function idFieldForType(type: string): keyof DeepLinkPayload {
-  switch (type) {
-    case 'gasp.received':
-    case 'gasp.reaction_received':
-      return 'gaspId';
-    case 'message.new':
-      return 'conversationId';
-    default:
-      return 'gaspId';
-  }
-}
-
 // ── Setup ────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   jest.clearAllMocks();
+  Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
   SecureStore.getItemAsync.mockReset();
   SecureStore.setItemAsync.mockReset();
   SecureStore.deleteItemAsync.mockReset();
@@ -74,37 +66,42 @@ beforeEach(() => {
 describe('Property-Based Tests', () => {
   // Feature: gasp-notifications, Property 7: Deep link resolution is total and correct
   it('Property 7: resolveDeepLink returns a non-empty string starting with the expected path prefix and containing the relevant ID', () => {
-    const notificationTypeArb = fc.constantFrom(
-      'gasp.received' as const,
-      'message.new' as const,
-      'gasp.reaction_received' as const
-    );
-
-    const idArb = fc.string({ minLength: 1, maxLength: 64 }).filter(
-      (s) => !s.includes('?') && !s.includes('&') && !s.includes('/')
-    );
+    const idArb = fc.uuid();
 
     fc.assert(
-      fc.property(notificationTypeArb, idArb, (type, id) => {
-        const payload: PushNotificationData = { kind: type };
-
-        // Set the required ID field based on type
-        const field = idFieldForType(type);
-        (payload as any)[field] = id;
-
-        const result = resolveDeepLink(payload as DeepLinkPayload);
-
-        // Result is a non-empty string
-        expect(result.length).toBeGreaterThan(0);
-
-        // Result starts with the expected prefix
-        const prefix = expectedPrefixes[type];
-        expect(result.startsWith(prefix)).toBe(true);
-
-        // Result contains the relevant ID
-        expect(result).toContain(id);
+      fc.property(idArb, (id) => {
+        expect(resolveDeepLink({ kind: 'gasp.received', gaspId: id })).toBe(`/(modals)/view-gasp?gaspId=${id}`);
+        expect(resolveDeepLink({ kind: 'message.new', conversationId: id })).toBe(`/chat/${id}`);
+        expect(resolveDeepLink({
+          kind: 'gasp.reaction_received',
+          conversationId: id,
+          reactionMessageId: id,
+        })).toContain(`/chat/${id}`);
       })
     );
+  });
+
+  it('uses Expo push token registration on iOS because Firebase Admin cannot send APNs tokens directly', async () => {
+    Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+    const expoToken = 'ExpoPushToken[ios-token-123]';
+
+    mockedNotifications.getPermissionsAsync.mockResolvedValue({
+      status: 'granted',
+      expires: 'never',
+      granted: true,
+      canAskAgain: true,
+    } as any);
+    mockedNotifications.getExpoPushTokenAsync.mockResolvedValue({
+      data: expoToken,
+      type: 'expo',
+    } as any);
+    SecureStore.getItemAsync.mockResolvedValue(null);
+
+    await registerIfNeeded();
+
+    expect(mockedNotifications.getExpoPushTokenAsync).toHaveBeenCalledWith({ projectId: 'test-project-id' });
+    expect(mockedNotifications.getDevicePushTokenAsync).not.toHaveBeenCalled();
+    expect(mockedRegisterDevice).toHaveBeenCalledWith(expoToken, 'ios');
   });
 
   // Feature: gasp-notifications, Property 8: FCM token registration calls API with correct token
@@ -155,9 +152,39 @@ describe('resolveDeepLink', () => {
     expect(result).toBe('/chat/conv-456');
   });
 
-  it('returns reaction result route for kind "gasp.reaction_received" with gaspId', () => {
-    const result = resolveDeepLink({ kind: 'gasp.reaction_received', gaspId: 'gasp-789' });
-    expect(result).toBe('/(modals)/reaction-result?gaspId=gasp-789');
+  it('preserves sender metadata for message notification chat routes', () => {
+    const result = resolveDeepLink({
+      kind: 'message.new',
+      conversationId: 'conv-456',
+      actorName: 'Alex Gasp',
+      actorAvatarUrl: 'https://example.com/alex.jpg',
+    });
+
+    expect(result).toBe('/chat/conv-456?name=Alex+Gasp&avatarUrl=https%3A%2F%2Fexample.com%2Falex.jpg');
+  });
+
+  it('returns chat-first reaction route with reaction context and actor metadata', () => {
+    const result = resolveDeepLink({
+      kind: 'gasp.reaction_received',
+      gaspId: 'gasp-789',
+      conversationId: 'conv-789',
+      reactionMessageId: 'reaction-message-1',
+      actorName: 'Alex',
+      actorAvatarUrl: 'https://example.com/alex.jpg',
+    });
+    expect(result).toBe('/chat/conv-789?highlightMessageId=reaction-message-1&name=Alex&avatarUrl=https%3A%2F%2Fexample.com%2Falex.jpg');
+  });
+
+  it('returns inbox fallback when a reaction notification lacks conversation context', () => {
+    expect(resolveDeepLink({ kind: 'gasp.reaction_received', gaspId: 'gasp-789' })).toBe('/(tabs)/inbox');
+  });
+
+  it('opens incoming friend requests in the inbox', () => {
+    expect(resolveDeepLink({ kind: 'friend.request' })).toBe('/(tabs)/inbox');
+  });
+
+  it('opens the chat continuation surface for an accepted friend request', () => {
+    expect(resolveDeepLink({ kind: 'friend.accepted' })).toBe('/(tabs)/chat');
   });
 
   it('returns view-gasp route for legacy type "reminder" with gaspId', () => {
@@ -254,8 +281,10 @@ describe('registerIfNeeded', () => {
       getPermissionsAsync: jest.fn(),
       requestPermissionsAsync: jest.fn(),
       getDevicePushTokenAsync: jest.fn(),
+      getExpoPushTokenAsync: jest.fn(),
       setNotificationHandler: jest.fn(),
       addNotificationResponseReceivedListener: jest.fn(),
+      getLastNotificationResponseAsync: jest.fn(),
     }));
     jest.doMock('expo-router', () => ({ router: { push: jest.fn() } }));
     jest.doMock('@/services/api/devices', () => ({
@@ -274,5 +303,28 @@ describe('registerIfNeeded', () => {
         handleNotification: expect.any(Function),
       })
     );
+  });
+});
+
+describe('openLastNotificationResponseIfAny', () => {
+  it('opens the route from the last notification response once auth/root is ready', async () => {
+    mockedNotifications.getLastNotificationResponseAsync.mockResolvedValue({
+      notification: {
+        request: {
+          identifier: 'notification-1',
+          content: {
+            data: {
+              kind: 'message.new',
+              conversationId: 'conv-1',
+              actorName: 'Alex',
+            },
+          },
+        },
+      },
+    } as any);
+
+    await openLastNotificationResponseIfAny();
+
+    expect(openNotificationRoute).toHaveBeenCalledWith('/chat/conv-1?name=Alex');
   });
 });

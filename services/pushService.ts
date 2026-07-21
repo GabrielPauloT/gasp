@@ -1,30 +1,23 @@
 import * as Sentry from '@sentry/react-native';
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 import { registerDevice } from '@/services/api/devices';
 import { openNotificationRoute } from '@/services/notificationNavigation';
+import {
+  resolveNotificationRoute,
+  type LegacyNotificationType,
+  type NotificationRoutePayload,
+  type NotificationType,
+} from '@/services/notificationRouting';
 import { formatReminderMessage as _formatReminderMessage } from '@/services/notificationHelpers';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type NotificationType =
-  | 'message.new'
-  | 'gasp.received'
-  | 'gasp.reaction_received'
-  | 'friend.request'
-  | 'friend.accepted';
-
-type LegacyNotificationType = 'gasp' | 'message' | 'reaction' | 'reminder';
-
-export interface DeepLinkPayload {
-  kind?: NotificationType;
-  type?: NotificationType | LegacyNotificationType;
-  gaspId?: string;
-  conversationId?: string;
-  reactionId?: string;
-}
+export type { NotificationType } from '@/services/notificationRouting';
+export type DeepLinkPayload = NotificationRoutePayload;
 
 export interface PushNotificationData {
   kind?: NotificationType;
@@ -33,7 +26,10 @@ export interface PushNotificationData {
   gaspId?: string;
   conversationId?: string;
   reactionId?: string;
+  reactionMessageId?: string;
   senderName?: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
 }
 
 // ── Module-level setup ───────────────────────────────────────────────────────
@@ -56,93 +52,35 @@ Notifications.setNotificationHandler({
 
 // Handle notification taps — satisfies Requirement 5.4
 Notifications.addNotificationResponseReceivedListener((response) => {
-  const data = response.notification.request.content.data as unknown as PushNotificationData;
-  const route = resolveDeepLink(data);
-  openNotificationRoute(route);
+  openNotificationResponse(response);
 });
 
-// ── Deep Link Resolver ────────────────────────────────────────────────────────
+let lastOpenedNotificationId: string | null = null;
 
-const FALLBACK_ROUTE = '/(tabs)/inbox';
+function openNotificationResponse(response: Notifications.NotificationResponse | null | undefined) {
+  if (!response) return;
 
-/**
- * Resolves a push notification payload to an in-app route.
- * Pure function — no side effects beyond Sentry logging on fallback.
- *
- * Satisfies Requirements 5.4, 7.6
- */
-export function resolveDeepLink(payload: DeepLinkPayload): string {
-  const kind = payload.kind ?? payload.type;
+  const notificationId = response.notification.request.identifier;
+  if (notificationId && notificationId === lastOpenedNotificationId) return;
+  lastOpenedNotificationId = notificationId ?? null;
 
-  switch (kind) {
-    case 'gasp.received':
-      if (!payload.gaspId) {
-        Sentry.captureMessage('resolveDeepLink: missing gaspId for kind "gasp.received"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
+  const data = response.notification.request.content.data as unknown as PushNotificationData;
+  const route = resolveNotificationRoute(data);
+  openNotificationRoute(route);
+}
 
-    case 'message.new':
-      if (!payload.conversationId) {
-        Sentry.captureMessage('resolveDeepLink: missing conversationId for kind "message.new"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return '/chat/' + payload.conversationId;
-
-    case 'gasp.reaction_received':
-      if (!payload.gaspId) {
-        Sentry.captureMessage('resolveDeepLink: missing gaspId for kind "gasp.reaction_received"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return '/(modals)/reaction-result?gaspId=' + payload.gaspId;
-
-    case 'friend.request':
-      return '/(tabs)/discover';
-
-    case 'friend.accepted':
-      return '/(tabs)/chat';
-
-    // Backward compatibility for old push payloads that may still be delivered.
-    case 'gasp':
-      if (!payload.gaspId) {
-        Sentry.captureMessage('resolveDeepLink: missing gaspId for legacy type "gasp"', {
-          level: 'warning',
-          extra: { payload },
-        });
-        return FALLBACK_ROUTE;
-      }
-      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
-
-    case 'message':
-      if (!payload.conversationId) return FALLBACK_ROUTE;
-      return '/chat/' + payload.conversationId;
-
-    case 'reaction':
-      if (payload.gaspId) return '/(modals)/reaction-result?gaspId=' + payload.gaspId;
-      if (payload.reactionId) return '/(modals)/reaction-result?reactionId=' + payload.reactionId;
-      return FALLBACK_ROUTE;
-
-    case 'reminder':
-      if (!payload.gaspId) return FALLBACK_ROUTE;
-      return '/(modals)/view-gasp?gaspId=' + payload.gaspId;
-
-    default:
-      Sentry.captureMessage('resolveDeepLink: unknown notification kind', {
-        level: 'warning',
-        extra: { payload },
-      });
-      return FALLBACK_ROUTE;
+export async function openLastNotificationResponseIfAny(): Promise<void> {
+  try {
+    openNotificationResponse(await Notifications.getLastNotificationResponseAsync());
+  } catch (error) {
+    Sentry.captureException(error, {
+      extra: { context: 'pushService.openLastNotificationResponseIfAny' },
+    });
   }
 }
+
+const EAS_PROJECT_ID = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+export const resolveDeepLink = resolveNotificationRoute;
 
 // ── Exported Functions ───────────────────────────────────────────────────────
 
@@ -181,12 +119,21 @@ export async function registerIfNeeded(): Promise<void> {
     return;
   }
 
-  // 3. Obtain FCM token
+  // 3. Obtain push token. Android uses native FCM tokens for Firebase Admin.
+  // iOS uses Expo push tokens because getDevicePushTokenAsync returns APNs tokens,
+  // which Firebase Admin cannot send to as multicast FCM tokens.
   let token: string;
   try {
-    const tokenResponse = await Notifications.getDevicePushTokenAsync();
-    token = tokenResponse.data;
-    if (__DEV__) console.tronLog?.log('[PushService] FCM token obtained:', token.slice(0, 20) + '...');
+    if (Platform.OS === 'ios') {
+      const tokenResponse = await Notifications.getExpoPushTokenAsync(
+        EAS_PROJECT_ID ? { projectId: EAS_PROJECT_ID } : undefined,
+      );
+      token = tokenResponse.data;
+    } else {
+      const tokenResponse = await Notifications.getDevicePushTokenAsync();
+      token = tokenResponse.data;
+    }
+    if (__DEV__) console.tronLog?.log('[PushService] push token obtained:', token.slice(0, 20) + '...');
   } catch (error) {
     // 6. Token fetch failure: log and return silently
     // 'status' is already in scope (~line 126) from the permission check above.

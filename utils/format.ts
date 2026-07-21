@@ -5,6 +5,10 @@ import { formatDistanceToNowStrict } from 'date-fns';
  */
 export function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return 'JUST NOW';
+  }
+
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSeconds = Math.floor(diffMs / 1000);

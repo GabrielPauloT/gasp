@@ -65,6 +65,7 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
       - `gasp.reaction_received` -> `/(modals)/reaction-result?gaspId=:gaspId`
       - `friend.request` -> selected friend request route
       - `friend.accepted` -> `/(tabs)/chat`
+    - Preserve `actorId`, `actorName`, and optional `actorAvatarUrl` when building chat routes from notification payloads
     - Return `/(tabs)/inbox` for unknown or incomplete payloads
     - Log fallback cases to Sentry with payload context
     - _Requirements: 1.1, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 6.1, 6.2, 6.3, 6.4, 6.5_
@@ -76,6 +77,7 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
     - Test fallback for missing `conversationId` on `message.new`
     - Test fallback for missing `gaspId` on `gasp.received`
     - Test fallback for missing `gaspId` on `gasp.reaction_received`
+    - Test `message.new` preserves participant route params and never resolves to an unknown-user chat
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 6.1, 6.2, 6.3, 6.4, 12.1_
 
 - [ ] 3. Update `pushService.ts` to use canonical routing
@@ -83,6 +85,7 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
     - Accept canonical `kind` values instead of old `type` values like `gasp`, `message`, and `reaction`
     - Keep backward-compatible parsing only if needed for currently deployed push payloads
     - Route push taps through `resolveNotificationRoute`
+    - Handle cold-start notification taps via the last notification response once auth/router state is ready
     - Fix stale `/(modals)/gasp-viewer` references to `/(modals)/view-gasp`
     - Preserve existing permission and token registration behavior
     - _Requirements: 1.6, 5.1, 5.2, 5.3, 5.6, 6.1, 11.1, 11.2, 11.4, 11.5, 11.6_
@@ -123,12 +126,14 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
     - Add `buildFriendRequestNotification`
     - Add `buildFriendAcceptedNotification`
     - Ensure all builders include `kind`, `recipientId`, `actorId`, `actorName`, `title`, `body`, `route`, and required IDs
+    - Ensure `message.new` includes enough actor metadata for the receiver's Chat header to render before cache refresh
     - Keep convenience notify functions if useful, but make them use the builders
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 8.3, 9.2, 10.2_
 
   - [ ]* 6.2 Write backend payload builder tests
     - File: `gasp-backend/src/modules/notifications/notifications.service.test.ts`
     - Test `message.new` payload includes `conversationId` and `/chat/:conversationId`
+    - Test `message.new` payload includes sender `actorId` and `actorName`
     - Test `gasp.received` payload includes `gaspId` and `/(modals)/view-gasp`
     - Test `gasp.reaction_received` payload includes `gaspId` and `/(modals)/reaction-result`
     - Test friend request and friend accepted payload routes
@@ -136,15 +141,17 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
 
 - [ ] 7. Add delivery abstraction
   - [ ] 7.1 Implement `deliverNotification(event)`
-    - Check recipient presence using existing presence helper
-    - If online, emit a canonical socket notification event or the existing domain event plus notification metadata
-    - If offline, enqueue a notification job with the canonical event
+    - Check recipient app state/context in addition to existing presence helper
+    - If recipient is foreground-active in the same relevant context, emit/cache realtime updates without native push
+    - If recipient is foreground-active elsewhere, emit/cache realtime updates and let the app show Toast_Banner
+    - If recipient is backgrounded, inactive, locked, closed, or app-state is unknown, enqueue a notification job even if presence is still temporarily online
     - Catch and log delivery failures without throwing to callers
     - Include `kind`, `recipientId`, and domain IDs in logs
     - _Requirements: 3.1, 4.1, 4.2, 4.6_
 
   - [ ]* 7.2 Write delivery behavior tests
     - Mock presence as online and verify socket path is used
+    - Mock background/inactive app state with recent online presence and verify push is still enqueued
     - Mock presence as offline and verify queue path is used
     - Mock socket/queue failure and verify `deliverNotification` resolves without throwing
     - _Requirements: 4.1, 4.2, 4.6, 12.7, 12.8_
@@ -154,12 +161,14 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
     - Accept canonical `NotificationEvent` data
     - Send `notification: { title, body }`
     - Send canonical routing fields in FCM `data`
+    - Include iOS APNs `sound: "default"` and visible alert payload for background/locked delivery
     - Use channel `messages` for `message.new`, otherwise `gasps` or a sensible default
     - Preserve invalid-token removal
     - _Requirements: 1.2, 4.3, 4.4, 4.5_
 
   - [ ]* 8.2 Write worker/service tests for push payload
     - Verify worker passes canonical fields into FCM `data`
+    - Verify iOS push payload includes default sound
     - Verify invalid token removal is preserved
     - Verify no devices results in a skipped result, not a throw
     - _Requirements: 4.3, 4.4, 4.5, 12.7_
@@ -175,11 +184,13 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
     - Call `deliverNotification` after the message is persisted and unread count is updated
     - Preserve existing `chat:new_message` and `chat:conversation_updated` socket behavior
     - Ensure sender is never notified about their own message
+    - Include sender display metadata in every recipient notification payload
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
   - [ ]* 9.2 Write backend message notification tests
     - Test recipient selection excludes sender
     - Test multiple recipients each receive one notification event
+    - Test push/open route provides the sender name before the conversation cache is warm
     - Test notification failure does not fail `sendMessage`
     - _Requirements: 8.1, 8.2, 8.4, 12.5, 12.8_
 
@@ -253,6 +264,7 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
 
 - [ ] 15. Update socket listener foreground handling
   - [ ] 15.1 Refactor `hooks/useSocketListeners.ts`
+    - Ensure `app/chat/[id].tsx` sets `chatStore.activeConversationId` on mount and clears it on unmount/focus loss
     - Dedupe pending gasps by `gasp.id` before prepending
     - Dedupe messages by `message.id` before unread increment
     - Enqueue generic toasts for `gasp.received`, `message.new` outside active conversation, and `gasp.reaction_received`
@@ -272,6 +284,7 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
   - Run frontend notification store, toast, socket listener, and push tests
   - Confirm existing chat/gasp tests still pass
   - Manually inspect foreground behavior in simulator/device
+  - Confirm active chat receives inline updates without Toast_Banner and without native notification
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 7.1, 7.2, 7.3, 7.4, 12.1, 12.2, 12.3_
 
 ---
@@ -286,6 +299,9 @@ Implement a unified notification MVP for messages, gasps, reactions, and friend 
   - App backgrounded: receive message push and tap to chat
   - App backgrounded: receive gasp push and tap to view-gasp
   - App backgrounded: receive reaction push and tap to reaction-result
+  - iPhone physical device: background the app while connected by cable, send a message, verify iOS banner/list item/sound or vibration according to OS settings
+  - iPhone physical device: tap a message notification from a cold start and verify the existing chat opens with the correct participant name, never `Unknown`
+  - iPhone physical device: send within 60 seconds after backgrounding and verify the presence heartbeat window does not suppress push
   - Send two gasps quickly and verify separate valid toasts are preserved
   - Replay same event payload and verify duplicate UI state is prevented
   - _Requirements: 3.1, 4.1, 5.1, 5.2, 5.3, 7.2, 7.3, 7.4, 9.6, 10.6_

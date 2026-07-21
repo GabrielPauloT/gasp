@@ -14,8 +14,10 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useSocketListeners } from "@/hooks/useSocketListeners";
 import { queryClient } from "@/lib/queryClient";
 import { initCache } from "@/services/mediaCache";
+import { connectSocket, disconnectSocket, sendNotificationAppState } from "@/services/socket";
 import { processQueue } from "@/services/uploadQueue";
 import { useAuthStore } from "@/stores/authStore";
+import { useChatStore } from "@/stores/chatStore";
 import { useMediaCacheStore } from "@/stores/mediaCacheStore";
 import * as Sentry from "@sentry/react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -79,23 +81,36 @@ function RootContent() {
   // Auto-download gasps based on preferences + network
   useAutoDownload();
 
-  // Disconnect socket when app goes to background so the backend marks the
-  // user as offline and sends push notifications instead of socket events.
-  // Reconnect when app comes back to foreground.
+  // Keep backend notification delivery aligned with the app's foreground state.
+  // Background/inactive devices stay push-eligible even while socket presence is stale.
   useEffect(() => {
+    const emitNotificationState = (state: 'active' | 'inactive' | 'background') => {
+      sendNotificationAppState({
+        state,
+        activeConversationId: useChatStore.getState().activeConversationId,
+      });
+    };
+
+    if (token) {
+      emitNotificationState(AppState.currentState === 'active' ? 'active' : 'background');
+    }
+
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       const prev = appState.current;
       appState.current = nextState;
 
+      if (token) {
+        emitNotificationState(nextState === 'active' ? 'active' : nextState === 'inactive' ? 'inactive' : 'background');
+      }
+
       if (prev === 'active' && nextState === 'background' && token) {
-        const { disconnectSocket } = require('@/services/socket');
         disconnectSocket();
         if (__DEV__) console.tronLog?.log('AppState | background → socket disconnected');
       }
 
       if (prev === 'background' && nextState === 'active' && token) {
-        const { connectSocket } = require('@/services/socket');
         connectSocket(token);
+        emitNotificationState('active');
         if (__DEV__) console.tronLog?.log('AppState | foreground → socket reconnected');
       }
     });
@@ -121,6 +136,17 @@ function RootContent() {
       Sentry.setUser(null);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!isInitialized || !token) return;
+    import("@/services/pushService").then(({ openLastNotificationResponseIfAny }) =>
+      openLastNotificationResponseIfAny().catch((error) => {
+        Sentry.captureException(error, {
+          extra: { context: "RootContent.openLastNotificationResponseIfAny" },
+        });
+      }),
+    );
+  }, [isInitialized, token]);
 
   // Don't render routes until auth state is known
   if (!isInitialized) return null;

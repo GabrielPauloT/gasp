@@ -1,6 +1,6 @@
 import { refreshToken } from '@/services/api/auth';
 import type { Message } from '@/services/api/schemas/chat.schema';
-import type { Gasp, Reaction } from '@/services/api/schemas/gasp.schema';
+import type { ApiReaction, Gasp } from '@/services/api/schemas/gasp.schema';
 import { io, Socket } from 'socket.io-client';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -105,11 +105,22 @@ export function getSocket(): Socket | null {
   return socket;
 }
 
+// ── Notification app-state events ─────────────────────────────────
+
+export function sendNotificationAppState(data: {
+  state: 'active' | 'inactive' | 'background';
+  activeConversationId?: string | null;
+}) {
+  bufferedEmit('notification:app_state', data);
+}
+
 // ── Chat events ────────────────────────────────────────────────────
 
 export interface ChatNewMessage {
   message: Message;
   conversationId: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
 }
 
 export interface ChatTyping {
@@ -182,8 +193,28 @@ export interface GaspViewed {
 }
 
 export interface GaspReactionReceived {
-  reaction: Reaction;
+  reaction: ApiReaction;
   gaspId: string;
+  conversationId?: string;
+  reactionMessageId?: string;
+  actorName?: string;
+  actorAvatarUrl?: string;
+}
+
+export interface NotificationEvent {
+  kind: 'message.new' | 'gasp.received' | 'gasp.reaction_received' | 'friend.request' | 'friend.accepted';
+  recipientId: string;
+  actorId: string;
+  actorName: string;
+  actorAvatarUrl?: string;
+  title: string;
+  body: string;
+  route: string;
+  conversationId?: string;
+  gaspId?: string;
+  reactionId?: string;
+  reactionMessageId?: string;
+  eventId?: string;
 }
 
 export interface GaspExpired {
@@ -263,6 +294,15 @@ export function onGaspReactionReceived(handler: EventHandler<GaspReactionReceive
   };
   socket?.on('gasp:reaction_received', wrappedHandler);
   return () => { socket?.off('gasp:reaction_received', wrappedHandler); };
+}
+
+export function onNotificationEvent(handler: EventHandler<NotificationEvent>) {
+  const wrappedHandler = (data: NotificationEvent) => {
+    if (__DEV__) console.tronLog?.log('socket ◀ notification:event', { kind: data.kind, eventId: data.eventId });
+    handler(data);
+  };
+  socket?.on('notification:event', wrappedHandler);
+  return () => { socket?.off('notification:event', wrappedHandler); };
 }
 
 export function onGaspExpired(handler: EventHandler<GaspExpired>) {

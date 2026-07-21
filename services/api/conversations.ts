@@ -1,6 +1,13 @@
 import { api } from '@/services/api';
-import type { PaginatedResponse } from '@/services/api/schemas/common.schema';
-import type { Conversation } from '@/services/api/schemas/chat.schema';
+import {
+  PaginatedResponseSchema,
+  validateResponse,
+  type PaginatedResponse,
+} from '@/services/api/schemas/common.schema';
+import {
+  ConversationResponseSchema,
+  type Conversation,
+} from '@/services/api/schemas/chat.schema';
 
 export async function listConversations(params?: {
   cursor?: string;
@@ -9,17 +16,25 @@ export async function listConversations(params?: {
   const res = await api.get<PaginatedResponse<Conversation>>('/conversations', {
     params,
   });
-  return res.data;
+  return validateResponse(
+    PaginatedResponseSchema(ConversationResponseSchema),
+    res.data,
+    'listConversations',
+  );
 }
 
 export async function getOrCreateConversation(
   participantId: string,
 ): Promise<Conversation> {
   const res = await api.post<Conversation>('/conversations', { participantId });
-  return res.data;
+  return validateResponse(
+    ConversationResponseSchema,
+    res.data,
+    'getOrCreateConversation',
+  );
 }
 
 export async function getConversation(id: string): Promise<Conversation> {
   const res = await api.get<Conversation>(`/conversations/${id}`);
-  return res.data;
+  return validateResponse(ConversationResponseSchema, res.data, 'getConversation');
 }
