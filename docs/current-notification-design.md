@@ -83,7 +83,7 @@ Socket events that deliver data update React Query cache directly. UI state such
 Current toast behavior:
 
 - New gasp: enqueues a toast and routes to `/(modals)/view-gasp?gaspId=...`
-- New reaction: enqueues a toast and routes to `/(modals)/reaction-result?gaspId=...`
+- New reaction: enqueues a toast and routes to the chat containing the reaction card
 - New chat message: enqueues a toast only if the message is not from the current user and the conversation is not active
 
 For chat toasts, the route includes cached participant metadata when available:
@@ -104,7 +104,7 @@ The app resolves push payloads by notification kind:
 | `gasp.received` | `/(modals)/view-gasp?gaspId=...` |
 | `message.new` | `/chat/:conversationId?name=...&avatarUrl=...` |
 | `gasp.reaction_received` | `/chat/:conversationId?highlightMessageId=...&name=...&avatarUrl=...` |
-| `friend.request` | `/(tabs)/discover` |
+| `friend.request` | `/(tabs)/inbox` |
 | `friend.accepted` | `/(tabs)/chat` |
 
 Cold-start notification taps are handled by `openLastNotificationResponseIfAny()` after auth and router initialization are ready.
@@ -185,7 +185,7 @@ Push payload includes canonical notification data from `notificationData()`, inc
 | Reaction received while active | Reaction toast and inbox reaction indicator |
 | Reaction received while backgrounded | Native push; tap opens the reaction chat context |
 | Friend request while active | Foreground toast; tap opens incoming friend requests |
-| Friend request while backgrounded | Native push; tap opens discover |
+| Friend request while backgrounded | Native push; tap opens incoming requests in Inbox |
 | Friend accepted while active/backgrounded | Foreground toast or native push; tap opens chat |
 
 ## Known Friction Points
@@ -238,12 +238,12 @@ The code and focused tests validate the delivery contract, but native push deliv
 
 - Sender active: receiver sends reaction; confirm in-app reaction feedback and chat reaction message.
 - Sender backgrounded: receiver sends reaction; confirm native push.
-- Tap reaction push and confirm whether current route behavior matches product expectation.
+- Tap reaction push and confirm it opens the correct chat and highlights the reaction card.
 
 ### Friend Notification Tests
 
-- Send friend request while recipient is active; confirm whether any in-app toast appears.
-- Send friend request while recipient is backgrounded; confirm native push and discover route.
+- Send friend request while recipient is active; confirm the in-app toast appears and opens Inbox.
+- Send friend request while recipient is backgrounded; confirm native push and Inbox route.
 - Accept friend request while recipient is active/backgrounded; confirm UI and push behavior.
 
 ## Focused Test Coverage

@@ -17,13 +17,20 @@ function participantFromConversation(
   currentDisplayName?: string,
 ) {
   if (!conversation) return {};
+  if (!Array.isArray(conversation.participantIds) || !Array.isArray(conversation.participantNames)) {
+    return {};
+  }
+
+  const participantAvatars = Array.isArray(conversation.participantAvatars)
+    ? conversation.participantAvatars
+    : [];
   const index = conversation.participantIds.findIndex((participantId, participantIndex) =>
     participantId !== currentUserId
       && conversation.participantNames[participantIndex] !== currentUsername
       && conversation.participantNames[participantIndex] !== currentDisplayName,
   );
   return index >= 0
-    ? { name: conversation.participantNames[index], avatarUrl: conversation.participantAvatars[index] ?? undefined }
+    ? { name: conversation.participantNames[index], avatarUrl: participantAvatars[index] ?? undefined }
     : {};
 }
 

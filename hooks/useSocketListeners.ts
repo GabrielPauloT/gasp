@@ -1,7 +1,8 @@
 import { addMessageToCache } from '@/hooks/queries/useChat';
 import { queryClient } from '@/lib/queryClient';
 import type { Conversation, Message } from '@/services/api/schemas/chat.schema';
-import type { Gasp } from '@/services/api/schemas/gasp.schema';
+import { ApiReactionSchema, normalizeReaction, type Gasp } from '@/services/api/schemas/gasp.schema';
+import { validateResponse } from '@/services/api/schemas/common.schema';
 import { queryKeys } from '@/services/queryKeys';
 import {
     getSocket,
@@ -81,23 +82,37 @@ export function useSocketListeners() {
 
     cleanups.push(
       onGaspReactionReceived(({ reaction, gaspId, conversationId, reactionMessageId, actorName, actorAvatarUrl }) => {
-        useGaspStore.getState().addReaction(reaction);
+        const rawReaction = validateResponse(
+          ApiReactionSchema,
+          reaction,
+          'socket:gasp:reaction_received',
+        );
+        const sentGasp = queryClient
+          .getQueryData<Gasp[]>(queryKeys.gasps.sent)
+          ?.find((gasp) => gasp.id === gaspId);
+        const normalizedReaction = {
+          ...normalizeReaction(rawReaction),
+          reactorName: actorName || 'Someone',
+          originalImageUri: sentGasp?.imageUri ?? sentGasp?.imageUrl ?? '',
+        };
+
+        useGaspStore.getState().addReaction(normalizedReaction);
         useNotificationStore.getState().enqueueToast({
-          id: reaction.id,
+          id: normalizedReaction.id,
           kind: 'gasp.reaction_received',
-          title: actorName || reaction.reactorName || 'Someone',
+          title: normalizedReaction.reactorName,
           body: 'reacted to your gasp',
-          actorName: actorName || reaction.reactorName,
+          actorName: normalizedReaction.reactorName,
           actorAvatarUrl,
           route: resolveNotificationRoute({
             kind: 'gasp.reaction_received',
             conversationId,
             reactionMessageId,
-            actorName: actorName || reaction.reactorName,
+            actorName: normalizedReaction.reactorName,
             actorAvatarUrl,
           }),
           gaspId,
-          reactionId: reaction.id,
+          reactionId: normalizedReaction.id,
         });
         useNotificationStore.getState().setInboxUnreadType('reaction');
       }),
@@ -189,6 +204,10 @@ export function useSocketListeners() {
         });
 
         if (!isOwnMessage && conversationId !== activeId) {
+          useNotificationStore.getState().setChatHasUnread(true);
+
+          if (!shouldEnqueueChatMessageToast(message)) return;
+
           const participant = participantForConversationToast(
             conversationId,
             latestConversations,
@@ -210,7 +229,6 @@ export function useSocketListeners() {
             }),
             conversationId,
           });
-          useNotificationStore.getState().setChatHasUnread(true);
         }
       }),
     );
@@ -251,6 +269,10 @@ export function useSocketListeners() {
 
 function shouldRefetchReactionMessage(message: Message) {
   return message.type === 'reaction' && !!message.replyToId && !message.replyToMessage;
+}
+
+function shouldEnqueueChatMessageToast(message: Message) {
+  return message.type === 'text' || message.type === 'image';
 }
 
 function participantForConversationToast(

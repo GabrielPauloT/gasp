@@ -1,4 +1,5 @@
 import { resolveChatParticipant } from '@/services/chatParticipant';
+import { ConversationResponseSchema } from '@/services/api/schemas/chat.schema';
 
 const cachedConversation = {
   id: 'conv-1',
@@ -32,5 +33,32 @@ describe('resolveChatParticipant', () => {
       fetchedConversation: cachedConversation,
     })).toEqual({ name: 'Alex', avatarUrl: 'https://example.com/alex.jpg' });
     expect(resolveChatParticipant({ currentUserId: 'me' })).toEqual({ name: 'Chat', avatarUrl: undefined });
+  });
+
+  it('normalizes the backend participants transport shape', () => {
+    const conversation = ConversationResponseSchema.parse({
+      id: 'conv-1',
+      participants: [
+        { userId: 'me', displayName: 'Me', username: 'me', avatarUrl: null },
+        { userId: 'alex', displayName: 'Alex', username: 'alex', avatarUrl: 'https://example.com/alex.jpg' },
+      ],
+      lastMessage: null,
+      unreadCount: 0,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    expect(resolveChatParticipant({ conversation, currentUserId: 'me' })).toEqual({
+      name: 'Alex',
+      avatarUrl: 'https://example.com/alex.jpg',
+    });
+  });
+
+  it('falls back to route metadata when cached conversation data is malformed', () => {
+    expect(resolveChatParticipant({
+      conversation: { id: 'conv-1' } as typeof cachedConversation,
+      currentUserId: 'me',
+      routeName: 'Alex',
+      routeAvatarUrl: 'https://example.com/alex.jpg',
+    })).toEqual({ name: 'Alex', avatarUrl: 'https://example.com/alex.jpg' });
   });
 });

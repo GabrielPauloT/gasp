@@ -1,6 +1,6 @@
 import { refreshToken } from '@/services/api/auth';
 import type { Message } from '@/services/api/schemas/chat.schema';
-import type { Gasp, Reaction } from '@/services/api/schemas/gasp.schema';
+import type { ApiReaction, Gasp } from '@/services/api/schemas/gasp.schema';
 import { io, Socket } from 'socket.io-client';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -193,7 +193,7 @@ export interface GaspViewed {
 }
 
 export interface GaspReactionReceived {
-  reaction: Reaction;
+  reaction: ApiReaction;
   gaspId: string;
   conversationId?: string;
   reactionMessageId?: string;

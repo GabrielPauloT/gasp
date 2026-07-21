@@ -132,11 +132,13 @@ jest.mock('@/stores/chatStore', () => ({
 
 // ── Mock @/stores/gaspStore ──────────────────────────────────────────────────────
 
+const mockAddReaction = jest.fn();
+
 jest.mock('@/stores/gaspStore', () => ({
   useGaspStore: {
     getState: jest.fn(() => ({
       markGaspViewed: jest.fn(),
-      addReaction: jest.fn(),
+      addReaction: mockAddReaction,
     })),
   },
 }));
@@ -341,6 +343,66 @@ describe('useSocketListeners', () => {
       const conversations = queryCache[JSON.stringify(queryKeys.conversations.all)] as any[];
       expect(conversations[0].unreadCount).toBe(1);
     });
+
+    it.each(['gasp', 'reaction'])('does not enqueue a second toast for %s chat messages', (type) => {
+      queryCache[JSON.stringify(queryKeys.conversations.all)] = [{
+        id: 'conv-1',
+        unreadCount: 0,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        lastMessage: null,
+      }];
+
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['chat:new_message']({
+        conversationId: 'conv-1',
+        message: makeMessage({ type, content: type === 'gasp' ? '[Gasp]' : 'Sent a reaction' }),
+      });
+
+      expect(mockEnqueueToast).not.toHaveBeenCalled();
+      expect(mockSetChatHasUnread).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('gasp:reaction_received event', () => {
+    it('normalizes the socket reaction timestamp before adding it to the inbox', () => {
+      const createdAt = '2026-07-21T03:49:00.000Z';
+      queryCache[JSON.stringify(queryKeys.gasps.sent)] = [makeGasp({
+        id: 'gasp-1',
+        imageUri: 'https://example.com/original.jpg',
+      })];
+
+      renderHook(() => useSocketListeners());
+
+      capturedHandlers['gasp:reaction_received']({
+        gaspId: 'gasp-1',
+        reaction: {
+          id: 'reaction-1',
+          gaspId: 'gasp-1',
+          reactorId: 'alex-1',
+          videoUrl: 'https://example.com/reaction.mp4',
+          createdAt,
+        },
+        conversationId: 'conv-1',
+        reactionMessageId: 'message-1',
+        actorName: 'Alex',
+      });
+
+      expect(mockAddReaction).toHaveBeenCalledWith({
+        id: 'reaction-1',
+        gaspId: 'gasp-1',
+        reactorId: 'alex-1',
+        reactorName: 'Alex',
+        reactionVideoUri: 'https://example.com/reaction.mp4',
+        originalImageUri: 'https://example.com/original.jpg',
+        capturedAt: createdAt,
+      });
+      expect(mockEnqueueToast).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'reaction-1',
+        title: 'Alex',
+        body: 'reacted to your gasp',
+      }));
+    });
   });
 
   describe('notification:event', () => {
@@ -398,7 +460,13 @@ describe('useSocketListeners', () => {
 
       capturedHandlers['gasp:reaction_received']({
         gaspId: 'gasp-1',
-        reaction: { id: 'reaction-1', reactorName: 'Alex' },
+        reaction: {
+          id: 'reaction-1',
+          gaspId: 'gasp-1',
+          reactorId: 'alex-1',
+          videoUrl: 'https://example.com/reaction.mp4',
+          createdAt: '2026-07-21T03:49:00.000Z',
+        },
         conversationId: 'conv-1',
         reactionMessageId: 'message-1',
         actorName: 'Alex',
