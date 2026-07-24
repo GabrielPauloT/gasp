@@ -79,7 +79,7 @@ const gaspMessage: Message = {
 
 describe('ReactionBubble', () => {
   it('renders a composite thumbnail when original media exists', () => {
-    const { getByTestId, UNSAFE_getAllByType } = render(
+    const { getByTestId, queryByLabelText, UNSAFE_getAllByType } = render(
       <ReactionBubble
         message={reactionMessage}
         isOwnMessage={false}
@@ -92,7 +92,10 @@ describe('ReactionBubble', () => {
     expect(composites[0].props.originalUri).toBe('https://cdn.example.com/gasp.jpg');
     expect(composites[0].props.reactionVideoUri).toBe('https://cdn.example.com/reaction.mp4');
     expect(composites[0].props.showDivider).toBe(true);
+    expect(composites[0].props.reactionPaused).toBe(true);
+    expect(composites[0].props.reactionMuted).toBe(true);
     expect(getByTestId('reaction-thumbnail-frame')).toBeTruthy();
+    expect(queryByLabelText('Close reaction view')).toBeNull();
   });
 
   it('falls back to placeholder when original media is missing', () => {

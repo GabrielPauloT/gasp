@@ -33,6 +33,8 @@ export function ReactionPlaybackModal({
     ? t('reaction.yourReaction')
     : t('reaction.reactionOnly', { name: reactionLabel });
 
+  if (!visible) return null;
+
   return (
     <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View testID="reaction-playback-modal" style={styles.container}>
