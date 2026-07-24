@@ -23,6 +23,8 @@ export function ReactionThumbnail({ reactionUri, originalUri }: ReactionThumbnai
             reactionVideoUri={reactionUri}
             showDivider
             watermarkMode="hidden"
+            reactionPaused
+            reactionMuted
           />
         ) : (
           <LinearGradient

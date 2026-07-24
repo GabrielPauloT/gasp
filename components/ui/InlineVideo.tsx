@@ -19,7 +19,7 @@ export function InlineVideo({
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = muted;
-    p.play();
+    if (!paused) p.play();
   });
 
   useEffect(() => {
@@ -44,6 +44,10 @@ export function InlineVideo({
       player.play();
     }
   }, [paused, player]);
+
+  useEffect(() => {
+    player.muted = muted;
+  }, [muted, player]);
 
   return (
     <View style={style}>
