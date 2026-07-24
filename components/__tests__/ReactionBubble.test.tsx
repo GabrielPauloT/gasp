@@ -166,6 +166,7 @@ describe('ReactionBubble', () => {
     const composites = UNSAFE_getAllByType(MockReactionComposite);
     expect(composites.length).toBeGreaterThanOrEqual(2);
     expect(composites[1].props.showDivider).toBe(true);
+    expect(composites[1].props.watermarkMode).toBe('subtle');
     expect(composites[1].props.showLabels).toBeUndefined();
     expect(composites[1].props.reactionFlex).toBe(45);
     expect(composites[1].props.originalFlex).toBe(55);

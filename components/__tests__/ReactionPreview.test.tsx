@@ -113,7 +113,7 @@ describe('ReactionPreview', () => {
       expect(composite.props.originalLabel).toBe("Alice's gasp");
       expect(composite.props.showLabels).toBe(true);
       expect(composite.props.showDivider).toBe(true);
-      expect(composite.props.watermarkMode).toBe('hidden');
+      expect(composite.props.watermarkMode).toBe('subtle');
     });
   });
 });

@@ -4,6 +4,8 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { InlineVideo } from '@/components/ui/InlineVideo';
 import { Text } from '@/components/ui/Text';
 
+const WATERMARK_SOURCE = require('@/assets/images/gasp-watermark-white.png');
+
 export interface ReactionCompositeProps {
   originalUri: string;
   originalMediaType?: 'image' | 'video';
@@ -85,8 +87,27 @@ export function ReactionComposite({
           style={StyleSheet.absoluteFill}
         />
         {showLabels && originalLabel && <PanelLabel label={originalLabel} />}
+        {watermarkMode === 'subtle' && (
+          <View
+            testID="reaction-composite-watermark"
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={styles.watermark}
+          >
+            <ExpoImage
+              source={WATERMARK_SOURCE}
+              contentFit="contain"
+              style={[styles.watermarkImage, styles.watermarkShadow]}
+            />
+            <ExpoImage
+              source={WATERMARK_SOURCE}
+              contentFit="contain"
+              style={styles.watermarkImage}
+            />
+          </View>
+        )}
       </View>
-      {watermarkMode === 'subtle' && <View testID="reaction-composite-watermark" style={styles.watermark} />}
     </View>
   );
 }
@@ -135,14 +156,19 @@ const styles = StyleSheet.create({
   },
   watermark: {
     position: 'absolute',
-    right: 12,
-    bottom: 12,
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    borderCurve: 'continuous',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.28)',
+    right: '3.333%',
+    bottom: '1.875%',
+    width: '8.889%',
+    aspectRatio: 1,
+    zIndex: 3,
+  },
+  watermarkImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.7,
+  },
+  watermarkShadow: {
+    tintColor: '#000000',
+    opacity: 0.35,
+    transform: [{ translateX: 1 }, { translateY: 1 }],
   },
 });

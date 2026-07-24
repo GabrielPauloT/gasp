@@ -16,7 +16,7 @@ jest.mock('expo-video', () => ({
   VideoView: 'VideoView',
 }));
 
-jest.mock('@/assets/images/icon.png', () => 1);
+jest.mock('@/assets/images/gasp-watermark-white.png', () => 1);
 
 const DEFAULT_PROPS = {
   originalUri: 'https://cdn.example.com/gasp.jpg',
@@ -113,6 +113,22 @@ describe('ReactionComposite', () => {
     });
   });
 
-  // Watermark removed by product decision — no watermark property test needed
+  describe('watermark', () => {
+    it('renders the subtle G! watermark inside the original gasp panel', () => {
+      const { getByTestId } = render(
+        <ReactionComposite {...DEFAULT_PROPS} watermarkMode="subtle" />,
+      );
 
+      const gaspPanel = getByTestId('reaction-composite-gasp-panel');
+      expect(gaspPanel.findByProps({ testID: 'reaction-composite-watermark' })).toBeTruthy();
+    });
+
+    it('does not render the watermark when watermarkMode is hidden', () => {
+      const { queryByTestId } = render(
+        <ReactionComposite {...DEFAULT_PROPS} watermarkMode="hidden" />,
+      );
+
+      expect(queryByTestId('reaction-composite-watermark')).toBeNull();
+    });
+  });
 });
