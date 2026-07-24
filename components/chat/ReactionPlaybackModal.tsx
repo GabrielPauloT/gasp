@@ -73,7 +73,7 @@ export function ReactionPlaybackModal({
                 originalUri={originalUri}
                 reactionVideoUri={reactionUri}
                 showDivider
-                watermarkMode="hidden"
+                watermarkMode="subtle"
                 reactionFlex={PLAYBACK_REACTION_FLEX}
                 originalFlex={PLAYBACK_ORIGINAL_FLEX}
               />

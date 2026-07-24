@@ -58,7 +58,7 @@ export function ReactionPreview({
             originalLabel={t('reaction.senderGasp', { name: senderName })}
             showLabels
             showDivider
-            watermarkMode="hidden"
+            watermarkMode="subtle"
           />
         </Animated.View>
 
