@@ -59,6 +59,8 @@ export function ReactionPreview({
             showLabels
             showDivider
             watermarkMode="subtle"
+            reactionFlex={45}
+            originalFlex={55}
           />
         </Animated.View>
 

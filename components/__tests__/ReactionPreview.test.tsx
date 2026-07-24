@@ -114,6 +114,8 @@ describe('ReactionPreview', () => {
       expect(composite.props.showLabels).toBe(true);
       expect(composite.props.showDivider).toBe(true);
       expect(composite.props.watermarkMode).toBe('subtle');
+      expect(composite.props.reactionFlex).toBe(45);
+      expect(composite.props.originalFlex).toBe(55);
     });
   });
 });
